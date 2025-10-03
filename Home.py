@@ -64,7 +64,7 @@ logo_col, title_col = st.columns([1, 5])
 
 with logo_col:
     # Logo más pequeño para proporción
-    st.image("assets/logo_assa.jpg", width=100) 
+    st.image("assets/logo_assa.jpg", width=300) 
 
 with title_col:
     st.title("Bienvenido a la Aplicación de RRHH: Agua Potable S.A.")
@@ -107,3 +107,4 @@ with col2:
         st.warning("No se pudo cargar la animación local (assets/hr_analysis.json).")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
+
