@@ -2,72 +2,56 @@ import streamlit as st
 import requests
 from streamlit_lottie import st_lottie
 
-st.set_page_config(
-    page_title="Aplicación Unificada Principal",
-    page_icon="🏠",
-    layout="wide"
-)
+# -------------------------------------------------------------
+# --- CÓDIGO NUEVO Y MODIFICADO PARA EL LOGO Y LA ANIMACIÓN ---
+# -------------------------------------------------------------
 
-# --- CSS para la animación del logo ---
+# CSS para la animación del logo (Fade-In)
 st.markdown("""
 <style>
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-20px); }
     to { opacity: 1; transform: translateY(0); }
 }
-.animated-logo {
+/* Selecciona la primera imagen en la aplicación (se asume que es el logo) */
+/* El selector más seguro es stImage > img, pero a veces Streamlit cambia su estructura. */
+/* Intentemos con el selector general si falla: .stImage > img */
+.css-1y4p8ic img { 
     animation: fadeIn 1.5s ease-out forwards;
-    margin-bottom: 20px; /* Espacio debajo del logo */
+    margin-bottom: 20px;
+    max-width: 200px; 
+    display: block; 
 }
 </style>
 """, unsafe_allow_html=True)
 
+
+# --- Configuración Inicial ---
+st.set_page_config(
+    page_title="Aplicación Unificada Principal",
+    page_icon="🏠",
+    layout="wide"
+)
+
+
+# --- Carga de Lottie (mantener tu código de Lottie aquí) ---
+def load_lottieurl(url: str):
+    # ... (tu código de la función load_lottieurl)
+    pass
+
+LOTTIE_URL = "URL_QUE_ESTÉS_USANDO"
+lottie_hr = load_lottieurl(LOTTIE_URL)
+
+
 # --- Contenido de la Página de Inicio ---
 
-# Mostrar el logo animado
-st.markdown(f'<div class="animated-logo"><img src="data:image/png;base64,{base64.b64encode(open("assets/logo.png", "rb").read()).decode()}" width="200"></div>', unsafe_allow_html=True)
+# 1. MOSTRAR EL LOGO (Streamlit se encarga de cargarlo)
+# NOTA: Asegúrate de que esta ruta sea correcta para tu logo (ej: "assets/logo.jpg")
+st.image("assets/logo_assa.jpg", width=200) 
 
-st.title("Bienvenido a la Aplicación de RRHH: Agua Potable S.A. 💧")
-st.sidebar.success("Selecciona una aplicación arriba.")
-# ... (resto del código)
-# --- Contenido de la Página de Inicio ---
 
-# Título y Barra Lateral
 st.title("Bienvenido a la Aplicación de RRHH: Agua Potable S.A. 💧")
 st.sidebar.success("Selecciona una aplicación arriba.")
 
 # Creación de Columnas para centrar la animación y el texto
-col1, col2 = st.columns([1, 2]) # Ajusta la proporción según el tamaño que desees
-
-with col1:
-    st.markdown("## Análisis Estratégico de Capital Humano")
-    st.markdown(
-        """
-        Esta es la página de inicio de la aplicación consolidada para la gestión de **Recursos Humanos**.
-        Usa el menú de la barra lateral para navegar a las siguientes áreas clave:
-
-        * **Dotación:** Consulta la distribución de personal.
-        * **Horas Extras:** Analiza y gestiona las horas de trabajo adicionales.
-        * **Masa Salarial:** Visualiza la composición y evolución del gasto salarial.
-        """
-    )
-    # Puedes añadir un botón o elemento que te guste para la apertura
-    if st.button("Comenzar el Análisis"):
-        st.balloons() # Pequeño efecto al iniciar
-
-with col2:
-    if lottie_hr:
-        st_lottie(
-            lottie_hr,
-            speed=1,
-            reverse=False,
-            loop=True,
-            quality='high', # 'low', 'medium', or 'high'
-            height=300, # Altura del elemento
-            width=None,
-            key="hr_animation"
-        )
-    else:
-        st.info("Cargando animación o contenido estático de respaldo...")
-
-
+# ... (resto de tu código con st.columns y la animación Lottie)
