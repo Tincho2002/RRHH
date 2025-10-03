@@ -2,31 +2,34 @@ import streamlit as st
 import requests
 from streamlit_lottie import st_lottie
 
-# --- Configuración Inicial ---
 st.set_page_config(
     page_title="Aplicación Unificada Principal",
     page_icon="🏠",
-    layout="wide" # Usa layout wide para una mejor visualización de la animación
+    layout="wide"
 )
 
-# --- Función para cargar la animación Lottie ---
-def load_lottieurl(url: str):
-    """Carga una animación Lottie desde una URL."""
-    try:
-        r = requests.get(url)
-        if r.status_code != 200:
-            return None
-        return r.json()
-    except Exception as e:
-        st.error(f"Error al cargar la animación Lottie: {e}")
-        return None
+# --- CSS para la animación del logo ---
+st.markdown("""
+<style>
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animated-logo {
+    animation: fadeIn 1.5s ease-out forwards;
+    margin-bottom: 20px; /* Espacio debajo del logo */
+}
+</style>
+""", unsafe_allow_html=True)
 
-# Reemplaza esta URL con el enlace JSON de la animación Lottie de tu elección.
-# Busca algo relacionado con RRHH, Negocios o Análisis de Datos.
-LOTTIE_URL = "https://lottiefiles.com/free-animation/digital-marketing-jJPfr72TGj.json"  # Ejemplo de RRHH
+# --- Contenido de la Página de Inicio ---
 
-lottie_hr = load_lottieurl(LOTTIE_URL)
+# Mostrar el logo animado
+st.markdown(f'<div class="animated-logo"><img src="data:image/png;base64,{base64.b64encode(open("assets/logo.png", "rb").read()).decode()}" width="200"></div>', unsafe_allow_html=True)
 
+st.title("Bienvenido a la Aplicación de RRHH: Agua Potable S.A. 💧")
+st.sidebar.success("Selecciona una aplicación arriba.")
+# ... (resto del código)
 # --- Contenido de la Página de Inicio ---
 
 # Título y Barra Lateral
@@ -66,4 +69,5 @@ with col2:
         )
     else:
         st.info("Cargando animación o contenido estático de respaldo...")
+
 
