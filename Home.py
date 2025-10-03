@@ -1,85 +1,78 @@
 import streamlit as st
-import requests
-from streamlit_lottie import st_lottie
+import json # Nuevo: Necesario para leer archivos Lottie locales
 
 # --- Configuración Inicial ---
 st.set_page_config(
     page_title="Aplicación Unificada Principal",
     page_icon="🏠",
-    layout="wide"  # layout wide para mejor uso del espacio
+    layout="wide"
 )
 
-# -----------------------------------------------------------------------
-# --- CSS para la animación del logo (Fade-In y centrado de imagen) ---
-# -----------------------------------------------------------------------
+# --- CSS para la animación del logo y título (Mejorada) ---
 st.markdown("""
 <style>
-/* 1. ANIMACIÓN: Define el efecto de aparición */
+/* 1. ANIMACIÓN: Define el efecto de aparición (más lenta para ser perceptible) */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-30px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* 2. APLICACIÓN DE LA ANIMACIÓN: Busca la imagen del logo y la anima */
-/* El selector es más robusto si le damos un ID a la imagen con st.image(..., use_column_width=False, caption='animated-logo') */
-/* Pero probaremos con el selector genérico más común para Streamlit */
+/* 2. APLICACIÓN DE LA ANIMACIÓN: Logo (st.image) */
 .stImage img {
-    animation: fadeIn 1.5s ease-out forwards;
-    display: block; /* Necesario para que el margen funcione */
-    margin-left: auto; /* Centra la imagen */
-    margin-right: auto; /* Centra la imagen */
-    margin-bottom: 20px;
+    animation: fadeIn 2.5s ease-out forwards; /* 2.5s para que sea visible */
+    display: block; 
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 10px;
 }
 
-/* 3. PEQUEÑA ANIMACIÓN ADICIONAL para que el título aparezca después */
+/* 3. ANIMACIÓN ADICIONAL para que el título aparezca después (slideUp) */
 @keyframes slideUp {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
 }
-.st-emotion-cache-1jicfl2 { /* Selector para el st.title, puede variar */
-    animation: slideUp 1s ease-out 1.5s forwards; /* 1.5s de retraso */
-    opacity: 0; /* Empieza invisible */
+/* Selector para el st.title (puede variar ligeramente) */
+.st-emotion-cache-1jicfl2 { 
+    animation: slideUp 1.5s ease-out 1.0s forwards; /* 1.0s de retraso */
+    opacity: 0; 
 }
 </style>
 """, unsafe_allow_html=True)
 
 
-# --- Función para cargar la animación Lottie (mantener tu función aquí) ---
-def load_lottieurl(url: str):
-    """Carga una animación Lottie desde una URL."""
+# --- Función para cargar la animación Lottie desde archivo ---
+def load_lottiefile(filepath: str):
+    """Carga una animación Lottie desde un archivo JSON local."""
     try:
-        r = requests.get(url)
-        if r.status_code != 200:
-            return None
-        return r.json()
-    except Exception:
+        with open(filepath, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        # Retorna None si el archivo no se encuentra (mostrará el respaldo)
         return None
 
-# Reemplaza esta URL con el enlace JSON de la animación Lottie de tu elección.
-LOTTIE_URL = "https://lottie.host/57a7051e-61c3-424a-939e-e3b8f15d97f5/9o5e4z08lI.json"
-lottie_hr = load_lottieurl(LOTTIE_URL)
+# Carga la animación desde el archivo local
+# ¡Asegúrate de que este archivo exista en assets/!
+lottie_hr = load_lottiefile("assets/hr_analysis.json")
 
 
 # -----------------------------------------------------------------------
 # --- CONTENIDO DE LA PÁGINA DE INICIO ---
 # -----------------------------------------------------------------------
 
-# Centrar el logo y el título principal
-logo_col, title_col = st.columns([1, 4])
+# 1. Logo y Título (Proporción 1:5 para reducir el logo)
+logo_col, title_col = st.columns([1, 5]) 
 
 with logo_col:
-    # 1. Mostrar el Logo (animado por el CSS)
-    # NOTA: Asegúrate de que la ruta sea correcta
-    st.image("assets/logo_assa.jpg", width=150)
+    # Logo más pequeño para proporción
+    st.image("assets/logo_assa.jpg", width=100) 
 
 with title_col:
-    # 2. Título principal (animado por el CSS)
     st.title("Bienvenido a la Aplicación de RRHH: Agua Potable S.A.")
 
 # Separador visual
 st.markdown("---")
 
-# Re-introducir la distribución en columnas para el contenido y la animación Lottie
+# 2. Distribución del Contenido y Animación Lottie
 col1, col2 = st.columns([1, 1])
 
 with col1:
@@ -95,7 +88,8 @@ with col1:
         """
     )
     if st.button("Comenzar el Análisis"):
-        st.balloons()
+        # ¡Globos eliminados!
+        st.success("¡Análisis iniciado! Selecciona una opción en la barra lateral.")
 
 with col2:
     if lottie_hr:
@@ -109,6 +103,7 @@ with col2:
             key="hr_animation"
         )
     else:
-        st.info("Cargando animación Lottie...")
+        # Mensaje de respaldo si el archivo Lottie no se encuentra.
+        st.warning("No se pudo cargar la animación local (assets/hr_analysis.json).")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
