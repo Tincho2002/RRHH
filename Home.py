@@ -23,7 +23,7 @@ def load_lottieurl(url: str):
 
 # Reemplaza esta URL con el enlace JSON de la animación Lottie de tu elección.
 # Busca algo relacionado con RRHH, Negocios o Análisis de Datos.
-LOTTIE_URL = "https://lottie.host/57a7051e-61c3-424a-939e-e3b8f15d97f5/9o5e4z08lI.json"  # Ejemplo de RRHH
+LOTTIE_URL = "https://lottiefiles.com/free-animation/digital-marketing-jJPfr72TGj.json"  # Ejemplo de RRHH
 
 lottie_hr = load_lottieurl(LOTTIE_URL)
 
@@ -66,3 +66,4 @@ with col2:
         )
     else:
         st.info("Cargando animación o contenido estático de respaldo...")
+
