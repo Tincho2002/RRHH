@@ -121,12 +121,13 @@ st.markdown("---")
 
 # -----------------------------------------------------------------------
 # --- SEGUNDO LOGO CON EFECTO (fade-in-scale) ---
+# Se utiliza un st.container con la clase CSS para asegurar que la ruta sea correcta
+# y el CSS pueda apuntar a la imagen de forma precisa.
 # -----------------------------------------------------------------------
-
-# Usamos st.markdown con HTML para aplicar la nueva clase "secondary-logo"
-st.markdown("""
-<img src="assets/logo_assa.jpg" class="secondary-logo" alt="Segundo Logo Animado de ASSA">
-""", unsafe_allow_html=True)
+st.markdown('<div class="secondary-logo-container">', unsafe_allow_html=True)
+# El logo aparecerá en el centro gracias al "margin: auto" en el CSS de la clase.
+st.image("assets/logo_assa.jpg", width=200, caption="Segundo Logo Animado de ASSA")
+st.markdown('</div>', unsafe_allow_html=True) 
 
 # -----------------------------------------------------------------------
 # --- CONTINUACIÓN DEL DASHBOARD (FALTA LA NAVEGACIÓN REAL) ---
@@ -174,3 +175,4 @@ with main_col:
 
 # Instrucción final para el usuario
 st.sidebar.success("Selecciona una aplicación para continuar.")
+
