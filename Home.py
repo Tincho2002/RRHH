@@ -8,7 +8,7 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------------------------------
-# --- CSS: ANIMACIÓN, LOGOS Y TARJETAS RESPONSIVAS ---
+# --- CSS: ANIMACIÓN, LOGOS Y TARJETAS MEJORADAS ---
 # ----------------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -73,20 +73,39 @@ st.markdown("""
 .app-card:nth-child(2) { animation-delay: 0.6s; }
 .app-card:nth-child(3) { animation-delay: 0.9s; }
 
+/* Colores de fondo */
 .card-dotacion { background-color: #e0f7fa; }
 .card-horas { background-color: #fffde7; }
 .card-masa { background-color: #f1f8e9; }
 
+/* Hover mejorado */
 .app-card:hover {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
     transform: translateY(-5px);
 }
 
+/* Colores y tipografía */
 .card-title {
     font-size: 1.5em;
     font-weight: bold;
-    color: #007bff;
+    color: #003366; /* Azul oscuro elegante */
     margin-bottom: 10px;
+}
+
+/* Ícono de acceso */
+.access-icon {
+    font-size: 1.6em;
+    color: #003366;
+    transition: transform 0.3s ease;
+}
+.app-card:hover .access-icon {
+    transform: scale(1.2);
+}
+
+/* Elimina subrayado de todos los enlaces */
+a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
+    text-decoration: none !important;
+    color: inherit;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -124,30 +143,19 @@ with main_col:
         """
     )
 
-    # Tarjetas interactivas con animación
+    # Tarjetas interactivas con ícono en lugar de texto
     st.markdown(
         """
         <div class="card-container">
             <a href="/app_dotacion" target="_self" class="app-card card-dotacion">
                 <div class="card-title">👥 Dotación</div>
                 <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
-                <b>(Clic para Acceder)</b>
+                <div class="access-icon">🔗</div>
             </a>
             <a href="/app_horas_extras" target="_self" class="app-card card-horas">
                 <div class="card-title">⏰ Horas Extras</div>
                 <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
-                <b>(Clic para Acceder)</b>
+                <div class="access-icon">🔗</div>
             </a>
             <a href="/app_masa_salarial" target="_self" class="app-card card-masa">
                 <div class="card-title">💵 Masa Salarial</div>
-                <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
-                <b>(Clic para Acceder)</b>
-            </a>
-        </div>
-        """, unsafe_allow_html=True
-    )
-
-    st.markdown("---")
-
-# Mensaje lateral
-st.sidebar.success("Selecciona una aplicación arriba.")
