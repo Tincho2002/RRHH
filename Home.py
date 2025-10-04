@@ -1,4 +1,8 @@
-import streamlit as st
+import pandas as pd
+# Importaciones de otras páginas (necesarias si esta fuera la app principal)
+# import app_dotacion # Simulación de importación
+# import app_horas_extras # Simulación de importación
+
 
 # --- Configuración Inicial ---
 st.set_page_config(
@@ -15,14 +19,22 @@ div[data-testid="stSidebar"] {
     display: block !important; 
 }
 
-/* 2. Animación de apertura para el logo (Zoom) */
+/* 2. Animación de apertura para el primer logo (Zoom agresivo, usado en el primer logo) */
 @keyframes openingLogo {
     0% { transform: scale(3); opacity: 0; }
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* 3. Aplica animación al logo */
-.stImage img {
+/* 3. Animación de apertura para el logo repetido (Más sutil) */
+@keyframes fade-in-scale {
+    0% { transform: scale(0.9); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* 4. Aplica animación al PRIMER logo de la página */
+/* Streamlit lo renderiza como una etiqueta <img> dentro de una estructura */
+/* **IMPORTANTE**: Este selector puede ser muy amplio y afectar otros st.image. */
+div[data-testid="stImage"] img { 
     animation: openingLogo 1.5s ease-out forwards;
     display: block; 
     margin-left: auto;
@@ -30,34 +42,45 @@ div[data-testid="stSidebar"] {
     margin-bottom: 20px;
 }
 
-/* 4. Estilo de los títulos */
+/* 5. Clase para el segundo logo (usado con st.markdown para el efecto) */
+.secondary-logo {
+    animation: fade-in-scale 1.5s ease-out 0.5s forwards; /* 0.5s de retraso */
+    opacity: 0; /* Asegura que esté invisible al inicio */
+    display: block;
+    margin: 30px auto 20px auto;
+    width: 200px; /* Tamaño más pequeño para el segundo logo */
+    max-width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* 6. Estilo de los títulos */
 h1 {
     text-align: center;
     font-size: 2.5em;
     color: #007bff;
 }
 
-/* 5. ESTILOS DE TARJETA HTML/CSS (La nueva solución de diseño) */
+/* 7. ESTILOS DE TARJETA HTML/CSS */
 .card-container {
-    display: flex; /* Alinea las tarjetas horizontalmente */
+    display: flex;
     gap: 20px;
     margin-top: 40px;
 }
 .app-card {
-    flex: 1; /* Ocupa el mismo ancho */
+    flex: 1;
     padding: 20px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease-in-out;
     text-align: center;
     cursor: pointer;
-    text-decoration: none; /* Quitar subrayado del enlace */
+    text-decoration: none;
     color: #333;
     min-height: 180px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    
 }
 .card-dotacion { background-color: #e0f7fa; } /* Azul claro */
 .card-horas { background-color: #fffde7; }  /* Amarillo claro */
@@ -65,7 +88,7 @@ h1 {
 
 .app-card:hover {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-    transform: translateY(-5px); /* Pequeño efecto de elevación */
+    transform: translateY(-5px);
 }
 
 .card-title {
@@ -83,6 +106,7 @@ h1 {
 # -----------------------------------------------------------------------
 
 # 1. Logo y Título (Centrados)
+# El logo en esta columna tendrá la animación "openingLogo"
 col_logo, col_title, _ = st.columns([1, 6, 1])
 
 with col_logo:
@@ -91,8 +115,9 @@ with col_logo:
 with col_title:
     st.title("Bienvenido a la Aplicación de RRHH")
     st.markdown("<h2 style='text-align: center; color: #555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h2>", unsafe_allow_html=True)
-   
+    
 st.markdown("---")
+
 # -----------------------------------------------------------------------
 # --- SEGUNDO LOGO CON EFECTO (fade-in-scale) ---
 # -----------------------------------------------------------------------
@@ -145,6 +170,7 @@ with main_col:
 
 # Instrucción final para el usuario
 st.sidebar.success("Selecciona una aplicación para continuar.")
+
 
 
 
