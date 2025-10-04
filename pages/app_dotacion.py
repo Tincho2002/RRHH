@@ -14,7 +14,7 @@ from streamlit_image_comparison import image_comparison
 from PIL import Image
 
 st.set_page_config(page_title="Dotacion: 2025", page_icon="📈")
-st.title("📈 Dotación")
+st.title("👥 Dotación")
 
 st.write("Aquí puedes visualizar el análisis de datos de la Dotación 2025.")
 
@@ -618,6 +618,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
