@@ -12,14 +12,12 @@ st.set_page_config(
 # --- CSS: Animación del Logo y Estilos de Tarjeta ---
 st.markdown("""
 <style>
-/* 1. OCULTA LA BARRA LATERAL NATIVA para que solo usemos las tarjetas (¡CLAVE!) */
-/* El selector puede variar ligeramente según la versión de Streamlit, pero este es el más común */
-.st-emotion-cache-18ni7ap { 
-    display: none; 
+/* 1. OCULTA LA BARRA LATERAL NATIVA (¡SOLUCIÓN FINAL DE CONFLICTO!) */
+/* Usamos el identificador interno de Streamlit para asegurar que se oculta */
+div[data-testid="stSidebar"] {
+    display: none;
 }
-.st-emotion-cache-1y4p8ic { 
-    display: none; 
-}
+/* El resto del CSS sigue siendo efectivo para el diseño */
 
 /* 2. Animación de apertura para el logo (Zoom) */
 @keyframes openingLogo {
@@ -40,7 +38,7 @@ st.markdown("""
 h1 {
     text-align: center;
     font-size: 2.5em;
-    color: #007bff; /* Color azul corporativo */
+    color: #007bff;
 }
 
 /* 5. Estilo para las tarjetas (Añade transición y sombra para el efecto visual) */
@@ -50,8 +48,8 @@ h1 {
     border-radius: 10px;
 }
 .stCard:hover {
-    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.4); /* Sombra más fuerte al pasar el ratón */
-    transform: scale(1.02); /* Pequeño zoom al pasar el ratón */
+    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.4);
+    transform: scale(1.02);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -62,12 +60,11 @@ h1 {
 # -----------------------------------------------------------------------
 
 # 1. Logo y Título (Centrados)
-# Aumentamos la columna del título para compensar el tamaño del logo
 col_logo, col_title, _ = st.columns([1, 6, 1])
 
 with col_logo:
     # Asegúrate que la imagen se llame 'logo_assa.jpg' y esté en la carpeta 'assets/'
-    st.image("assets/logo_assa.jpg", width=350) 
+    st.image("assets/logo_assa.jpg", width=100) 
 
 with col_title:
     st.title("Bienvenido a la Aplicación de RRHH")
@@ -92,11 +89,11 @@ with col_dotacion:
         styles={
             "card": {
                 "width": "100%", "height": "250px", "border-radius": "10px", 
-                "background-color": "#e0f7fa" # Un color azul claro
+                "background-color": "#e0f7fa"
             },
             "title": {"font-size": "24px"},
         },
-        url="app_dotacion" # Corregido: SÓLO el nombre del archivo
+        url="app_dotacion"
     )
 
 # --- TARJETA 2: Horas Extras ---
@@ -107,11 +104,11 @@ with col_horas:
         styles={
             "card": {
                 "width": "100%", "height": "250px", "border-radius": "10px", 
-                "background-color": "#fffde7" # Un color amarillo claro
+                "background-color": "#fffde7"
             },
             "title": {"font-size": "24px"},
         },
-        url="app_horas_extras" # Corregido: SÓLO el nombre del archivo
+        url="app_horas_extras"
     )
 
 # --- TARJETA 3: Masa Salarial ---
@@ -122,11 +119,11 @@ with col_masa:
         styles={
             "card": {
                 "width": "100%", "height": "250px", "border-radius": "10px", 
-                "background-color": "#f1f8e9" # Un color verde claro
+                "background-color": "#f1f8e9"
             },
             "title": {"font-size": "24px"},
         },
-        url="app_masa_salarial" # Corregido: SÓLO el nombre del archivo
+        url="app_masa_salarial"
     )
 
 st.markdown("---")
