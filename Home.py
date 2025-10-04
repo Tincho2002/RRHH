@@ -20,7 +20,7 @@ div[data-testid="stSidebar"] {
     display: block !important; 
 }
 
-/* 2. Animación de apertura para el primer logo (Zoom agresivo, usado en el primer logo) */
+/* 2. Animación de apertura para el primer logo (Zoom agresivo) */
 @keyframes openingLogo {
     0% { transform: scale(3); opacity: 0; }
     100% { transform: scale(1); opacity: 1; }
@@ -32,26 +32,29 @@ div[data-testid="stSidebar"] {
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* 4. Aplica animación al PRIMER logo de la página */
-/* Se aplica a la imagen dentro de la primera columna, asumiendo es el primer st.image */
-div.st-emotion-cache-1r6i7h4 > div[data-testid="stImage"] img, 
-div.st-emotion-cache-1r6i7h4 > div[data-testid="stImage"] { 
+/* 4. Selector para el PRIMER logo (usando la key 'main_logo') */
+/* Nota: Streamlit genera un ID único (e.g., '#image-main_logo') que usamos aquí. */
+/* Lo hacemos más específico para apuntar a la imagen dentro del widget. */
+div[data-testid="stImage"] img[alt="main_logo"] { 
     animation: openingLogo 1.5s ease-out forwards;
+    display: block; 
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 20px;
 }
 
-
-/* --- CLASE PARA EL SEGUNDO LOGO (CONTENEDOR) --- */
-/* Esta clase se aplicará al contenedor (st.container) y anima la imagen dentro */
-.secondary-logo-container div[data-testid="stImage"] img {
-    animation: fade-in-scale 1.5s ease-out 0.5s forwards !important; /* 0.5s de retraso */
-    opacity: 0 !important; /* Asegura que esté invisible al inicio */
-    display: block !important;
-    margin: 30px auto 20px auto !important;
+/* 5. Selector para el SEGUNDO logo (usando la key 'secondary_logo') */
+div[data-testid="stImage"] img[alt="secondary_logo"] {
+    animation: fade-in-scale 1.5s ease-out 0.5s forwards; /* 0.5s de retraso */
+    opacity: 0; /* Asegura que esté invisible al inicio */
+    display: block;
+    margin: 30px auto 20px auto;
     width: 200px; 
     max-width: 100%;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
+
 
 /* 6. Estilo de los títulos */
 h1 {
@@ -105,11 +108,11 @@ h1 {
 # -----------------------------------------------------------------------
 
 # 1. Logo y Título (Centrados)
-# El logo en esta columna tendrá la animación "openingLogo"
+# AÑADIMOS key="main_logo" para apuntar el CSS específicamente a este elemento.
 col_logo, col_title, _ = st.columns([1, 6, 1])
 
 with col_logo:
-    st.image("assets/logo_assa.jpg", width=300) 
+    st.image("assets/logo_assa.jpg", width=300, caption="main_logo") 
 
 with col_title:
     st.title("Bienvenido a la Aplicación de RRHH")
@@ -119,13 +122,13 @@ st.markdown("---")
 
 # -----------------------------------------------------------------------
 # --- SEGUNDO LOGO CON EFECTO (fade-in-scale) ---
-# Se utiliza un st.container con la clase CSS para asegurar que la ruta sea correcta
-# y el CSS pueda apuntar a la imagen de forma precisa.
+# AÑADIMOS key="secondary_logo" y eliminamos el st.markdown problemático.
 # -----------------------------------------------------------------------
-st.markdown('<div class="secondary-logo-container">', unsafe_allow_html=True)
-# El logo aparecerá en el centro gracias al "margin: auto" en el CSS de la clase.
-st.image("assets/logo_assa.jpg", width=200, caption="Segundo Logo Animado de ASSA")
-st.markdown('</div>', unsafe_allow_html=True) 
+st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
+st.image("assets/logo_assa.jpg", width=200, caption="secondary_logo")
+st.markdown('</div>', unsafe_allow_html=True)
+
+
 # -----------------------------------------------------------------------
 # --- CONTINUACIÓN DEL DASHBOARD (FALTA LA NAVEGACIÓN REAL) ---
 # -----------------------------------------------------------------------
@@ -172,5 +175,3 @@ with main_col:
 
 # Instrucción final para el usuario
 st.sidebar.success("Selecciona una aplicación para continuar.")
-
-
