@@ -13,10 +13,7 @@ import re
 from streamlit_image_comparison import image_comparison
 from PIL import Image
 
-st.set_page_config(page_title="Dotacion: 2025", page_icon="📈")
-st.title("👥 Dotación 2025")
 
-st.write("Estructura y distribución geográfica y por gerencia de personal")
 
 # --- Configuración de la página y Estilos CSS ---
 st.set_page_config(layout="wide")
@@ -183,6 +180,11 @@ def load_and_clean_data(uploaded_file):
         elif col == 'Periodo': df_excel[col] = df_excel[col].str.capitalize()
     
     return df_excel
+# --- INICIO DE LA APLICACIÓN ---
+st.set_page_config(page_title="Dotacion: 2025", page_icon="👥")
+st.title("👥 Dotación 2025")
+
+st.write("Estructura y distribución geográfica y por gerencia de personal")
 
 # --- Cuerpo Principal de la Aplicación ---
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de dotación", type=["xlsx"])
@@ -615,6 +617,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
