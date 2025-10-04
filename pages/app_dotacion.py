@@ -14,9 +14,9 @@ from streamlit_image_comparison import image_comparison
 from PIL import Image
 
 st.set_page_config(page_title="Dotacion: 2025", page_icon="📈")
-st.title("👥 Dotación")
+st.title("👥 Dotación 2025")
 
-st.write("Aquí puedes visualizar el análisis de datos de la Dotación 2025.")
+st.write("Estructura y distribución geográfica y por gerencia de personal")
 
 # --- Configuración de la página y Estilos CSS ---
 st.set_page_config(layout="wide")
@@ -60,10 +60,6 @@ def format_integer_es(num):
 def format_percentage_es(num, decimals=1):
     if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
-
-# --- Título de la Aplicación ---
-st.title('👥 Dashboard de Dotación Anual 2025')
-st.subheader('Análisis Interactivo de la Composición de la Dotación por Periodo')
 
 # --- Funciones Auxiliares ---
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
@@ -618,6 +614,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
