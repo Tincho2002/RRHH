@@ -364,7 +364,6 @@ def load_and_clean_data(uploaded_file):
     return df_excel
 
 # --- INICIO DE LA APLICACIÓN ---
-st.title('📊 Dashboard de Horas Extras HE_2025')
 st.subheader('Análisis Interactivo de Costos y Cantidades de Horas Extras')
 
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Horas Extras", type=["xlsx"])
