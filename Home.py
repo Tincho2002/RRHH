@@ -8,7 +8,7 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------------------------------
-# --- CÓDIGO CSS: ANIMACIÓN DE APERTURA NOTORIA (ZOOM Y FADE) ---
+# --- CSS: ANIMACIÓN, LOGOS Y TARJETAS ---
 # ----------------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -35,14 +35,50 @@ st.markdown("""
     animation: slideUp 1s ease-out 1.5s forwards;
     opacity: 0; 
 }
+
+/* ---------- TARJETAS (CARDS) ---------- */
+.card-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 40px;
+}
+.app-card {
+    flex: 1;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease-in-out;
+    text-align: center;
+    cursor: pointer;
+    text-decoration: none;
+    color: #333;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.card-dotacion { background-color: #e0f7fa; } /* Azul claro */
+.card-horas { background-color: #fffde7; }    /* Amarillo claro */
+.card-masa { background-color: #f1f8e9; }     /* Verde claro */
+
+.app-card:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    transform: translateY(-5px);
+}
+
+.card-title {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #007bff;
+    margin-bottom: 10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------------------------------------------------
-# --- CONTENIDO DE LA PÁGINA DE INICIO ---
-# -----------------------------------------------------------------------
 
-# 1. Logos y Título centrados horizontalmente
+# -----------------------------------------------------------------------
+# --- ENCABEZADO CON LOGOS Y TÍTULO ---
+# -----------------------------------------------------------------------
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 
 with left_logo:
@@ -50,30 +86,52 @@ with left_logo:
 
 with center_text:
     st.title("Bienvenido a la Aplicación de RRHH")
-    st.markdown("### Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.")
+    st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
 
 with right_logo:
     st.image("assets/logo_assa.jpg", width=200)
 
 st.markdown("---")
 
-# 2. Contenido principal centrado
-main_col = st.columns([1, 4, 1])[1]
+# -----------------------------------------------------------------------
+# --- CONTENIDO PRINCIPAL Y TARJETAS ---
+# -----------------------------------------------------------------------
+main_col = st.columns([1, 10, 1])[1]
 
 with main_col:
     st.markdown("## Análisis Estratégico de Capital Humano")
     st.markdown(
         """
-        Esta es la página de inicio de la aplicación consolidada para la gestión de **Recursos Humanos**.
-        Usa el menú de la barra lateral para navegar a las siguientes áreas clave:
-
-        * **Dotación:** Consulta la distribución de personal.
-        * **Horas Extras:** Analiza y gestiona las horas de trabajo adicionales.
-        * **Masa Salarial:** Visualiza la composición y evolución del gasto salarial.
+        Esta es la página de inicio del sistema unificado de gestión de **Recursos Humanos**.
+        
+        Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.
         """
     )
-    if st.button("Comenzar el Análisis"):
-        st.success("¡Análisis iniciado! Selecciona una opción en la barra lateral.")
 
-# Mensaje de navegación
+    # Tarjetas interactivas
+    st.markdown(
+        """
+        <div class="card-container">
+            <a href="/app_dotacion" target="_self" class="app-card card-dotacion">
+                <div class="card-title">👥 Dotación</div>
+                <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
+                <b>(Clic para Acceder)</b>
+            </a>
+            <a href="/app_horas_extras" target="_self" class="app-card card-horas">
+                <div class="card-title">⏰ Horas Extras</div>
+                <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
+                <b>(Clic para Acceder)</b>
+            </a>
+            <a href="/app_masa_salarial" target="_self" class="app-card card-masa">
+                <div class="card-title">💵 Masa Salarial</div>
+                <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
+                <b>(Clic para Acceder)</b>
+            </a>
+        </div>
+        """, unsafe_allow_html=True
+    )
+
+    st.markdown("---")
+
+# Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
