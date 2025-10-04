@@ -162,7 +162,7 @@ def load_data(uploaded_file):
     df.reset_index(drop=True, inplace=True)
     return df
 
-st.title('📊 Dashboard de Masa Salarial 2025')
+st.title('💵 Dashboard de Masa Salarial 2025')
 st.markdown("Análisis interactivo de los costos de la mano de obra de la compañía.")
 
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Masa Salarial", type=["xlsx"])
@@ -608,4 +608,5 @@ else:
         with col_dl_11:
             st.download_button(label="📥 Descargar CSV", data=summary_df_display.to_csv(index=False).encode('utf-8'), file_name='resumen_anual_filtrado.csv', mime='text/csv', use_container_width=True)
         with col_dl_12:
+
             st.download_button(label="📥 Descargar Excel", data=to_excel(summary_df_display), file_name='resumen_anual_filtrado.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
