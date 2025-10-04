@@ -10,12 +10,6 @@ import base64
 from PIL import Image
 from streamlit_image_comparison import image_comparison
 
-#st.set_page_config(page_title="Horas Extras: 2025", page_icon="📈")
-st.title("⏰ Horas Extras 2025")
-
-st.write("Aquí puedes visualizar el análisis de datos de la Horas Extras 2025.")
-
-
 # --- Configuración de la página ---
 st.set_page_config(layout="wide")
 
@@ -364,6 +358,7 @@ def load_and_clean_data(uploaded_file):
     return df_excel
 
 # --- INICIO DE LA APLICACIÓN ---
+st.title("⏰ Horas Extras 2025")
 st.subheader('Análisis Interactivo de Costos y Cantidades de Horas Extras')
 
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Horas Extras", type=["xlsx"])
