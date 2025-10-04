@@ -214,7 +214,8 @@ def get_sorted_unique_options(dataframe, column_name):
 def get_available_options(df, selections, target_column):
     _df = df.copy()
     for col, values in selections.items():
-        if col != target_column and values:
+        # **LA CORRECCIÓN**: Asegurarse de que la columna exista en el DataFrame antes de filtrar
+        if col != target_column and values and col in _df.columns:
             _df = _df[_df[col].isin(values)]
     return get_sorted_unique_options(_df, target_column)
 # --- FIN: FUNCIONES PARA FILTROS INTELIGENTES ---
