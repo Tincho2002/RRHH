@@ -75,7 +75,8 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
 def apply_all_filters(df, selections):
     _df = df.copy()
     for col, values in selections.items():
-        if values:
+        # **LA CORRECCIÓN**: Asegurar que la columna exista antes de intentar filtrar
+        if values and col in _df.columns: 
             _df = _df[_df[col].isin(values)]
     return _df
 
@@ -617,6 +618,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
