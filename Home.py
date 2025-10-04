@@ -44,6 +44,8 @@ st.markdown("""
 }
 .app-card:hover .access-icon {
     animation: pulse 0.8s ease-in-out infinite;
+    transform: translateY(-5px);
+    box-shadow: 0 0 25px rgba(0, 51, 102, 0.25); /* halo azul oscuro */
 }
 @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(30px); }
@@ -171,4 +173,5 @@ with main_col:
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
