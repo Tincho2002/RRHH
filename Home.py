@@ -32,18 +32,18 @@ div[data-testid="stSidebar"] {
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* 4. Selector para el PRIMER logo (usando la key 'main_logo') */
-/* Nota: Streamlit genera un ID único (e.g., '#image-main_logo') que usamos aquí. */
+/* 4. Selector para el PRIMER logo (usando el caption "main_logo") */
 /* Lo hacemos más específico para apuntar a la imagen dentro del widget. */
 div[data-testid="stImage"] img[alt="main_logo"] { 
     animation: openingLogo 1.5s ease-out forwards;
     display: block; 
+    /* Eliminar el margen left/right forzado si está en una columna */
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 20px;
 }
 
-/* 5. Selector para el SEGUNDO logo (usando la key 'secondary_logo') */
+/* 5. Selector para el SEGUNDO logo (usando el caption "secondary_logo") */
 div[data-testid="stImage"] img[alt="secondary_logo"] {
     animation: fade-in-scale 1.5s ease-out 0.5s forwards; /* 0.5s de retraso */
     opacity: 0; /* Asegura que esté invisible al inicio */
@@ -108,25 +108,24 @@ h1 {
 # -----------------------------------------------------------------------
 
 # 1. Logo y Título (Centrados)
-# AÑADIMOS key="main_logo" para apuntar el CSS específicamente a este elemento.
-col_logo, col_title, _ = st.columns([1, 6, 1])
+# ELIMINAMOS las columnas para centrar el contenido principal
+# y usamos un contenedor para que el logo principal quede al centro
+st.markdown('<div style="display: flex; justify-content: center; align-items: center; gap: 20px;">', unsafe_allow_html=True)
+st.image("assets/logo_assa.jpg", width=100, caption="main_logo")
+st.title("Bienvenido a la Aplicación de RRHH")
+st.markdown('</div>', unsafe_allow_html=True)
 
-with col_logo:
-    st.image("assets/logo_assa.jpg", width=300, caption="main_logo") 
 
-with col_title:
-    st.title("Bienvenido a la Aplicación de RRHH")
-    st.markdown("<h2 style='text-align: center; color: #555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h2>", unsafe_allow_html=True)
     
 st.markdown("---")
 
 # -----------------------------------------------------------------------
 # --- SEGUNDO LOGO CON EFECTO (fade-in-scale) ---
-# AÑADIMOS key="secondary_logo" y eliminamos el st.markdown problemático.
+# Se utiliza el st.image, con caption y se centra usando el CSS
 # -----------------------------------------------------------------------
-st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
+# Nota: La imagen se centrará automáticamente por el CSS del selector 'secondary_logo'
 st.image("assets/logo_assa.jpg", width=200, caption="secondary_logo")
-st.markdown('</div>', unsafe_allow_html=True)
 
 
 # -----------------------------------------------------------------------
