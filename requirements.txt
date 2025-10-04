@@ -9,7 +9,10 @@ kaleido==0.2.1
 fpdf2
 requests
 streamlit-lottie
+streamlit-card
+st-pages
 Pillow
+
 
 
 
