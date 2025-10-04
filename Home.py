@@ -86,12 +86,15 @@ h1 {
 col_logo, col_title, _ = st.columns([1, 6, 1])
 
 with col_logo:
-    st.image("assets/logo_assa.jpg", width=100) 
+    st.image("assets/logo_assa.jpg", width=300) 
 
 with col_title:
     st.title("Bienvenido a la Aplicación de RRHH")
     st.markdown("<h2 style='text-align: center; color: #555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h2>", unsafe_allow_html=True)
 
+with col_logo:
+    st.image("assets/logo_assa.jpg", width=300) 
+    
 st.markdown("---")
 
 
@@ -137,4 +140,5 @@ with main_col:
 
 # Instrucción final para el usuario
 st.sidebar.success("Selecciona una aplicación para continuar.")
+
 
