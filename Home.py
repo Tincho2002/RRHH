@@ -77,8 +77,8 @@ col_dotacion, col_horas, col_masa = st.columns(3)
 with col_dotacion:
     # El 'url' aquí DEBE COINCIDIR con el nombre de archivo de tu app (ej: app_dotacion.py)
     card(
-        title="Dotación y Personal",
-        text="Consulta la estructura, headcount y distribución de personal por área.",
+        title="Dotación",
+        text="Consulta la estructura, headcount y distribución de personal por área y ubicación geográfica.",
         styles={
             "card": {
                 "width": "100%", "height": "250px", "border-radius": "10px", 
@@ -86,13 +86,13 @@ with col_dotacion:
             },
             "title": {"font-size": "24px"},
         },
-        url="app_dotacion" # Streamlit usa el nombre del archivo sin la extensión .py
+        url="pages/app_dotacion" # Streamlit usa el nombre del archivo sin la extensión .py
     )
 
 # --- TARJETA 2: Horas Extras ---
 with col_horas:
     card(
-        title="Horas Extras y Ausentismo",
+        title="Horas Extras",
         text="Analiza el impacto de horas adicionales y gestiona los indicadores de ausentismo.",
         styles={
             "card": {
@@ -101,7 +101,7 @@ with col_horas:
             },
             "title": {"font-size": "24px"},
         },
-        url="app_horas_extras"
+        url="pages/app_horas_extras"
     )
 
 # --- TARJETA 3: Masa Salarial ---
@@ -116,8 +116,9 @@ with col_masa:
             },
             "title": {"font-size": "24px"},
         },
-        url="app_masa_salarial"
+        url="pages/app_masa_salarial"
     )
 
 st.markdown("---")
 st.info("Para navegar a las aplicaciones, haz clic directamente en las tarjetas de arriba.")
+
