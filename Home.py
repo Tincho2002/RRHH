@@ -33,23 +33,21 @@ div[data-testid="stSidebar"] {
 }
 
 /* 4. Aplica animación al PRIMER logo de la página */
-/* Streamlit lo renderiza como una etiqueta <img> dentro de una estructura */
-/* **IMPORTANTE**: Este selector puede ser muy amplio y afectar otros st.image. */
-div[data-testid="stImage"] img { 
+/* Se aplica a la imagen dentro de la primera columna, asumiendo es el primer st.image */
+div.st-emotion-cache-1r6i7h4 > div[data-testid="stImage"] img, 
+div.st-emotion-cache-1r6i7h4 > div[data-testid="stImage"] { 
     animation: openingLogo 1.5s ease-out forwards;
-    display: block; 
-    margin-left: auto;
-    margin-right: auto;
-    margin-bottom: 20px;
 }
 
-/* 5. Clase para el segundo logo (usado con st.markdown para el efecto) */
-.secondary-logo {
-    animation: fade-in-scale 1.5s ease-out 0.5s forwards; /* 0.5s de retraso */
-    opacity: 0; /* Asegura que esté invisible al inicio */
-    display: block;
-    margin: 30px auto 20px auto;
-    width: 200px; /* Tamaño más pequeño para el segundo logo */
+
+/* --- CLASE PARA EL SEGUNDO LOGO (CONTENEDOR) --- */
+/* Esta clase se aplicará al contenedor (st.container) y anima la imagen dentro */
+.secondary-logo-container div[data-testid="stImage"] img {
+    animation: fade-in-scale 1.5s ease-out 0.5s forwards !important; /* 0.5s de retraso */
+    opacity: 0 !important; /* Asegura que esté invisible al inicio */
+    display: block !important;
+    margin: 30px auto 20px auto !important;
+    width: 200px; 
     max-width: 100%;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
@@ -128,7 +126,6 @@ st.markdown('<div class="secondary-logo-container">', unsafe_allow_html=True)
 # El logo aparecerá en el centro gracias al "margin: auto" en el CSS de la clase.
 st.image("assets/logo_assa.jpg", width=200, caption="Segundo Logo Animado de ASSA")
 st.markdown('</div>', unsafe_allow_html=True) 
-
 # -----------------------------------------------------------------------
 # --- CONTINUACIÓN DEL DASHBOARD (FALTA LA NAVEGACIÓN REAL) ---
 # -----------------------------------------------------------------------
@@ -175,4 +172,5 @@ with main_col:
 
 # Instrucción final para el usuario
 st.sidebar.success("Selecciona una aplicación para continuar.")
+
 
