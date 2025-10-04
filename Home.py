@@ -1,6 +1,6 @@
 import streamlit as st
-from streamlit_card import card
-# Nota: No necesitamos importar st_pages aquí.
+from st_pages import show_pages, Page, hide_pages
+import base64 # Importado para la función de navegación
 
 # --- Configuración Inicial ---
 st.set_page_config(
@@ -9,15 +9,41 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CSS: Animación del Logo y Estilos de Tarjeta ---
+# -----------------------------------------------------------------------
+# --- CONFIGURACIÓN DE PÁGINAS (Necesario para st-pages) ---
+# Ocultamos la barra lateral inmediatamente para que solo se vea el Home Portal
+show_pages(
+    [
+        Page("Home.py", "Inicio", "🏠"),
+        Page("pages/app_dotacion.py", "Dotación", "👥"),
+        Page("pages/app_horas_extras.py", "Horas Extras", "⏰"),
+        Page("pages/app_masa_salarial.py", "Masa Salarial", "💵"),
+    ]
+)
+hide_pages(["Dotación", "Horas Extras", "Masa Salarial"]) # Ocultamos para forzar el uso del portal
+
+
+# --- Función de Navegación (Truco para moverte entre páginas) ---
+def navigate_to(page_name):
+    """Genera y ejecuta un script JS para forzar la navegación."""
+    # El nombre de la página debe coincidir con el path configurado por st-pages
+    script = f"""
+        <script>
+            window.parent.postMessage({{
+                type: 'streamlit:nav_to',
+                url: '{page_name}'
+            }}, '*')
+        </script>
+    """
+    st.components.v1.html(script, height=0)
+
+# --- CSS: Animación del Logo y Estilos de Botones ---
 st.markdown("""
 <style>
-/* 1. OCULTA LA BARRA LATERAL NATIVA (¡SOLUCIÓN FINAL DE CONFLICTO!) */
-/* Usamos el identificador interno de Streamlit para asegurar que se oculta */
+/* 1. OCULTA LA BARRA LATERAL NATIVA (Ahora solo la ocultamos visualmente) */
 div[data-testid="stSidebar"] {
     display: none;
 }
-/* El resto del CSS sigue siendo efectivo para el diseño */
 
 /* 2. Animación de apertura para el logo (Zoom) */
 @keyframes openingLogo {
@@ -34,23 +60,36 @@ div[data-testid="stSidebar"] {
     margin-bottom: 20px;
 }
 
-/* 4. Estilo del título */
+/* 4. Estilo de los títulos */
 h1 {
     text-align: center;
     font-size: 2.5em;
     color: #007bff;
 }
 
-/* 5. Estilo para las tarjetas (Añade transición y sombra para el efecto visual) */
-.stCard {
+/* 5. Estilo de los botones nativos para que parezcan tarjetas */
+.stButton>button {
+    width: 100%;
+    height: 150px; /* Tamaño fijo para la tarjeta */
+    font-size: 1.2em;
+    font-weight: bold;
+    border-radius: 10px;
     box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2); 
     transition: 0.3s;
-    border-radius: 10px;
+    border: none;
+    color: #333;
 }
-.stCard:hover {
+.stButton>button:hover {
     box-shadow: 0 8px 16px 0 rgba(0,0,0,0.4);
-    transform: scale(1.02);
+    transform: scale(1.02); /* Pequeño zoom al pasar el ratón */
+    background-color: #f0f2f6; /* Cambio de color sutil */
 }
+
+/* 6. Estilos de color para botones específicos (por si quieres usarlos) */
+#dotacion-button button { background-color: #e0f7fa; } /* Azul claro */
+#horas-button button { background-color: #fffde7; } /* Amarillo claro */
+#masa-button button { background-color: #f1f8e9; } /* Verde claro */
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -63,7 +102,6 @@ h1 {
 col_logo, col_title, _ = st.columns([1, 6, 1])
 
 with col_logo:
-    # Asegúrate que la imagen se llame 'logo_assa.jpg' y esté en la carpeta 'assets/'
     st.image("assets/logo_assa.jpg", width=100) 
 
 with col_title:
@@ -73,58 +111,33 @@ with col_title:
 st.markdown("---")
 
 
-# 2. Tarjetas Interactivas (El factor "Sorpresa" y Navegación)
+# 2. Botones Nativos como Tarjetas (La Solución Funcional)
 st.markdown("<h3 style='text-align: center;'>Selecciona el área de análisis:</h3>", unsafe_allow_html=True)
 st.empty() 
 
-# Usa 3 columnas para alinear las tarjetas horizontalmente
 col_dotacion, col_horas, col_masa = st.columns(3)
 
 
-# --- TARJETA 1: Dotación ---
+# --- BOTÓN 1: Dotación ---
 with col_dotacion:
-    card(
-        title="Dotación",
-        text="Consulta la estructura, headcount y distribución de personal por área y ubicación geográfica.",
-        styles={
-            "card": {
-                "width": "100%", "height": "250px", "border-radius": "10px", 
-                "background-color": "#e0f7fa"
-            },
-            "title": {"font-size": "24px"},
-        },
-        url="app_dotacion"
-    )
+    st.markdown('<div id="dotacion-button">', unsafe_allow_html=True)
+    if st.button("👥 **Dotación** \n\n Consulta la estructura y distribución de personal.", key="btn_dotacion"):
+        navigate_to("Dotación") 
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- TARJETA 2: Horas Extras ---
+# --- BOTÓN 2: Horas Extras ---
 with col_horas:
-    card(
-        title="Horas Extras",
-        text="Analiza el impacto de horas adicionales y gestiona los indicadores de ausentismo.",
-        styles={
-            "card": {
-                "width": "100%", "height": "250px", "border-radius": "10px", 
-                "background-color": "#fffde7"
-            },
-            "title": {"font-size": "24px"},
-        },
-        url="app_horas_extras"
-    )
+    st.markdown('<div id="horas-button">', unsafe_allow_html=True)
+    if st.button("⏰ **Horas Extras** \n\n Analiza el impacto de horas adicionales y ausentismo.", key="btn_horas"):
+        navigate_to("Horas Extras")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- TARJETA 3: Masa Salarial ---
+# --- BOTÓN 3: Masa Salarial ---
 with col_masa:
-    card(
-        title="Masa Salarial y Costos",
-        text="Visualiza la composición, evolución y proyecciones del gasto salarial total.",
-        styles={
-            "card": {
-                "width": "100%", "height": "250px", "border-radius": "10px", 
-                "background-color": "#f1f8e9"
-            },
-            "title": {"font-size": "24px"},
-        },
-        url="app_masa_salarial"
-    )
+    st.markdown('<div id="masa-button">', unsafe_allow_html=True)
+    if st.button("💵 **Masa Salarial** \n\n Visualiza la composición, evolución y proyecciones de costos.", key="btn_masa"):
+        navigate_to("Masa Salarial")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.info("¡Las tarjetas son interactivas! Haz clic para navegar a cada aplicación.")
+st.info("Haz clic en una de las tarjetas para acceder al área de análisis. La navegación ahora es estable.")
