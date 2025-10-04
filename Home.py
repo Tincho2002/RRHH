@@ -37,6 +37,14 @@ st.markdown("""
 }
 
 /* ---------- TARJETAS (CARDS) ---------- */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.25); }
+    100% { transform: scale(1); }
+}
+.app-card:hover .access-icon {
+    animation: pulse 0.8s ease-in-out infinite;
+}
 @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(30px); }
     to { opacity: 1; transform: translateY(0); }
@@ -163,3 +171,4 @@ with main_col:
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
