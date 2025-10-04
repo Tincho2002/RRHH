@@ -1,24 +1,19 @@
 import streamlit as st
-# Eliminamos: from st_pages import ..., from streamlit_card import card, import base64
 
 # --- Configuración Inicial ---
-# Streamlit nativo usa el nombre de los archivos en 'pages/' para la navegación.
 st.set_page_config(
     page_title="Aplicación Unificada Principal",
     page_icon="💧",
     layout="wide"
 )
 
-# -----------------------------------------------------------------------
 # --- CSS: Animación del Logo y Estilos ---
-# Mantenemos las animaciones y el estilo de los botones (aunque no los usemos)
 st.markdown("""
 <style>
-/* 1. MOSTRAR LA BARRA LATERAL NATIVA (Necesaria para navegar sin st-pages) */
+/* 1. MOSTRAR LA BARRA LATERAL NATIVA (Necesaria para navegar) */
 div[data-testid="stSidebar"] {
     display: block !important; 
 }
-/* El resto del CSS sigue siendo efectivo para el diseño */
 
 /* 2. Animación de apertura para el logo (Zoom) */
 @keyframes openingLogo {
@@ -41,7 +36,44 @@ h1 {
     font-size: 2.5em;
     color: #007bff;
 }
-/* El estilo de los botones/tarjetas ya no se usa, pero el resto se mantiene */
+
+/* 5. ESTILOS DE TARJETA HTML/CSS (La nueva solución de diseño) */
+.card-container {
+    display: flex; /* Alinea las tarjetas horizontalmente */
+    gap: 20px;
+    margin-top: 40px;
+}
+.app-card {
+    flex: 1; /* Ocupa el mismo ancho */
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease-in-out;
+    text-align: center;
+    cursor: pointer;
+    text-decoration: none; /* Quitar subrayado del enlace */
+    color: #333;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    
+}
+.card-dotacion { background-color: #e0f7fa; } /* Azul claro */
+.card-horas { background-color: #fffde7; }  /* Amarillo claro */
+.card-masa { background-color: #f1f8e9; }   /* Verde claro */
+
+.app-card:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    transform: translateY(-5px); /* Pequeño efecto de elevación */
+}
+
+.card-title {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #007bff;
+    margin-bottom: 10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -54,7 +86,6 @@ h1 {
 col_logo, col_title, _ = st.columns([1, 6, 1])
 
 with col_logo:
-    # Esta es la animación visible que sí funciona
     st.image("assets/logo_assa.jpg", width=100) 
 
 with col_title:
@@ -64,8 +95,8 @@ with col_title:
 st.markdown("---")
 
 
-# 2. Contenido Principal e Instrucciones
-main_col = st.columns([1, 4, 1])[1] 
+# 2. Contenido Principal y Tarjetas (Usando HTML/CSS para el diseño)
+main_col = st.columns([1, 10, 1])[1] 
 
 with main_col:
     st.markdown("## Análisis Estratégico de Capital Humano")
@@ -73,16 +104,35 @@ with main_col:
         """
         Esta es la página de inicio del sistema unificado de gestión de **Recursos Humanos**.
         
-        Hemos asegurado la estabilidad de la aplicación. Para navegar, utiliza la **barra lateral de la izquierda**, donde encontrarás las siguientes áreas de análisis:
-        
-        * **Dotación:** Consulta la estructura y distribución de personal.
-        * **Horas Extras:** Analiza el impacto de horas adicionales.
-        * **Masa Salarial:** Visualiza la composición y evolución de costos.
+        Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.
         """
     )
     
-    # Botones simples (opcional, para invitar a usar la barra lateral)
-    st.info("Por favor, selecciona una aplicación en la **barra lateral izquierda** para continuar.")
+    # --- INYECCIÓN DE HTML PARA LAS TARJETAS (Navegación Estable) ---
+    st.markdown(
+        f"""
+        <div class="card-container">
+            <a href="/app_dotacion" target="_self" class="app-card card-dotacion">
+                <div class="card-title">👥 Dotación</div>
+                <p>Consulta la estructura, headcount y distribución de personal.</p>
+                <b>(Clic para Acceder)</b>
+            </a>
+            <a href="/app_horas_extras" target="_self" class="app-card card-horas">
+                <div class="card-title">⏰ Horas Extras</div>
+                <p>Analiza el impacto de horas adicionales y gestiona los indicadores de ausentismo.</p>
+                <b>(Clic para Acceder)</b>
+            </a>
+            <a href="/app_masa_salarial" target="_self" class="app-card card-masa">
+                <div class="card-title">💵 Masa Salarial</div>
+                <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
+                <b>(Clic para Acceder)</b>
+            </a>
+        </div>
+        """, unsafe_allow_html=True
+    )
+    # --- FIN DE LAS TARJETAS HTML ---
+    
+    st.markdown("---")
 
 
 # Instrucción final para el usuario
