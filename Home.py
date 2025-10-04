@@ -8,7 +8,7 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------------------------------
-# --- CSS: ANIMACIÓN, LOGOS Y TARJETAS ---
+# --- CSS: ANIMACIÓN, LOGOS Y TARJETAS RESPONSIVAS ---
 # ----------------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -37,13 +37,23 @@ st.markdown("""
 }
 
 /* ---------- TARJETAS (CARDS) ---------- */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .card-container {
     display: flex;
     gap: 20px;
     margin-top: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
+
 .app-card {
     flex: 1;
+    min-width: 260px;
+    max-width: 350px;
     padding: 20px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -56,10 +66,16 @@ st.markdown("""
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    animation: fadeInUp 1s ease both;
 }
-.card-dotacion { background-color: #e0f7fa; } /* Azul claro */
-.card-horas { background-color: #fffde7; }    /* Amarillo claro */
-.card-masa { background-color: #f1f8e9; }     /* Verde claro */
+
+.app-card:nth-child(1) { animation-delay: 0.3s; }
+.app-card:nth-child(2) { animation-delay: 0.6s; }
+.app-card:nth-child(3) { animation-delay: 0.9s; }
+
+.card-dotacion { background-color: #e0f7fa; }
+.card-horas { background-color: #fffde7; }
+.card-masa { background-color: #f1f8e9; }
 
 .app-card:hover {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
@@ -108,7 +124,7 @@ with main_col:
         """
     )
 
-    # Tarjetas interactivas
+    # Tarjetas interactivas con animación
     st.markdown(
         """
         <div class="card-container">
