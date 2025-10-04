@@ -1,89 +1,123 @@
 import streamlit as st
-
-# No necesitamos 'json', 'requests' o 'streamlit_lottie'
-# porque usamos CSS para animar el logo.
+from streamlit_card import card
+# Nota: La librería st-pages no necesita ser importada aquí,
+# se usa en el archivo de configuración para definir el orden.
 
 # --- Configuración Inicial ---
 st.set_page_config(
     page_title="Aplicación Unificada Principal",
-    page_icon="🏠",
+    page_icon="💧",
     layout="wide"
 )
 
-# ----------------------------------------------------------------------------------
-# --- CÓDIGO CSS: ANIMACIÓN DE APERTURA NOTORIA (ZOOM Y FADE) ---
-# ----------------------------------------------------------------------------------
+# --- CSS: Animación del Logo (Manteniendo la estética limpia) ---
 st.markdown("""
 <style>
-/* 1. ANIMACIÓN DE APERTURA: Hace que el logo aparezca grande y se encoja */
+/* Animación de apertura para el logo (Zoom) */
 @keyframes openingLogo {
-    0% { transform: scale(3); opacity: 0; }        /* Inicia muy grande e invisible */
-    50% { transform: scale(1.1); opacity: 1; }     /* Se acerca al tamaño final (ligero rebote) */
-    100% { transform: scale(1); opacity: 1; }      /* Se asienta en el tamaño final */
+    0% { transform: scale(3); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
-/* 2. ANIMACIÓN DE APARICIÓN PARA EL TÍTULO (Aparece después) */
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* 3. APLICACIÓN DE LA ANIMACIÓN: Logo (st.image) */
+/* Aplica animación al logo */
 .stImage img {
-    animation: openingLogo 2s ease-out forwards; /* 2 segundos de duración */
+    animation: openingLogo 1.5s ease-out forwards;
     display: block; 
     margin-left: auto;
     margin-right: auto;
-    margin-bottom: 10px;
+    margin-bottom: 20px;
 }
-
-/* 4. APLICACIÓN DE LA ANIMACIÓN: Título */
-/* El selector puede variar, pero este es el más común para st.title */
-.st-emotion-cache-1jicfl2 { 
-    animation: slideUp 1s ease-out 1.5s forwards; /* 1.5 segundos de retraso */
-    opacity: 0; 
+/* Estilo del título */
+h1 {
+    text-align: center;
+    font-size: 2.5em;
+    color: #007bff; /* Color azul corporativo */
+}
+/* Estilo para las tarjetas */
+.stCard {
+    /* Sombra más suave para las tarjetas */
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2); 
+    transition: 0.3s;
+    border-radius: 5px;
+}
+.stCard:hover {
+    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.3);
 }
 </style>
 """, unsafe_allow_html=True)
 
 
 # -----------------------------------------------------------------------
-# --- CONTENIDO DE LA PÁGINA DE INICIO ---
+# --- CONTENIDO DE LA PÁGINA DE INICIO: EL PORTAL DE APLICACIONES ---
 # -----------------------------------------------------------------------
 
-# 1. Logo y Título (Usa columnas para poner el logo al lado del título)
-logo_col, title_col = st.columns([1, 5]) 
+# 1. Logo y Título (Centrados)
+col_logo, col_title, _ = st.columns([1, 4, 1])
 
-with logo_col:
-    # Esta imagen hereda la animación CSS 'openingLogo'
-    # Asegúrate de que la ruta sea correcta: assets/logo.jpg
-    st.image("assets/logo_assa.jpg", width=500) 
+with col_logo:
+    # El logo sigue usando la animación CSS
+    st.image("assets/logo_assa.jpg", width=300) 
 
-with title_col:
-    # Este título hereda la animación CSS 'slideUp'
-    st.title("Bienvenido a la Aplicación de RRHH: Aguas Santafesinas S.A.")
+with col_title:
+    st.title("Bienvenido a la Aplicación de RRHH")
+    st.markdown("<h2 style='text-align: center; color: #555;'>Portal de Análisis de Capital Humano - Aguas Potable S.A.</h2>", unsafe_allow_html=True)
 
 st.markdown("---")
 
-# 2. Distribución del Contenido y Área de Enfoque (Análisis)
-# Quitamos la columna de Lottie y centramos el contenido importante
-main_col = st.columns([1, 4, 1])[1] # Usa una columna central ancha
 
-with main_col:
-    st.markdown("## Análisis Estratégico de Capital Humano")
-    st.markdown(
-        """
-        Esta es la página de inicio de la aplicación consolidada para la gestión de **Recursos Humanos**.
-        Usa el menú de la barra lateral para navegar a las siguientes áreas clave:
+# 2. Tarjetas Interactivas (El factor "Sorpresa" y Navegación)
+st.markdown("<h3 style='text-align: center;'>Selecciona el área de análisis:</h3>", unsafe_allow_html=True)
+st.empty() # Espacio
 
-        * **Dotación:** Consulta la distribución de personal.
-        * **Horas Extras:** Analiza y gestiona las horas de trabajo adicionales.
-        * **Masa Salarial:** Visualiza la composición y evolución del gasto salarial.
-        """
+# Usa 3 columnas para alinear las tarjetas horizontalmente
+col_dotacion, col_horas, col_masa = st.columns(3)
+
+
+# --- TARJETA 1: Dotación ---
+with col_dotacion:
+    # El 'url' aquí DEBE COINCIDIR con el nombre de archivo de tu app (ej: app_dotacion.py)
+    card(
+        title="Dotación y Personal",
+        text="Consulta la estructura, headcount y distribución de personal por área.",
+        styles={
+            "card": {
+                "width": "100%", "height": "250px", "border-radius": "10px", 
+                "background-color": "#e0f7fa" # Un color azul claro
+            },
+            "title": {"font-size": "24px"},
+        },
+        url="app_dotacion" # Streamlit usa el nombre del archivo sin la extensión .py
     )
-    if st.button("Comenzar el Análisis"):
-        # Se quitó st.balloons()
-        st.success("¡Análisis iniciado! Selecciona una opción en la barra lateral.")
 
-# Mensaje de navegación
-st.sidebar.success("Selecciona una aplicación arriba.")
+# --- TARJETA 2: Horas Extras ---
+with col_horas:
+    card(
+        title="Horas Extras y Ausentismo",
+        text="Analiza el impacto de horas adicionales y gestiona los indicadores de ausentismo.",
+        styles={
+            "card": {
+                "width": "100%", "height": "250px", "border-radius": "10px", 
+                "background-color": "#fffde7" # Un color amarillo claro
+            },
+            "title": {"font-size": "24px"},
+        },
+        url="app_horas_extras"
+    )
+
+# --- TARJETA 3: Masa Salarial ---
+with col_masa:
+    card(
+        title="Masa Salarial y Costos",
+        text="Visualiza la composición, evolución y proyecciones del gasto salarial total.",
+        styles={
+            "card": {
+                "width": "100%", "height": "250px", "border-radius": "10px", 
+                "background-color": "#f1f8e9" # Un color verde claro
+            },
+            "title": {"font-size": "24px"},
+        },
+        url="app_masa_salarial"
+    )
+
+st.markdown("---")
+st.info("Para navegar a las aplicaciones, haz clic directamente en las tarjetas de arriba.")
