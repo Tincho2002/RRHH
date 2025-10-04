@@ -73,22 +73,19 @@ st.markdown("""
 .app-card:nth-child(2) { animation-delay: 0.6s; }
 .app-card:nth-child(3) { animation-delay: 0.9s; }
 
-/* Colores de fondo */
 .card-dotacion { background-color: #e0f7fa; }
 .card-horas { background-color: #fffde7; }
 .card-masa { background-color: #f1f8e9; }
 
-/* Hover mejorado */
 .app-card:hover {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
     transform: translateY(-5px);
 }
 
-/* Colores y tipografía */
 .card-title {
     font-size: 1.5em;
     font-weight: bold;
-    color: #003366; /* Azul oscuro elegante */
+    color: #003366;
     margin-bottom: 10px;
 }
 
@@ -109,7 +106,6 @@ a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
 }
 </style>
 """, unsafe_allow_html=True)
-
 
 # -----------------------------------------------------------------------
 # --- ENCABEZADO CON LOGOS Y TÍTULO ---
@@ -143,19 +139,27 @@ with main_col:
         """
     )
 
-    # Tarjetas interactivas con ícono en lugar de texto
-    st.markdown(
-        """
-        <div class="card-container">
-            <a href="/app_dotacion" target="_self" class="app-card card-dotacion">
-                <div class="card-title">👥 Dotación</div>
-                <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
-                <div class="access-icon">🔗</div>
-            </a>
-            <a href="/app_horas_extras" target="_self" class="app-card card-horas">
-                <div class="card-title">⏰ Horas Extras</div>
-                <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
-                <div class="access-icon">🔗</div>
-            </a>
-            <a href="/app_masa_salarial" target="_self" class="app-card card-masa">
-                <div class="card-title">💵 Masa Salarial</div>
+    st.markdown("""
+    <div class="card-container">
+        <a href="/app_dotacion" target="_self" class="app-card card-dotacion">
+            <div class="card-title">👥 Dotación</div>
+            <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
+            <div class="access-icon">🔗</div>
+        </a>
+        <a href="/app_horas_extras" target="_self" class="app-card card-horas">
+            <div class="card-title">⏰ Horas Extras</div>
+            <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
+            <div class="access-icon">🔗</div>
+        </a>
+        <a href="/app_masa_salarial" target="_self" class="app-card card-masa">
+            <div class="card-title">💵 Masa Salarial</div>
+            <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
+            <div class="access-icon">🔗</div>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+# Mensaje lateral
+st.sidebar.success("Selecciona una aplicación arriba.")
