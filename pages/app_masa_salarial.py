@@ -191,7 +191,7 @@ if 'ms_selections' not in st.session_state:
     st.rerun()
 
 # 2. BOTÓN DE RESETEO: Restablece el estado al inicial (todo seleccionado).
-if st.sidebar.button("🧹 Resetear Filtros", use_container_width=True, key="ms_clear"):
+if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="ms_clear"):
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.ms_selections = initial_selections
     st.rerun()
@@ -610,3 +610,4 @@ else:
         with col_dl_12:
 
             st.download_button(label="📥 Descargar Excel", data=to_excel(summary_df_display), file_name='resumen_anual_filtrado.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+
