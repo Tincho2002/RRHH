@@ -86,7 +86,7 @@ with col_dotacion:
             },
             "title": {"font-size": "24px"},
         },
-        url="pages/app_dotacion" # Streamlit usa el nombre del archivo sin la extensión .py
+        url="app_dotacion" # Streamlit usa el nombre del archivo sin la extensión .py
     )
 
 # --- TARJETA 2: Horas Extras ---
@@ -101,7 +101,7 @@ with col_horas:
             },
             "title": {"font-size": "24px"},
         },
-        url="pages/app_horas_extras"
+        url="app_horas_extras"
     )
 
 # --- TARJETA 3: Masa Salarial ---
@@ -116,9 +116,10 @@ with col_masa:
             },
             "title": {"font-size": "24px"},
         },
-        url="pages/app_masa_salarial"
+        url="app_masa_salarial"
     )
 
 st.markdown("---")
 st.info("Para navegar a las aplicaciones, haz clic directamente en las tarjetas de arriba.")
+
 
