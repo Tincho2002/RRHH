@@ -93,6 +93,14 @@ with col_title:
     st.markdown("<h2 style='text-align: center; color: #555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h2>", unsafe_allow_html=True)
    
 st.markdown("---")
+# -----------------------------------------------------------------------
+# --- SEGUNDO LOGO CON EFECTO (fade-in-scale) ---
+# -----------------------------------------------------------------------
+
+# Usamos st.markdown con HTML para aplicar la nueva clase "secondary-logo"
+st.markdown("""
+<img src="assets/logo_assa.jpg" class="secondary-logo" alt="Segundo Logo Animado de ASSA">
+""", unsafe_allow_html=True)
 
 
 # 2. Contenido Principal y Tarjetas (Usando HTML/CSS para el diseño)
@@ -137,6 +145,7 @@ with main_col:
 
 # Instrucción final para el usuario
 st.sidebar.success("Selecciona una aplicación para continuar.")
+
 
 
 
