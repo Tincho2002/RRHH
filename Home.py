@@ -20,7 +20,7 @@ div[data-testid="stSidebar"] {
     display: block !important; 
 }
 
-/* 2. Animación de apertura para el primer logo (Zoom agresivo) */
+/* 2. Animación de apertura para el logo principal (Zoom agresivo) */
 @keyframes openingLogo {
     0% { transform: scale(3); opacity: 0; }
     100% { transform: scale(1); opacity: 1; }
@@ -32,38 +32,41 @@ div[data-testid="stSidebar"] {
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* 4. Selector para el PRIMER logo (usando el caption "main_logo") */
-/* Lo hacemos más específico para apuntar a la imagen dentro del widget. */
+/* 4. Selector para el PRIMER logo (usando la key "main_logo") */
+/* Lo hacemos específico para apuntar a la imagen dentro de su contenedor de Streamlit. */
 div[data-testid="stImage"] img[alt="main_logo"] { 
     animation: openingLogo 1.5s ease-out forwards;
     display: block; 
-    /* Eliminar el margen left/right forzado si está en una columna */
-    margin-left: auto;
-    margin-right: auto;
-    margin-bottom: 20px;
+    margin: 0 auto; /* Centrado horizontal */
 }
 
-/* 5. Selector para el SEGUNDO logo (usando el caption "secondary_logo") */
+/* 5. Selector para el SEGUNDO logo (usando la key "secondary_logo") */
 div[data-testid="stImage"] img[alt="secondary_logo"] {
     animation: fade-in-scale 1.5s ease-out 0.5s forwards; /* 0.5s de retraso */
     opacity: 0; /* Asegura que esté invisible al inicio */
     display: block;
-    margin: 30px auto 20px auto;
+    margin: 30px auto 20px auto; /* Centrado y espacio */
     width: 200px; 
     max-width: 100%;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
-
-/* 6. Estilo de los títulos */
+/* 6. Estilo de los títulos para Centrado */
 h1 {
     text-align: center;
     font-size: 2.5em;
     color: #007bff;
+    width: 100%; /* Ocupa todo el espacio de su columna */
 }
 
-/* 7. ESTILOS DE TARJETA HTML/CSS */
+/* 7. Centrado del Subtítulo */
+div[data-testid="stMarkdown"] h2 {
+    text-align: center;
+}
+
+
+/* 8. ESTILOS DE TARJETA HTML/CSS */
 .card-container {
     display: flex;
     gap: 20px;
@@ -107,25 +110,29 @@ h1 {
 # --- CONTENIDO DE LA PÁGINA DE INICIO: EL PORTAL DE APLICACIONES ---
 # -----------------------------------------------------------------------
 
-# 1. Logo y Título (Centrados)
-# ELIMINAMOS las columnas para centrar el contenido principal
-# y usamos un contenedor para que el logo principal quede al centro
-st.markdown('<div style="display: flex; justify-content: center; align-items: center; gap: 20px;">', unsafe_allow_html=True)
-st.image("assets/logo_assa.jpg", width=100, caption="main_logo")
-st.title("Bienvenido a la Aplicación de RRHH")
-st.markdown('</div>', unsafe_allow_html=True)
+# 1. Logo y Título (Centrado Perfecto usando columnas de ancho fijo)
+col_left, col_center, col_right = st.columns([1, 6, 1])
 
-
-st.markdown("<h2 style='text-align: center; color: #555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h2>", unsafe_allow_html=True)
+# Mostramos el logo y el título en la columna central, uno encima del otro
+with col_center:
+    # --- Logo Principal (arriba a la izquierda, centrado solo horizontalmente) ---
+    st.image("assets/logo_assa.jpg", width=100, caption="main_logo")
+    
+    # --- Títulos (Centrados por CSS) ---
+    st.title("Bienvenido a la Aplicación de RRHH")
+    st.markdown("<h2 style='color: #555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h2>", unsafe_allow_html=True)
     
 st.markdown("---")
 
 # -----------------------------------------------------------------------
 # --- SEGUNDO LOGO CON EFECTO (fade-in-scale) ---
-# Se utiliza el st.image, con caption y se centra usando el CSS
+# Debe estar centrado bajo el título. Usamos la columna central de 3 para centrar el elemento.
 # -----------------------------------------------------------------------
-# Nota: La imagen se centrará automáticamente por el CSS del selector 'secondary_logo'
-st.image("assets/logo_assa.jpg", width=200, caption="secondary_logo")
+col_l, col_center_2, col_r = st.columns([1, 1, 1])
+
+with col_center_2:
+    # Nota: El CSS con margin: auto y display: block se encarga de que se centre perfectamente
+    st.image("assets/logo_assa.jpg", width=200, caption="secondary_logo")
 
 
 # -----------------------------------------------------------------------
