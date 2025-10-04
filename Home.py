@@ -128,6 +128,9 @@ st.markdown("""
 <img src="assets/logo_assa.jpg" class="secondary-logo" alt="Segundo Logo Animado de ASSA">
 """, unsafe_allow_html=True)
 
+# -----------------------------------------------------------------------
+# --- CONTINUACIÓN DEL DASHBOARD (FALTA LA NAVEGACIÓN REAL) ---
+# -----------------------------------------------------------------------
 
 # 2. Contenido Principal y Tarjetas (Usando HTML/CSS para el diseño)
 main_col = st.columns([1, 10, 1])[1] 
@@ -171,9 +174,3 @@ with main_col:
 
 # Instrucción final para el usuario
 st.sidebar.success("Selecciona una aplicación para continuar.")
-
-
-
-
-
-
