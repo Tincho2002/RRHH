@@ -90,7 +90,7 @@ with col_logo:
 
 with col_title:
     st.title("Bienvenido a la Aplicación de RRHH")
-    st.markdown("<h2 style='text-align: center; color: #555;'>Portal de Análisis de Capital Humano - Aguas Potable S.A.</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h2>", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -114,12 +114,12 @@ with main_col:
         <div class="card-container">
             <a href="/app_dotacion" target="_self" class="app-card card-dotacion">
                 <div class="card-title">👥 Dotación</div>
-                <p>Consulta la estructura, headcount y distribución de personal.</p>
+                <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
                 <b>(Clic para Acceder)</b>
             </a>
             <a href="/app_horas_extras" target="_self" class="app-card card-horas">
                 <div class="card-title">⏰ Horas Extras</div>
-                <p>Analiza el impacto de horas adicionales y gestiona los indicadores de ausentismo.</p>
+                <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
                 <b>(Clic para Acceder)</b>
             </a>
             <a href="/app_masa_salarial" target="_self" class="app-card card-masa">
@@ -137,3 +137,4 @@ with main_col:
 
 # Instrucción final para el usuario
 st.sidebar.success("Selecciona una aplicación para continuar.")
+
