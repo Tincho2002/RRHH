@@ -32,20 +32,20 @@ div[data-testid="stSidebar"] {
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* 4. Selector para el PRIMER logo (usando la key "main_logo") */
-/* Lo hacemos específico para apuntar a la imagen dentro de su contenedor de Streamlit. */
+/* 4. Selector para el PRIMER logo (usando el caption "main_logo") */
+/* Centra la imagen dentro de su contenedor y aplica la animación. */
 div[data-testid="stImage"] img[alt="main_logo"] { 
     animation: openingLogo 1.5s ease-out forwards;
     display: block; 
-    margin: 0 auto; /* Centrado horizontal */
+    margin: 0 auto; /* Centrado horizontal de la imagen */
 }
 
-/* 5. Selector para el SEGUNDO logo (usando la key "secondary_logo") */
+/* 5. Selector para el SEGUNDO logo (usando el caption "secondary_logo") */
 div[data-testid="stImage"] img[alt="secondary_logo"] {
     animation: fade-in-scale 1.5s ease-out 0.5s forwards; /* 0.5s de retraso */
     opacity: 0; /* Asegura que esté invisible al inicio */
     display: block;
-    margin: 30px auto 20px auto; /* Centrado y espacio */
+    margin: 30px auto 20px auto; /* Centrado horizontal y margen */
     width: 200px; 
     max-width: 100%;
     border-radius: 8px;
@@ -53,18 +53,23 @@ div[data-testid="stImage"] img[alt="secondary_logo"] {
 }
 
 /* 6. Estilo de los títulos para Centrado */
-h1 {
+h1, div[data-testid="stMarkdown"] h2 {
     text-align: center;
+    width: 100%; 
+}
+
+h1 {
     font-size: 2.5em;
     color: #007bff;
-    width: 100%; /* Ocupa todo el espacio de su columna */
 }
 
-/* 7. Centrado del Subtítulo */
-div[data-testid="stMarkdown"] h2 {
-    text-align: center;
+/* 7. Centrado del Contenedor del Logo Principal */
+/* Asegura que el logo y el título en la columna central estén juntos */
+div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlock"] > div:first-child {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Centra el contenido verticalmente */
 }
-
 
 /* 8. ESTILOS DE TARJETA HTML/CSS */
 .card-container {
@@ -111,11 +116,11 @@ div[data-testid="stMarkdown"] h2 {
 # -----------------------------------------------------------------------
 
 # 1. Logo y Título (Centrado Perfecto usando columnas de ancho fijo)
-col_left, col_center, col_right = st.columns([1, 6, 1])
+# Usamos una columna central amplia para contener todo el encabezado
+col_left, col_center, col_right = st.columns([1, 8, 1])
 
-# Mostramos el logo y el título en la columna central, uno encima del otro
 with col_center:
-    # --- Logo Principal (arriba a la izquierda, centrado solo horizontalmente) ---
+    # --- Logo Principal (Centrado por CSS) ---
     st.image("assets/logo_assa.jpg", width=100, caption="main_logo")
     
     # --- Títulos (Centrados por CSS) ---
@@ -126,12 +131,10 @@ st.markdown("---")
 
 # -----------------------------------------------------------------------
 # --- SEGUNDO LOGO CON EFECTO (fade-in-scale) ---
-# Debe estar centrado bajo el título. Usamos la columna central de 3 para centrar el elemento.
+# Usamos el contenedor st.container para asegurarnos de que la imagen quede
+# en su propio bloque, centrado por el CSS del selector "secondary_logo"
 # -----------------------------------------------------------------------
-col_l, col_center_2, col_r = st.columns([1, 1, 1])
-
-with col_center_2:
-    # Nota: El CSS con margin: auto y display: block se encarga de que se centre perfectamente
+with st.container():
     st.image("assets/logo_assa.jpg", width=200, caption="secondary_logo")
 
 
