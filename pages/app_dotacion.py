@@ -105,7 +105,8 @@ def get_sorted_unique_options(dataframe, column_name):
 def get_available_options(df, selections, target_column):
     _df = df.copy()
     for col, values in selections.items():
-        if col != target_column and values:
+        # Verificación añadida: Asegurarse de que la columna exista en el DataFrame antes de filtrar
+        if col != target_column and values and col in _df.columns: 
             _df = _df[_df[col].isin(values)]
     return get_sorted_unique_options(_df, target_column)
 
@@ -614,6 +615,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
