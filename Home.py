@@ -1,3 +1,4 @@
+import streamlit as st
 import pandas as pd
 # Importaciones de otras páginas (necesarias si esta fuera la app principal)
 # import app_dotacion # Simulación de importación
@@ -170,6 +171,7 @@ with main_col:
 
 # Instrucción final para el usuario
 st.sidebar.success("Selecciona una aplicación para continuar.")
+
 
 
 
