@@ -159,18 +159,14 @@ div[data-testid="stDownloadButton"] button:hover {
 """, unsafe_allow_html=True)
 
 
-# --- INICIO CORRECCIÓN: Funciones y configuración de formato ---
+# --- Funciones de Formato ---
 custom_format_locale = {
-    "decimal": ",",
-    "thousands": ".",
-    "grouping": [3],
-    "currency": ["$", ""]
+    "decimal": ",", "thousands": ".", "grouping": [3], "currency": ["$", ""]
 }
 alt.renderers.set_embed_options(formatLocale=custom_format_locale)
 
 def format_number_es(num, decimals=2):
-    if pd.isna(num) or not isinstance(num, (int, float, np.number)):
-        return ""
+    if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
     s = f"{num:,.{decimals}f}"
     return s.replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
@@ -187,10 +183,8 @@ def create_format_dict(df):
         else:
             formatters[col] = lambda x: format_number_es(x, 2)
     return formatters
-# --- FIN CORRECCIÓN ---
 
-
-# --- FUNCIONES DE CÁLCULO OPTIMIZADAS CON CACHÉ ---
+# --- Funciones de Cálculo y Filtros ---
 def apply_filters(full_df, selections):
     _df = full_df.copy()
     for col, values in selections.items():
@@ -198,7 +192,6 @@ def apply_filters(full_df, selections):
             _df = _df[_df[col].isin(values)]
     return _df
 
-# --- INICIO: FUNCIONES PARA FILTROS INTELIGENTES ---
 def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns:
         unique_values = dataframe[column_name].dropna().unique().tolist()
@@ -217,7 +210,6 @@ def get_available_options(df, selections, target_column):
         if col != target_column and values and col in _df.columns:
             _df = _df[_df[col].isin(values)]
     return get_sorted_unique_options(_df, target_column)
-# --- FIN: FUNCIONES PARA FILTROS INTELIGENTES ---
 
 @st.cache_data
 def load_coords_from_url(url):
@@ -228,7 +220,7 @@ def load_coords_from_url(url):
         st.error(f"Error al cargar el archivo de coordenadas desde GitHub: {e}")
         return pd.DataFrame()
 
-# --- INICIO CORRECCIÓN: Refactorización de funciones de cálculo ---
+# --- Funciones de Cálculo con Caché ---
 @st.cache_data
 def calculate_monthly_trends(full_df, selections, cost_cols_map, quant_cols_map, selected_cost_keys, selected_quant_keys):
     _df = apply_filters(full_df, selections)
@@ -291,8 +283,6 @@ def calculate_average_hourly_rate(full_df, selections, dimension):
     valor_hora_cols = [col for col in ['Hora Normal', 'Hora Extra al 50%', 'Hora Extra al 50% Sabados', 'Hora Extra al 100%', 'HE FC'] if col in _df.columns]
     if not valor_hora_cols: return pd.DataFrame()
     return _df.groupby(dimension)[valor_hora_cols].mean().reset_index()
-# --- FIN CORRECCIÓN ---
-
 
 # --- Funciones Auxiliares ---
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix):
@@ -375,17 +365,11 @@ if uploaded_file is not None:
 
     st.success(f"Se ha cargado un total de **{format_number_es(len(df), 0)}** registros de horas extras.")
 
-    # --- INICIO: LÓGICA DE FILTROS TIPO SLICER ---
+    # --- Lógica de Filtros ---
     st.sidebar.header('Filtros del Dashboard')
-    
     cost_columns_options = {'Horas extras al 50 %': 'Horas extras al 50 %', 'Horas extras al 50 % Sabados': 'Horas extras al 50 % Sabados', 'Horas extras al 100%': 'Horas extras al 100%', 'Importe HE Fc': 'Importe HE Fc'}
     quantity_columns_options = {'Cantidad HE 50': 'Cantidad HE 50', 'Cant HE al 50 Sabados': 'Cant HE al 50 Sabados', 'Cantidad HE 100': 'Cantidad HE 100', 'Cantidad HE FC': 'Cantidad HE FC'}
-    
-    filter_cols_config = {
-        'Gerencia': 'Gerencia', 'Ministerio': 'Ministerio', 'CECO': 'Centro de Costo', 'Ubicación': 'Ubicación',
-        'Función': 'Función', 'Nivel': 'Nivel', 'Sexo': 'Sexo', 'Liquidación': 'Liquidación',
-        'Legajo': 'Legajo', 'Mes': 'Mes'
-    }
+    filter_cols_config = {'Gerencia': 'Gerencia', 'Ministerio': 'Ministerio', 'CECO': 'Centro de Costo', 'Ubicación': 'Ubicación', 'Función': 'Función', 'Nivel': 'Nivel', 'Sexo': 'Sexo', 'Liquidación': 'Liquidación', 'Legajo': 'Legajo', 'Mes': 'Mes'}
     filter_cols = list(filter_cols_config.keys())
 
     if 'selections' not in st.session_state:
@@ -398,29 +382,19 @@ if uploaded_file is not None:
         st.session_state.selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
         st.session_state.cost_types = list(cost_columns_options.keys())
         st.session_state.quantity_types = list(quantity_columns_options.keys())
-        if 'show_map_comp_check' in st.session_state:
-            st.session_state['show_map_comp_check'] = False
+        if 'show_map_comp_check' in st.session_state: st.session_state['show_map_comp_check'] = False
         st.rerun()
     
     st.sidebar.markdown("---")
-
     old_selections = {k: list(v) for k, v in st.session_state.selections.items()}
-
     for col, title in filter_cols_config.items():
         available_options = get_available_options(df, st.session_state.selections, col)
         current_selection = [sel for sel in st.session_state.selections.get(col, []) if sel in available_options]
-
-        selected = st.sidebar.multiselect(
-            title,
-            options=available_options,
-            default=current_selection,
-            key=f"multiselect_{col}"
-        )
+        selected = st.sidebar.multiselect(title, options=available_options, default=current_selection, key=f"multiselect_{col}")
         st.session_state.selections[col] = selected
 
     if old_selections != st.session_state.selections:
-        if 'show_map_comp_check' in st.session_state:
-            st.session_state['show_map_comp_check'] = False
+        if 'show_map_comp_check' in st.session_state: st.session_state['show_map_comp_check'] = False
         st.rerun()
 
     filtered_df = apply_filters(df, st.session_state.selections)
@@ -428,162 +402,76 @@ if uploaded_file is not None:
     top_n_employees = st.sidebar.slider('Mostrar Top N Empleados:', 5, 50, 10)
     st.sidebar.markdown("---")
     st.sidebar.subheader("Selección de Tipos de Horas Extras")
-    
-    st.session_state.cost_types = st.sidebar.multiselect(
-        'Tipos de Costo de HE:', 
-        options=list(cost_columns_options.keys()), 
-        default=st.session_state.get('cost_types', [])
-    )
-    st.session_state.quantity_types = st.sidebar.multiselect(
-        'Tipos de Cantidad de HE:', 
-        options=list(quantity_columns_options.keys()), 
-        default=st.session_state.get('quantity_types', [])
-    )
+    st.session_state.cost_types = st.sidebar.multiselect('Tipos de Costo de HE:', options=list(cost_columns_options.keys()), default=st.session_state.get('cost_types', []))
+    st.session_state.quantity_types = st.sidebar.multiselect('Tipos de Cantidad de HE:', options=list(quantity_columns_options.keys()), default=st.session_state.get('quantity_types', []))
     
     st.info(f"Mostrando **{format_number_es(len(filtered_df), 0)}** registros según los filtros aplicados.")
     st.markdown("---")
 
-    # --- INICIO: NUEVAS MÉTRICAS DE COSTO Y HORAS PROMEDIO ---
+    # --- INICIO: LÓGICA DE MÉTRICAS CORREGIDA ---
     horas_prom_convenio, costo_prom_convenio = 0, 0
     horas_prom_fc, costo_prom_fc = 0, 0
 
     if not filtered_df.empty:
-        # 1. Obtener las columnas de costo y cantidad seleccionadas por el usuario
         cost_cols = [cost_columns_options[k] for k in st.session_state.cost_types if k in cost_columns_options and cost_columns_options[k] in filtered_df.columns]
         quant_cols = [quantity_columns_options[k] for k in st.session_state.quantity_types if k in quantity_columns_options and quantity_columns_options[k] in filtered_df.columns]
 
-        # 2. Separar los dataframes por grupo, usando la columna 'Nivel'
-        is_fc = filtered_df['Nivel'] == 'FC'
-        df_fc = filtered_df[is_fc]
-        df_convenio = filtered_df[~is_fc]
+        if quant_cols:
+            # --- DEFINICIÓN PRECISA DE GRUPOS BASADA EN 'Nivel' ---
+            niveles_convenio = ['3', '4', '5']
+            niveles_fc = ['6', '7', 'FC'] # Incluimos 'FC' por si aparece como texto también
 
-        # 3. Calcular los totales de costo y horas para cada grupo
-        total_costo_convenio = df_convenio[cost_cols].sum().sum() if cost_cols else 0
-        total_horas_convenio = df_convenio[quant_cols].sum().sum() if quant_cols else 0
-        total_costo_fc = df_fc[cost_cols].sum().sum() if cost_cols else 0
-        total_horas_fc = df_fc[quant_cols].sum().sum() if quant_cols else 0
+            df_convenio = filtered_df[filtered_df['Nivel'].isin(niveles_convenio)]
+            df_fc = filtered_df[filtered_df['Nivel'].isin(niveles_fc)]
 
-        # 4. Calcular el denominador correcto: la suma de empleados únicos contados CADA MES.
-        dotacion_mes_convenio = df_convenio.groupby('Mes')['Legajo'].nunique().sum()
-        dotacion_mes_fc = df_fc.groupby('Mes')['Legajo'].nunique().sum()
+            # Calcular totales de costo y horas
+            total_costo_convenio = df_convenio[cost_cols].sum().sum() if cost_cols else 0
+            total_horas_convenio = df_convenio[quant_cols].sum().sum()
+            total_costo_fc = df_fc[cost_cols].sum().sum() if cost_cols else 0
+            total_horas_fc = df_fc[quant_cols].sum().sum()
 
-        # 5. Calcular los promedios
-        horas_prom_convenio = total_horas_convenio / dotacion_mes_convenio if dotacion_mes_convenio > 0 else 0
-        costo_prom_convenio = total_costo_convenio / dotacion_mes_convenio if dotacion_mes_convenio > 0 else 0
-        horas_prom_fc = total_horas_fc / dotacion_mes_fc if dotacion_mes_fc > 0 else 0
-        costo_prom_fc = total_costo_fc / dotacion_mes_fc if dotacion_mes_fc > 0 else 0
+            # --- CORRECCIÓN DEL DENOMINADOR: Contar solo empleados que SÍ tienen horas extras ---
+            df_convenio_con_hs = df_convenio[df_convenio[quant_cols].sum(axis=1) > 0.01]
+            empleados_con_hs_convenio = df_convenio_con_hs['Legajo'].nunique()
 
-    # 6. Mostrar las métricas
-    st.subheader("Promedios por Empleado en el Período")
+            df_fc_con_hs = df_fc[df_fc[quant_cols].sum(axis=1) > 0.01]
+            empleados_con_hs_fc = df_fc_con_hs['Legajo'].nunique()
+            
+            # Calcular promedios sobre la base correcta (Total / Empleados con HE)
+            horas_prom_convenio = total_horas_convenio / empleados_con_hs_convenio if empleados_con_hs_convenio > 0 else 0
+            costo_prom_convenio = total_costo_convenio / empleados_con_hs_convenio if empleados_con_hs_convenio > 0 else 0
+            horas_prom_fc = total_horas_fc / empleados_con_hs_fc if empleados_con_hs_fc > 0 else 0
+            costo_prom_fc = total_costo_fc / empleados_con_hs_fc if empleados_con_hs_fc > 0 else 0
+
+    st.subheader("Promedios por Empleado (con HE) en el Período")
     kpi_cols = st.columns(4)
     kpi_cols[0].metric("Horas Promedio Convenio", f"{format_number_es(horas_prom_convenio, 1)} hs")
     kpi_cols[1].metric("Costo Medio Convenio", format_currency_es(costo_prom_convenio))
     kpi_cols[2].metric("Horas Promedio F. Convenio", f"{format_number_es(horas_prom_fc, 1)} hs")
     kpi_cols[3].metric("Costo Medio F. Convenio", format_currency_es(costo_prom_fc))
     st.markdown("---")
-    # --- FIN: NUEVAS MÉTRICAS ---
+    # --- FIN: LÓGICA DE MÉTRICAS CORREGIDA ---
 
     # --- TARJETA DE RESUMEN ANIMADA ---
-    # (El código de la tarjeta animada permanece sin cambios)
     if not filtered_df.empty and 'Mes' in filtered_df.columns:
         try:
             latest_month_str = filtered_df['Mes'].dropna().max()
             if pd.notna(latest_month_str):
                 df_last_month = filtered_df[filtered_df['Mes'] == latest_month_str].copy()
-                
                 costo_50 = df_last_month['Horas extras al 50 %'].sum() if 'Horas extras al 50 %' in st.session_state.cost_types else 0
                 cantidad_50 = df_last_month['Cantidad HE 50'].sum() if 'Cantidad HE 50' in st.session_state.quantity_types else 0
-                
                 costo_50_sab = df_last_month['Horas extras al 50 % Sabados'].sum() if 'Horas extras al 50 % Sabados' in st.session_state.cost_types else 0
                 cantidad_50_sab = df_last_month['Cant HE al 50 Sabados'].sum() if 'Cant HE al 50 Sabados' in st.session_state.quantity_types else 0
-
                 costo_100 = df_last_month['Horas extras al 100%'].sum() if 'Horas extras al 100%' in st.session_state.cost_types else 0
                 cantidad_100 = df_last_month['Cantidad HE 100'].sum() if 'Cantidad HE 100' in st.session_state.quantity_types else 0
-
                 costo_fc = df_last_month['Importe HE Fc'].sum() if 'Importe HE Fc' in st.session_state.cost_types else 0
                 cantidad_fc = df_last_month['Cantidad HE FC'].sum() if 'Cantidad HE FC' in st.session_state.quantity_types else 0
-                
                 total_costo_mes = costo_50 + costo_50_sab + costo_100 + costo_fc
                 total_cantidad_mes = cantidad_50 + cantidad_50_sab + cantidad_100 + cantidad_fc
-                
                 month_dt = datetime.strptime(latest_month_str, '%Y-%m')
                 meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
                 month_name = f"{meses_espanol.get(month_dt.month, '')} {month_dt.year}"
-
-                card_html = f"""
-                <style>
-                    .summary-card {{ background-color: #f8f7fc; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); padding: 1.5rem; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important; }}
-                    .summary-card * {{ font-family: inherit !important; }}
-                    .summary-header {{ text-align: center; font-size: 1.2rem; font-weight: 600; margin-bottom: 1.5rem; border-bottom: 2px solid #e0e0e0; padding-bottom: 1rem; color: #6C5CE7 !important; }}
-                    .summary-totals {{ display: flex; justify-content: space-around; gap: 1rem; margin-bottom: 1.5rem; }}
-                    .summary-main-kpi {{ text-align: center; }}
-                    .summary-main-kpi .value {{ font-size: 2.5rem; font-weight: 700; color: #6C5CE7; }}
-                    .summary-main-kpi .label {{ font-size: 1rem; color: #5a5a5a; }}
-                    .summary-breakdown {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }}
-                    .summary-sub-kpi {{ background-color: #ffffff; padding: 1rem; border-radius: 6px; border: 1px solid #e0e0e0; text-align: center; }}
-                    .summary-sub-kpi .type {{ font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; }}
-                    .summary-sub-kpi .value-cost, .summary-sub-kpi .value-qty {{ font-size: 1.25rem; font-weight: 600; }}
-                    .summary-sub-kpi .value-cost {{ color: #2a7a2a; }}
-                    .summary-sub-kpi .value-qty {{ color: #3a3a9a; }}
-                </style>
-                <div class="summary-card">
-                    <div class="summary-header">RESUMEN MENSUAL: {month_name}</div>
-                    <div class="summary-totals">
-                        <div class="summary-main-kpi">
-                            <div class="value" data-target="{total_costo_mes}" data-type="currency" data-decimals="2"></div>
-                            <div class="label">Costo Total</div>
-                        </div>
-                        <div class="summary-main-kpi">
-                            <div class="value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="0"></div>
-                            <div class="label">Cantidad Total</div>
-                        </div>
-                    </div>
-                    <div class="summary-breakdown">
-                        <div class="summary-sub-kpi">
-                            <div class="type">HE 50%</div>
-                            <div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div>
-                            <div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="0"></div>
-                        </div>
-                        <div class="summary-sub-kpi">
-                            <div class="type">HE 50% Sábados</div>
-                            <div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div>
-                            <div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="0"></div>
-                        </div>
-                        <div class="summary-sub-kpi">
-                            <div class="type">HE 100%</div>
-                            <div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div>
-                            <div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="0"></div>
-                        </div>
-                        <div class="summary-sub-kpi">
-                            <div class="type">HE FC</div>
-                            <div class="value-cost" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div>
-                            <div class="value-qty" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="0"></div>
-                        </div>
-                    </div>
-                </div>
-                <script>
-                    function animateValue(obj, start, end, duration) {{
-                        let startTimestamp = null;
-                        const type = obj.getAttribute('data-type') || 'number';
-                        const suffix = obj.getAttribute('data-suffix') || '';
-                        const decimals = parseInt(obj.getAttribute('data-decimals')) || 0;
-                        const currencyFormatter = new Intl.NumberFormat('es-AR', {{ style: 'currency', currency: 'ARS', minimumFractionDigits: decimals, maximumFractionDigits: decimals }});
-                        const numberFormatter = new Intl.NumberFormat('es-AR', {{ minimumFractionDigits: decimals, maximumFractionDigits: decimals }});
-                        const step = (timestamp) => {{
-                            if (!startTimestamp) startTimestamp = timestamp;
-                            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                            const currentVal = progress * (end - start) + start;
-                            let formattedVal;
-                            if (type === 'currency') {{ formattedVal = currencyFormatter.format(currentVal).replace(/^ARS\\s/, '$'); }} else {{ formattedVal = numberFormatter.format(currentVal); }}
-                            obj.innerHTML = formattedVal + suffix;
-                            if (progress < 1) {{ window.requestAnimationFrame(step); }}
-                        }};
-                        window.requestAnimationFrame(step);
-                    }}
-                    const counters = document.querySelectorAll('[data-target]');
-                    counters.forEach(counter => {{ counter.innerHTML = ''; const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
-                </script>
-                """
+                card_html = f"""<style>.summary-card{{background-color:#f8f7fc;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,0.05);padding:1.5rem;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif !important}}.summary-card *{{font-family:inherit !important}}.summary-header{{text-align:center;font-size:1.2rem;font-weight:600;margin-bottom:1.5rem;border-bottom:2px solid #e0e0e0;padding-bottom:1rem;color:#6C5CE7 !important}}.summary-totals{{display:flex;justify-content:space-around;gap:1rem;margin-bottom:1.5rem}}.summary-main-kpi{{text-align:center}}.summary-main-kpi .value{{font-size:2.5rem;font-weight:700;color:#6C5CE7}}.summary-main-kpi .label{{font-size:1rem;color:#5a5a5a}}.summary-breakdown{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}.summary-sub-kpi{{background-color:#ffffff;padding:1rem;border-radius:6px;border:1px solid #e0e0e0;text-align:center}}.summary-sub-kpi .type{{font-weight:600;font-size:0.9rem;margin-bottom:0.5rem}}.summary-sub-kpi .value-cost,.summary-sub-kpi .value-qty{{font-size:1.25rem;font-weight:600}}.summary-sub-kpi .value-cost{{color:#2a7a2a}}.summary-sub-kpi .value-qty{{color:#3a3a9a}}</style><div class="summary-card"><div class="summary-header">RESUMEN MENSUAL: {month_name}</div><div class="summary-totals"><div class="summary-main-kpi"><div class="value" data-target="{total_costo_mes}" data-type="currency" data-decimals="2"></div><div class="label">Costo Total</div></div><div class="summary-main-kpi"><div class="value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="0"></div><div class="label">Cantidad Total</div></div></div><div class="summary-breakdown"><div class="summary-sub-kpi"><div class="type">HE 50%</div><div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div><div class="summary-sub-kpi"><div class="type">HE 50% Sábados</div><div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div><div class="summary-sub-kpi"><div class="type">HE 100%</div><div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div><div class="summary-sub-kpi"><div class="type">HE FC</div><div class="value-cost" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div></div></div><script>function animateValue(obj,start,end,duration){{let startTimestamp=null;const type=obj.getAttribute('data-type')||'number';const suffix=obj.getAttribute('data-suffix')||'';const decimals=parseInt(obj.getAttribute('data-decimals'))||0;const currencyFormatter=new Intl.NumberFormat('es-AR',{{style:'currency',currency:'ARS',minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const numberFormatter=new Intl.NumberFormat('es-AR',{{minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const step=timestamp=>{{if(!startTimestamp)startTimestamp=timestamp;const progress=Math.min((timestamp-startTimestamp)/duration,1);const currentVal=progress*(end-start)+start;let formattedVal;if(type==='currency'){{formattedVal=currencyFormatter.format(currentVal).replace(/^ARS\\s/,'$')}}else{{formattedVal=numberFormatter.format(currentVal)}}obj.innerHTML=formattedVal+suffix;if(progress<1){{window.requestAnimationFrame(step)}}}};window.requestAnimationFrame(step)}}const counters=document.querySelectorAll('[data-target]');counters.forEach(counter=>{{counter.innerHTML='';const target=+counter.getAttribute('data-target');setTimeout(()=>animateValue(counter,0,target,1500),100)}});</script>"""
                 components.html(card_html, height=420)
                 st.markdown("<br>", unsafe_allow_html=True)
         except Exception as e:
@@ -618,8 +506,7 @@ if uploaded_file is not None:
                             line_costos = alt.Chart(chart_data).mark_line(color='black', point=alt.OverlayMarkDef(filled=False, fill='white', color='black'), strokeWidth=2).encode(x='Mes', y=alt.Y('Total_Costos:Q', title='Costo ($)', scale=y_scale_cost, axis=alt.Axis(format='$,.0f')), tooltip=[alt.Tooltip('Mes'), alt.Tooltip('Total_Costos', title='Total', format='$,.2f')])
                             text_costos = line_costos.mark_text(align='center', baseline='bottom', dy=-10, color='black').encode(text=alt.Text('Total_Costos:Q', format='$,.0f'))
                             st.altair_chart(alt.layer(bars_costos, line_costos, text_costos).resolve_scale(y='shared').properties(title=alt.TitleParams('Costos Mensuales', anchor='middle')).interactive(), use_container_width=True)
-                        else:
-                            st.info("No hay datos de costos para mostrar para la selección actual.")
+                        else: st.info("No hay datos de costos para mostrar para la selección actual.")
                     with col2:
                         if monthly_trends_agg['Total_Cantidades'].sum() > 0:
                             chart_data, max_quant = monthly_trends_agg, monthly_trends_agg['Total_Cantidades'].max()
@@ -630,13 +517,11 @@ if uploaded_file is not None:
                             line_cantidades = alt.Chart(chart_data).mark_line(color='black', point=alt.OverlayMarkDef(filled=False, fill='white', color='black'), strokeWidth=2).encode(x='Mes', y=alt.Y('Total_Cantidades:Q', title='Cantidad', scale=y_scale_quant, axis=alt.Axis(format=',.0f')), tooltip=[alt.Tooltip('Mes'), alt.Tooltip('Total_Cantidades', title='Total', format=',.0f')])
                             text_cantidades = line_cantidades.mark_text(align='center', baseline='bottom', dy=-10, color='black').encode(text=alt.Text('Total_Cantidades:Q', format=',.0f'))
                             st.altair_chart(alt.layer(bars_cantidades, line_cantidades, text_cantidades).resolve_scale(y='shared').properties(title=alt.TitleParams('Cantidades Mensuales', anchor='middle')).interactive(), use_container_width=True)
-                        else:
-                            st.info("No hay datos de cantidades para mostrar para la selección actual.")
+                        else: st.info("No hay datos de cantidades para mostrar para la selección actual.")
                     st.subheader('Tabla de Tendencias Mensuales')
                     st.dataframe(monthly_trends_agg_with_total.style.format(create_format_dict(monthly_trends_agg_with_total)), use_container_width=True)
                     generate_download_buttons(monthly_trends_agg_with_total, 'tendencias_mensuales', 'tab1_trends')
-                else:
-                    st.warning("No hay datos de tendencias para mostrar con los filtros actuales.")
+                else: st.warning("No hay datos de tendencias para mostrar con los filtros actuales.")
         with st.container(border=True):
             with st.spinner("Calculando variaciones mensuales..."):
                 monthly_trends_for_var = calculate_monthly_variations(monthly_trends_agg)
@@ -670,63 +555,37 @@ if uploaded_file is not None:
                     formatters_var.update({'Variacion_Costos_Pct': lambda x: f"{format_number_es(x, 2)}%", 'Variacion_Cantidades_Pct': lambda x: f"{format_number_es(x, 2)}%"})
                     st.dataframe(df_variaciones.style.format(formatters_var), use_container_width=True)
                     generate_download_buttons(df_variaciones, 'variaciones_mensuales', 'tab1_var')
-                else:
-                    st.info("No hay suficientes datos (se necesita más de un mes) para calcular las variaciones.")
-
-
+                else: st.info("No hay suficientes datos (se necesita más de un mes) para calcular las variaciones.")
     with tab_mapa:
-        # El código del mapa permanece sin cambios
         st.header("Distribución Geográfica de Horas Extras")
-        if filtered_df.empty:
-            st.warning("No hay datos para mostrar en el mapa con los filtros seleccionados.")
+        if filtered_df.empty: st.warning("No hay datos para mostrar en el mapa con los filtros seleccionados.")
         else:
             df_mapa_display = filtered_df.copy()
-            
             latest_month_map = ""
             if st.session_state.selections.get('Mes'):
                 all_months_sorted = sorted(df['Mes'].dropna().unique())
                 selected_months_sorted = [m for m in all_months_sorted if m in st.session_state.selections['Mes']]
-                if selected_months_sorted:
-                    latest_month_map = selected_months_sorted[-1]
-            else:
-                latest_month_map = df['Mes'].dropna().max()
-
+                if selected_months_sorted: latest_month_map = selected_months_sorted[-1]
+            else: latest_month_map = df['Mes'].dropna().max()
             month_name_map = "General"
             if pd.notna(latest_month_map):
                 df_mapa_display = df_mapa_display[df_mapa_display['Mes'] == latest_month_map].copy()
                 month_dt_map = datetime.strptime(latest_month_map, '%Y-%m')
                 meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
                 month_name_map = f"{meses_espanol.get(month_dt_map.month, '')} {month_dt_map.year}"
-            
             selected_cost_cols = [cost_columns_options[k] for k in st.session_state.cost_types if k in cost_columns_options]
             selected_quant_cols = [quantity_columns_options[k] for k in st.session_state.quantity_types if k in quantity_columns_options]
-            
             existing_cost_cols = [col for col in selected_cost_cols if col in df_mapa_display.columns]
             existing_quant_cols = [col for col in selected_quant_cols if col in df_mapa_display.columns]
-
-            if existing_cost_cols:
-                df_mapa_display['Costo_Total_Dinamico'] = df_mapa_display[existing_cost_cols].sum(axis=1)
-            else:
-                df_mapa_display['Costo_Total_Dinamico'] = 0
-
-            if existing_quant_cols:
-                df_mapa_display['Cantidad_Total_Dinamica'] = df_mapa_display[existing_quant_cols].sum(axis=1)
-            else:
-                df_mapa_display['Cantidad_Total_Dinamica'] = 0
-
-            df_mapa_agg = df_mapa_display.groupby('Ubicación').agg(
-                Costo_Total=('Costo_Total_Dinamico', 'sum'), 
-                Cantidad_Total=('Cantidad_Total_Dinamica', 'sum')
-            ).reset_index()
-
+            if existing_cost_cols: df_mapa_display['Costo_Total_Dinamico'] = df_mapa_display[existing_cost_cols].sum(axis=1)
+            else: df_mapa_display['Costo_Total_Dinamico'] = 0
+            if existing_quant_cols: df_mapa_display['Cantidad_Total_Dinamica'] = df_mapa_display[existing_quant_cols].sum(axis=1)
+            else: df_mapa_display['Cantidad_Total_Dinamica'] = 0
+            df_mapa_agg = df_mapa_display.groupby('Ubicación').agg(Costo_Total=('Costo_Total_Dinamico', 'sum'), Cantidad_Total=('Cantidad_Total_Dinamica', 'sum')).reset_index()
             df_mapa_data = pd.merge(df_mapa_agg, df_coords, left_on='Ubicación', right_on="Distrito", how="left")
             df_mapa_data.dropna(subset=['Latitud', 'Longitud'], inplace=True)
-            
             if not df_mapa_agg.empty:
-                total_costo_mapa = df_mapa_agg['Costo_Total'].sum()
-                total_cantidad_mapa = df_mapa_agg['Cantidad_Total'].sum()
-                ubicaciones_unicas = df_mapa_agg['Ubicación'].nunique()
-
+                total_costo_mapa, total_cantidad_mapa, ubicaciones_unicas = df_mapa_agg['Costo_Total'].sum(), df_mapa_agg['Cantidad_Total'].sum(), df_mapa_agg['Ubicación'].nunique()
                 st.subheader(f"Resumen para el período: {month_name_map}")
                 st.markdown("<br>", unsafe_allow_html=True)
                 kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
@@ -734,98 +593,58 @@ if uploaded_file is not None:
                 kpi_col2.metric("⏱️ Cantidad Total (Período)", f"{format_number_es(total_cantidad_mapa, 0)} hs")
                 kpi_col3.metric("📍 Ubicaciones Activas", format_number_es(ubicaciones_unicas, 0))
                 st.markdown("---")
-
             st.subheader(f"Comparador de Mapas para el Período: {month_name_map}")
             map_style_options = {"Satélite con Calles": "satellite-streets", "Mapa de Calles": "open-street-map", "Estilo Claro": "carto-positron"}
-            
-            if df_mapa_data.empty:
-                st.warning("No se encontraron coordenadas para las ubicaciones seleccionadas para el comparador.")
+            if df_mapa_data.empty: st.warning("No se encontraron coordenadas para las ubicaciones seleccionadas para el comparador.")
             else:
                 comp_col1, comp_col2 = st.columns([3, 2])
                 with comp_col1:
                     sel_col1, sel_col2 = st.columns(2)
-                    with sel_col1:
-                        style1_name = st.selectbox("Selecciona el estilo del mapa izquierdo:", options=list(map_style_options.keys()), index=0, key="map_style1")
-                    with sel_col2:
-                        style2_name = st.selectbox("Selecciona el estilo del mapa derecho:", options=list(map_style_options.keys()), index=1, key="map_style2")
+                    with sel_col1: style1_name = st.selectbox("Selecciona el estilo del mapa izquierdo:", options=list(map_style_options.keys()), index=0, key="map_style1")
+                    with sel_col2: style2_name = st.selectbox("Selecciona el estilo del mapa derecho:", options=list(map_style_options.keys()), index=1, key="map_style2")
                     st.markdown("---")
-            
-                    show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=st.session_state.get('show_map_comp_check', False), key="show_map_comp_check")    
-                    
+                    show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=st.session_state.get('show_map_comp_check', False), key="show_map_comp_check")
                     def generate_map_figure(df_plot_data, mapbox_style):
-                        if df_plot_data.empty:
-                            return None
+                        if df_plot_data.empty: return None
                         mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
                         px.set_mapbox_access_token(mapbox_access_token)
-                        fig = px.scatter_mapbox(
-                            df_plot_data, lat="Latitud", lon="Longitud", 
-                            size="Cantidad_Total", color="Costo_Total", 
-                            hover_name="Distrito", 
-                            hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':.0f', "Costo_Total": ':$,.2f'}, 
-                            color_continuous_scale=px.colors.sequential.Plasma, size_max=50, 
-                            mapbox_style=mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5}
-                        )
+                        fig = px.scatter_mapbox(df_plot_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':.0f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
                         fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                         return fig
-
                     if show_map_comparison:
                         with st.spinner("Generando mapas para comparación..."):
                             try:
-                                fig1 = generate_map_figure(df_mapa_data, map_style_options[style1_name])
-                                fig2 = generate_map_figure(df_mapa_data, map_style_options[style2_name])
-                                
+                                fig1, fig2 = generate_map_figure(df_mapa_data, map_style_options[style1_name]), generate_map_figure(df_mapa_data, map_style_options[style2_name])
                                 if fig1 and fig2:
-                                    img1_bytes = fig1.to_image(format="png", width=1200, height=950, scale=2)
-                                    img2_bytes = fig2.to_image(format="png", width=1200, height=950, scale=2)
-                                    
-                                    img1_pil = Image.open(io.BytesIO(img1_bytes))
-                                    img2_pil = Image.open(io.BytesIO(img2_bytes))
-                                    
-                                    image_comparison(
-                                        img1=img1_pil,
-                                        img2=img2_pil,
-                                        label1=style1_name,
-                                        label2=style2_name,
-                                        width=850,
-                                    )
-                                else:
-                                    st.warning("No se pudieron generar los mapas para la comparación.")
-                            except Exception as e:
-                                st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
-                    else:
-                        st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
-
+                                    img1_bytes, img2_bytes = fig1.to_image(format="png", width=1200, height=950, scale=2), fig2.to_image(format="png", width=1200, height=950, scale=2)
+                                    img1_pil, img2_pil = Image.open(io.BytesIO(img1_bytes)), Image.open(io.BytesIO(img2_bytes))
+                                    image_comparison(img1=img1_pil, img2=img2_pil, label1=style1_name, label2=style2_name, width=850)
+                                else: st.warning("No se pudieron generar los mapas para la comparación.")
+                            except Exception as e: st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
+                    else: st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
                 with comp_col2:
                     table_data_comp = df_mapa_agg.rename(columns={'Ubicación': 'Distrito', 'Costo_Total': 'Costo Total', 'Cantidad_Total': 'Cantidad Total'})
                     table_data_comp.sort_values(by='Costo Total', ascending=False, inplace=True)
                     total_row_comp = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_comp['Costo Total'].sum()], 'Cantidad Total': [table_data_comp['Cantidad Total'].sum()]})
                     df_final_table_comp = pd.concat([table_data_comp, total_row_comp], ignore_index=True)
                     st.dataframe(df_final_table_comp.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 0)}), use_container_width=True, height=600, hide_index=True)
-            
             st.markdown("---")
-
             st.subheader(f"Mapa Interactivo Individual para el Período: {month_name_map}")
-            
             if not df_mapa_data.empty:
                 selected_style_single_name = st.selectbox("Selecciona el estilo del mapa:", options=list(map_style_options.keys()), key="map_style_selector_single", index=0)
                 selected_mapbox_style_single = map_style_options[selected_style_single_name]
-                
                 single_map_col, single_table_col = st.columns([3, 2])
-                
                 with single_map_col:
                     fig_single = px.scatter_mapbox(df_mapa_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':.0f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style_single, zoom=6, center={"lat": -32.5, "lon": -61.5})
                     fig_single.update_layout(margin={"r":0, "t":0, "l":0, "b":0}, height=600)
                     st.plotly_chart(fig_single, use_container_width=True)
-
                 with single_table_col:
                     table_data_single = df_mapa_agg.rename(columns={'Ubicación': 'Distrito', 'Costo_Total': 'Costo Total', 'Cantidad_Total': 'Cantidad Total'})
                     table_data_single.sort_values(by='Costo Total', ascending=False, inplace=True)
                     total_row_single = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_single['Costo Total'].sum()], 'Cantidad Total': [table_data_single['Cantidad Total'].sum()]})
                     df_final_table_single = pd.concat([table_data_single, total_row_single], ignore_index=True)
                     st.dataframe(df_final_table_single.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 0)}), use_container_width=True, height=600, hide_index=True)
-
     with tab_desglose_org:
-        # El código de desglose permanece sin cambios
         st.header('Desglose Organizacional Detallado')
         dimension_options = {'Gerencia y Ministerio': ['Gerencia', 'Ministerio'], 'Gerencia y Sexo': ['Gerencia', 'Sexo'], 'Ministerio y Sexo': ['Ministerio', 'Sexo'], 'Nivel y Sexo': ['Nivel', 'Sexo'], 'Función y Sexo': ['Función', 'Sexo']}
         selected_dimension_key = st.selectbox('Selecciona una vista de desglose:', options=list(dimension_options.keys()))
@@ -834,13 +653,10 @@ if uploaded_file is not None:
         with st.spinner(f"Generando desglose por {selected_dimension_key}..."):
             df_grouped = calculate_grouped_aggregation(df, st.session_state.selections, group_cols, cost_columns_options, quantity_columns_options, st.session_state.cost_types, st.session_state.quantity_types)
             st.subheader(f'Distribución por {selected_dimension_key}')
-            
-            if df_grouped.empty:
-                st.warning(f"No hay datos para '{selected_dimension_key}' con los filtros seleccionados.")
+            if df_grouped.empty: st.warning(f"No hay datos para '{selected_dimension_key}' con los filtros seleccionados.")
             else:
                 df_grouped_chart = df_grouped[(df_grouped[primary_col] != 'no disponible') & (df_grouped[secondary_col] != 'no disponible')].copy()
-                if df_grouped_chart.empty:
-                    st.warning(f"No hay datos válidos (distintos de 'no disponible') para mostrar en el gráfico para '{selected_dimension_key}'.")
+                if df_grouped_chart.empty: st.warning(f"No hay datos válidos (distintos de 'no disponible') para mostrar en el gráfico para '{selected_dimension_key}'.")
                 else:
                     with st.container(border=True):
                         total_row = df_grouped.sum(numeric_only=True).to_frame().T
@@ -865,9 +681,7 @@ if uploaded_file is not None:
                         st.subheader('Tabla de Distribución')
                         st.dataframe(df_grouped_with_total.style.format(create_format_dict(df_grouped_with_total)), use_container_width=True)
                         generate_download_buttons(df_grouped_with_total, f'dist_{selected_dimension_key.replace(" y ", "_").lower()}', f'tab2_{selected_dimension_key}')
-
     with tab_empleados:
-        # El código de empleados permanece sin cambios
         with st.container(border=True):
             with st.spinner("Calculando ranking de empleados..."):
                 employee_overtime = calculate_employee_overtime(df, st.session_state.selections, cost_columns_options, quantity_columns_options, st.session_state.cost_types, st.session_state.quantity_types)
@@ -895,44 +709,22 @@ if uploaded_file is not None:
                     st.subheader('Tabla de Top Empleados por Cantidad')
                     st.dataframe(top_cantidad_empleados.style.format(create_format_dict(top_cantidad_empleados)), use_container_width=True)
                     generate_download_buttons(top_cantidad_empleados, f'top_{top_n_employees}_cantidad', 'tab3_cant')
-
     with tab_valor_hora:
         with st.container(border=True):
-            # --- INICIO: NUEVA SECCIÓN DE COSTO PROMEDIO POR TIPO DE HORA ---
             st.header('Costo Promedio por Tipo de Hora Extra (General)')
             with st.spinner("Calculando costos promedio por tipo de hora..."):
                 avg_cost_data = []
-                cost_quant_map = {
-                    'Horas extras al 50 %': 'Cantidad HE 50',
-                    'Horas extras al 50 % Sabados': 'Cant HE al 50 Sabados',
-                    'Horas extras al 100%': 'Cantidad HE 100',
-                    'Importe HE Fc': 'Cantidad HE FC'
-                }
-                
+                cost_quant_map = {'Horas extras al 50 %': 'Cantidad HE 50', 'Horas extras al 50 % Sabados': 'Cant HE al 50 Sabados', 'Horas extras al 100%': 'Cantidad HE 100', 'Importe HE Fc': 'Cantidad HE FC'}
                 for cost_col, quant_col in cost_quant_map.items():
                     if cost_col in filtered_df.columns and quant_col in filtered_df.columns:
-                        total_cost = filtered_df[cost_col].sum()
-                        total_quant = filtered_df[quant_col].sum()
+                        total_cost, total_quant = filtered_df[cost_col].sum(), filtered_df[quant_col].sum()
                         avg_cost = total_cost / total_quant if total_quant > 0 else 0
-                        avg_cost_data.append({
-                            "Tipo de Hora Extra": cost_col.replace("Horas extras al", "HE").replace("Importe ", ""),
-                            "Costo Total": total_cost,
-                            "Cantidad Total (hs)": total_quant,
-                            "Costo Promedio por Hora": avg_cost
-                        })
-                
+                        avg_cost_data.append({"Tipo de Hora Extra": cost_col.replace("Horas extras al", "HE").replace("Importe ", ""), "Costo Total": total_cost, "Cantidad Total (hs)": total_quant, "Costo Promedio por Hora": avg_cost})
                 if avg_cost_data:
                     df_avg_costs = pd.DataFrame(avg_cost_data)
-                    st.dataframe(df_avg_costs.style.format({
-                        "Costo Total": format_currency_es,
-                        "Cantidad Total (hs)": lambda x: format_number_es(x, 0),
-                        "Costo Promedio por Hora": format_currency_es
-                    }), use_container_width=True)
-                else:
-                    st.info("No se encontraron datos para calcular los costos promedio por tipo de hora.")
+                    st.dataframe(df_avg_costs.style.format({"Costo Total": format_currency_es, "Cantidad Total (hs)": lambda x: format_number_es(x, 0), "Costo Promedio por Hora": format_currency_es}), use_container_width=True)
+                else: st.info("No se encontraron datos para calcular los costos promedio por tipo de hora.")
             st.markdown("---")
-            # --- FIN: NUEVA SECCIÓN ---
-
             st.header('Valores Promedio por Hora por Dimensión')
             with st.spinner("Calculando valores promedio por hora..."):
                 grouping_dimension = st.selectbox('Selecciona la dimensión de desglose:', ['Gerencia', 'Legajo', 'Función', 'CECO', 'Ubicación', 'Nivel', 'Sexo'], key='valor_hora_grouping')
@@ -940,9 +732,7 @@ if uploaded_file is not None:
                 if not df_valor_hora.empty:
                     st.dataframe(df_valor_hora.style.format(create_format_dict(df_valor_hora)), use_container_width=True)
                     generate_download_buttons(df_valor_hora, f'valores_promedio_hora_por_{grouping_dimension}', 'tab_valor_hora')
-                else:
-                    st.warning("No hay datos de valor por hora con los filtros actuales o las columnas no existen.")
-
+                else: st.warning("No hay datos de valor por hora con los filtros actuales o las columnas no existen.")
     with tab_datos_brutos:
         with st.container(border=True):
             st.header('Tabla de Datos Brutos Filtrados')
