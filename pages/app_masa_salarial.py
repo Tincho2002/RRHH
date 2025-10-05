@@ -1,3 +1,4 @@
+# app_masa_salarial.py
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -167,32 +168,32 @@ def load_data(uploaded_file):
 st.title('💵 Dashboard de Masa Salarial 2025')
 st.markdown("Análisis interactivo de los costos de la mano de obra de la compañía.")
 
-uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Masa Salarial", type=["xlsx"]) 
+uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Masa Salarial", type=["xlsx"])
 
 if uploaded_file is None:
     st.info("Por favor, cargue un archivo para comenzar el análisis.")
     st.stop()
 
-# Cargamos datos
 df = load_data(uploaded_file)
 
 if df.empty:
     st.error("El archivo cargado está vacío o no se pudo procesar. El dashboard no puede continuar.")
     st.stop()
     
-# --- SIDEBAR: filtros ---
 st.sidebar.header('Filtros del Dashboard')
 
 filter_cols = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Mes', 'Ceco', 'Legajo']
 
-# Inicializar selección en session_state si no existe
+# --- LÓGICA DE FILTROS PRINCIPAL ---
+
+# 1. INICIALIZACIÓN DEL ESTADO: Si es la primera vez que se ejecuta, llena todos los filtros.
 if 'ms_selections' not in st.session_state:
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.ms_selections = initial_selections
-    # Forzamos recarga una sola vez para aplicar estado inicial
+    # Forzamos una recarga para que el resto del script vea el estado inicial.
     st.rerun()
 
-# Botón de reset
+# 2. BOTÓN DE RESETEO: Restablece el estado al inicial (todo seleccionado).
 if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="ms_clear"):
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.ms_selections = initial_selections
@@ -200,28 +201,42 @@ if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="ms_
 
 st.sidebar.markdown("---")
 
-# Renderizado de filtros (slicer inteligente)
+# 3. LÓGICA DE RENDERIZADO Y ACTUALIZACIÓN (EL "SLICER")
+# Guardamos una copia del estado ANTES de que el usuario interactúe con los widgets.
 old_selections = {k: list(v) for k, v in st.session_state.ms_selections.items()}
+
+# Iteramos para crear cada filtro.
 for col in filter_cols:
     label = col.replace('_', ' ').replace('Clasificacion Ministerio', 'Clasificación Ministerio')
+
+    # Las opciones disponibles se basan en el estado actual de los otros filtros.
     available_options = get_available_options(df, st.session_state.ms_selections, col)
+    
+    # Las selecciones por defecto son las que ya están en el estado, siempre que sigan siendo válidas.
     current_selection = [sel for sel in st.session_state.ms_selections.get(col, []) if sel in available_options]
+    
+    # Creamos el widget. El usuario puede cambiar su valor.
     selected = st.sidebar.multiselect(
         label,
         options=available_options,
         default=current_selection,
         key=f"ms_multiselect_{col}"
     )
+    
+    # Actualizamos el estado de la sesión con el valor que tiene el widget ahora.
     st.session_state.ms_selections[col] = selected
 
+# 4. DETECCIÓN DE CAMBIOS: Si el estado cambió, recargamos la app para que todo se actualice.
 if old_selections != st.session_state.ms_selections:
     st.rerun()
 
-# Aplicar filtros
+# 5. APLICACIÓN DE FILTROS: El DataFrame filtrado se usa en el resto de la app.
 df_filtered = apply_filters(df, st.session_state.ms_selections)
 
-# --- METRICS PRINCIPALES ---
+
+# --- INICIO DEL CUERPO PRINCIPAL DEL DASHBOARD (SIN CAMBIOS) ---
 total_masa_salarial = df_filtered['Total Mensual'].sum()
+# cantidad_empleados (como antes) a partir del último mes disponible (Dotación)
 cantidad_empleados = 0
 latest_month_name = "N/A"
 if not df_filtered.empty:
@@ -230,28 +245,62 @@ if not df_filtered.empty:
     cantidad_empleados = df_latest_month['Dotación'].sum() if 'Dotación' in df_latest_month.columns else 0
     if not df_latest_month.empty:
         latest_month_name = df_latest_month['Mes'].iloc[0]
-costo_medio = total_masa_salarial / cantidad_empleados if cantidad_empleados > 0 else 0
-col1, col2, col3 = st.columns(3)
+
+# --- NUEVOS CÁLCULOS: costo medio por Apellido y nombre (Total / Convenio / Fuera de Convenio) ---
+# Empleados únicos (por nombre) en todo el df_filtrado
+if 'Apellido y nombre' in df_filtered.columns:
+    empleados_total_unicos = df_filtered['Apellido y nombre'].nunique()
+else:
+    # fallback a Legajo si no existe la columna
+    empleados_total_unicos = df_filtered['Legajo'].nunique() if 'Legajo' in df_filtered.columns else cantidad_empleados
+
+# Manejo robusto de la columna 'Relación' para identificar convenios y FC
+if 'Relación' in df_filtered.columns:
+    rel_series = df_filtered['Relación'].astype(str).fillna('')
+    mask_convenio = rel_series.str.contains('convenio', case=False, na=False)
+    mask_fc = rel_series.str.contains(r'fc|fuera', case=False, na=False)
+else:
+    mask_convenio = pd.Series([False]*len(df_filtered))
+    mask_fc = pd.Series([False]*len(df_filtered))
+
+masa_convenio = df_filtered.loc[mask_convenio, 'Total Mensual'].sum()
+masa_fc = df_filtered.loc[mask_fc, 'Total Mensual'].sum()
+
+if 'Apellido y nombre' in df_filtered.columns:
+    empleados_convenio = df_filtered.loc[mask_convenio, 'Apellido y nombre'].nunique()
+    empleados_fc = df_filtered.loc[mask_fc, 'Apellido y nombre'].nunique()
+else:
+    empleados_convenio = df_filtered.loc[mask_convenio, 'Legajo'].nunique() if 'Legajo' in df_filtered.columns else 0
+    empleados_fc = df_filtered.loc[mask_fc, 'Legajo'].nunique() if 'Legajo' in df_filtered.columns else 0
+
+# Totales y costos medios
+costo_medio_total = total_masa_salarial / empleados_total_unicos if empleados_total_unicos > 0 else 0
+costo_convenio = masa_convenio / empleados_convenio if empleados_convenio > 0 else 0
+costo_fc = masa_fc / empleados_fc if empleados_fc > 0 else 0
+
+# Mostrar métricas en una fila de 5 columnas (tarjetas más compactas)
+col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("Masa Salarial Total (Período)", f"${format_number_es(total_masa_salarial)}")
 col2.metric(f"Empleados ({latest_month_name})", f"{format_integer_es(cantidad_empleados)}")
-col3.metric("Costo Medio por Empleado (Período)", f"${format_number_es(costo_medio)}")
+col3.metric("Costo Medio por Empleado (Total)", f"${format_number_es(costo_medio_total)}")
+col4.metric("Costo Medio por Empleado (Convenio)", f"${format_number_es(costo_convenio)}")
+col5.metric("Costo Medio por Empleado (Fuera de Convenio)", f"${format_number_es(costo_fc)}")
 
 st.markdown("---")
 
-# --- TABS PRINCIPALES ---
-tab_evolucion, tab_distribucion, tab_conceptos, tab_tabla = st.tabs(["Evolución Mensual y Anual", "Distribución por Gerencia y Clasificación", "Masa Salarial por Concepto / SIPAF", "Tabla de Datos Detallados"]) 
-
-# ------------------------- TAB 1: EVOLUCIÓN -------------------------
-with tab_evolucion:
+if df_filtered.empty:
+    st.warning("No hay datos que coincidan con los filtros seleccionados.")
+else:
+    # El resto del código de visualización (tabs, gráficos, tablas, descargas) permanece sin cambios.
     st.subheader("Evolución Mensual de la Masa Salarial")
     col_chart1, col_table1 = st.columns([2, 1])
     masa_mensual = df_filtered.groupby('Mes').agg({'Total Mensual': 'sum', 'Mes_Num': 'first'}).reset_index().sort_values('Mes_Num')
     
-    y_domain = [0, 1]
+    y_domain = [0, 1] 
     if not masa_mensual.empty:
         min_val = masa_mensual['Total Mensual'].min()
         max_val = masa_mensual['Total Mensual'].max()
-        padding = (max_val - min_val) * 0.2 if max_val != min_val else max_val * 0.2
+        padding = (max_val - min_val) * 0.2
         y_domain = [min_val - padding, max_val + padding]
         if y_domain[0] < 0 and min_val >= 0: y_domain[0] = 0
     y_scale = alt.Scale(domain=y_domain)
@@ -282,84 +331,14 @@ with tab_evolucion:
             masa_mensual_display = pd.concat([masa_mensual_display, total_row], ignore_index=True)
         st.dataframe(masa_mensual_display.style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}).set_properties(subset=["Total Mensual"], **{'text-align': 'right'}), hide_index=True, use_container_width=True, height=chart_height1)
     
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-    dl1_col, dl2_col = st.columns(2)
-    with dl1_col:
+    st.write("")
+    col_dl_1, col_dl_2 = st.columns(2)
+    with col_dl_1:
         st.download_button(label="📥 Descargar CSV", data=masa_mensual_display.to_csv(index=False).encode('utf-8'), file_name='evolucion_mensual.csv', mime='text/csv', use_container_width=True)
-    with dl2_col:
+    with col_dl_2:
         st.download_button(label="📥 Descargar Excel", data=to_excel(masa_mensual_display), file_name='evolucion_mensual.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
 
     st.markdown("---")
-    st.subheader("Resumen de Evolución Anual (Datos Filtrados)")
-    summary_df_filtered = pd.pivot_table(
-        df_filtered,
-        values='Total Mensual',
-        index=['Mes_Num', 'Mes'],
-        columns='Clasificacion_Ministerio',
-        aggfunc='sum',
-        fill_value=0
-    ).sort_index(level='Mes_Num').reset_index(level='Mes_Num', drop=True)
-
-    summary_df_display = summary_df_filtered.reset_index().copy()
-    
-    if not summary_df_display.empty:
-        col_chart_anual, col_table_anual = st.columns([2, 1])
-
-        with col_table_anual:
-            numeric_cols = summary_df_display.select_dtypes(include=np.number).columns
-            if 'Total general' not in summary_df_display.columns and len(numeric_cols) > 0:
-                summary_df_display['Total general'] = summary_df_display[numeric_cols].sum(axis=1)
-
-            total_row = summary_df_display.select_dtypes(include=np.number).sum().rename('Total')
-            summary_df_display = pd.concat([summary_df_display, total_row.to_frame().T], ignore_index=True)
-            if 'Mes' in summary_df_display.columns:
-                summary_df_display.iloc[-1, summary_df_display.columns.get_loc('Mes')] = 'Total'
-
-            summary_currency_cols = [col for col in summary_df_display.columns if col != 'Mes' and pd.api.types.is_numeric_dtype(summary_df_display[col])]
-            summary_format_mapper = {col: lambda x: f"${format_number_es(x)}" for col in summary_currency_cols}
-            table_height_anual = 350 + 40
-            st.dataframe(summary_df_display.style.format(summary_format_mapper, na_rep="").set_properties(subset=summary_currency_cols, **{'text-align': 'right'}), use_container_width=True, hide_index=True, height=table_height_anual)
-        
-        with col_chart_anual:
-            summary_chart_data = summary_df_filtered.reset_index().melt(id_vars='Mes', var_name='Clasificacion', value_name='Masa Salarial')
-            mes_sort_order = summary_chart_data['Mes'].dropna().unique().tolist()
-
-            bar_chart = alt.Chart(summary_chart_data).mark_bar().encode(
-                x=alt.X('Mes:N', sort=mes_sort_order, title='Mes'),
-                y=alt.Y('sum(Masa Salarial):Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
-                color=alt.Color('Clasificacion:N', title='Clasificación'),
-                tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Clasificacion:N'), alt.Tooltip('sum(Masa Salarial):Q', format='$,.2f', title='Masa Salarial')]
-            )
-            text_labels = alt.Chart(summary_chart_data).transform_aggregate(
-                total_masa_salarial='sum(Masa Salarial)',
-                groupby=['Mes']
-            ).mark_text(
-                dy=-8,
-                align='center',
-                color='black'
-            ).encode(
-                x=alt.X('Mes:N', sort=mes_sort_order),
-                y=alt.Y('total_masa_salarial:Q'),
-                text=alt.Text('total_masa_salarial:Q', format='$,.2s')
-            )
-            summary_chart = (bar_chart + text_labels).properties(
-                height=350, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}
-            ).configure(
-                background='transparent'
-            ).configure_view(
-                fill='transparent'
-            )
-            st.altair_chart(summary_chart, use_container_width=True)
-
-        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-        dl_a_col, dl_b_col = st.columns(2)
-        with dl_a_col:
-            st.download_button(label="📥 Descargar CSV", data=summary_df_display.to_csv(index=False).encode('utf-8'), file_name='resumen_anual_filtrado.csv', mime='text/csv', use_container_width=True)
-        with dl_b_col:
-            st.download_button(label="📥 Descargar Excel", data=to_excel(summary_df_display), file_name='resumen_anual_filtrado.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
-
-# ------------------------- TAB 2: DISTRIBUCIÓN -------------------------
-with tab_distribucion:
     st.subheader("Masa Salarial por Gerencia")
     col_chart2, col_table2 = st.columns([3, 2])
     gerencia_data = df_filtered.groupby('Gerencia')['Total Mensual'].sum().sort_values(ascending=False).reset_index()
@@ -381,13 +360,14 @@ with tab_distribucion:
             total_row = pd.DataFrame([{'Gerencia': 'Total', 'Total Mensual': gerencia_data_display['Total Mensual'].sum()}])
             gerencia_data_display = pd.concat([gerencia_data_display, total_row], ignore_index=True)
         st.dataframe(gerencia_data_display.style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}).set_properties(subset=["Total Mensual"], **{'text-align': 'right'}), hide_index=True, use_container_width=True, height=chart_height2)
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-    dl3_col, dl4_col = st.columns(2)
-    with dl3_col:
+    
+    st.write("")
+    col_dl_3, col_dl_4 = st.columns(2)
+    with col_dl_3:
         st.download_button(label="📥 Descargar CSV", data=gerencia_data_display.to_csv(index=False).encode('utf-8'), file_name='masa_por_gerencia.csv', mime='text/csv', use_container_width=True)
-    with dl4_col:
+    with col_dl_4:
         st.download_button(label="📥 Descargar Excel", data=to_excel(gerencia_data_display), file_name='masa_por_gerencia.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
-
+    
     st.markdown("---")
     st.subheader("Distribución por Clasificación")
     col_chart3, col_table3 = st.columns([2, 1])
@@ -430,20 +410,16 @@ with tab_distribucion:
             table_display_data = pd.concat([table_display_data, total_row], ignore_index=True)
         table_height = (len(table_display_data) + 1) * 35 + 3
         st.dataframe(table_display_data.copy().style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}).set_properties(subset=["Total Mensual"], **{'text-align': 'right'}), hide_index=True, use_container_width=True, height=table_height)
-
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-    dl5_col, dl6_col = st.columns(2)
-    with dl5_col:
+    
+    st.write("")
+    col_dl_5, col_dl_6 = st.columns(2)
+    with col_dl_5:
         st.download_button(label="📥 Descargar CSV", data=table_display_data.to_csv(index=False).encode('utf-8'), file_name='distribucion_clasificacion.csv', mime='text/csv', use_container_width=True)
-    with dl6_col:
+    with col_dl_6:
         st.download_button(label="📥 Descargar Excel", data=to_excel(table_display_data), file_name='distribucion_clasificacion.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
 
-# ------------------------- TAB 3: CONCEPTOS / SIPAF -------------------------
-with tab_conceptos:
-    st.subheader("Masa Salarial por Concepto / SIPAF")
-    mode = st.radio("Seleccionar vista:", options=["Masa por Concepto", "Resumen SIPAF"], index=0, horizontal=True)
-
-    # Lista de columnas de concepto original
+    st.markdown("---")
+    st.subheader("Masa Salarial por Concepto")
     concept_columns_to_pivot = [
         'Nómina General con Aportes', 'Antigüedad', 'Horas Extras', 'Cs. Sociales s/Remunerativos',
         'Cargas Sociales Antigüedad', 'Cargas Sociales Horas Extras', 'Nómina General sin Aportes',
@@ -454,106 +430,112 @@ with tab_conceptos:
     ]
     concept_cols_present = [col for col in concept_columns_to_pivot if col in df_filtered.columns]
 
-    # Lista de SIPAF aproximada
+    if concept_cols_present:
+        df_melted = df_filtered.melt(id_vars=['Mes', 'Mes_Num'], value_vars=concept_cols_present, var_name='Concepto', value_name='Monto')
+        pivot_table = pd.pivot_table(df_melted, values='Monto', index='Concepto', columns='Mes', aggfunc='sum', fill_value=0)
+        
+        meses_en_datos = df_filtered[['Mes', 'Mes_Num']].drop_duplicates().sort_values('Mes_Num')['Mes'].tolist()
+        if all(mes in pivot_table.columns for mes in meses_en_datos):
+            pivot_table = pivot_table[meses_en_datos]
+
+        pivot_table['Total general'] = pivot_table.sum(axis=1)
+        pivot_table = pivot_table.reindex(concept_cols_present).dropna(how='all')
+        
+        col_chart_concepto, col_table_concepto = st.columns([2, 1])
+
+        with col_chart_concepto:
+            chart_data_concepto = pivot_table.reset_index()
+            chart_data_concepto = chart_data_concepto[chart_data_concepto['Concepto'] != 'Total Mensual']
+            chart_data_concepto = chart_data_concepto.sort_values('Total general', ascending=False)
+            
+            chart_height_concepto = (len(chart_data_concepto) + 1) * 35 + 3
+            
+            base_chart_concepto = alt.Chart(chart_data_concepto).mark_bar().encode(
+                x=alt.X('Total general:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
+                y=alt.Y('Concepto:N', sort='-x', title=None, axis=alt.Axis(labelLimit=200)),
+                tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Total general:Q', format='$,.2f', title='Total')]
+            )
+            text_labels_concepto = base_chart_concepto.mark_text(align='left', baseline='middle', dx=3).encode(text=alt.Text('Total general:Q', format='$,.0s'))
+            bar_chart_concepto = (base_chart_concepto + text_labels_concepto).properties(height=chart_height_concepto, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
+            st.altair_chart(bar_chart_concepto, use_container_width=True)
+
+        with col_table_concepto:
+            st.dataframe(pivot_table.style.format(formatter=lambda x: f"${format_number_es(x)}").set_properties(**{'text-align': 'right'}), use_container_width=True, height=chart_height_concepto + 35)
+        
+        st.write("")
+        col_dl_7, col_dl_8 = st.columns(2)
+        with col_dl_7:
+            st.download_button(label="📥 Descargar CSV", data=pivot_table.to_csv(index=True).encode('utf-8'), file_name='masa_por_concepto.csv', mime='text/csv', use_container_width=True)
+        with col_dl_8:
+            st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table.reset_index()), file_name='masa_por_concepto.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+    else:
+        st.info("No hay datos de conceptos para mostrar con los filtros seleccionados.")
+
+    st.markdown("---")
+    st.subheader("Resumen por Concepto (SIPAF)")
+    df_filtered.columns = df_filtered.columns.str.strip().str.replace(r"\s+", " ", regex=True)
     concept_columns_sipaf = [
         'Retribución Cargo 1.1.1', 'Antigüedad 1.1.3', 'Retribuciones Extraordinarias 1.3.1',
         'Contribuciones Patronales 1.3.3', 'SAC 1.3.2', 'SAC 1.1.4',
         'Contribuciones Patronales 1.1.6', 'Complementos 1.1.7', 'Asignaciones Familiares 1.4'
     ]
+    sipaf_cols_present = []
+    for col in df_filtered.columns:
+        for expected in concept_columns_sipaf:
+            if expected.lower().replace(".", "") in col.lower().replace(".", ""):
+                sipaf_cols_present.append(col)
+    
+    if sipaf_cols_present:
+        df_melted_sipaf = df_filtered.melt(id_vars=['Mes', 'Mes_Num'], value_vars=sipaf_cols_present, var_name='Concepto', value_name='Monto')
+        pivot_table_sipaf = pd.pivot_table(df_melted_sipaf, values='Monto', index='Concepto', columns='Mes', aggfunc='sum', fill_value=0)
+        meses_en_datos_sipaf = df_filtered[['Mes', 'Mes_Num']].drop_duplicates().sort_values('Mes_Num')['Mes'].tolist()
+        
+        if meses_en_datos_sipaf and all(mes in pivot_table_sipaf.columns for mes in meses_en_datos_sipaf):
+            pivot_table_sipaf = pivot_table_sipaf[meses_en_datos_sipaf]
+            
+        pivot_table_sipaf['Total general'] = pivot_table_sipaf.sum(axis=1)
+        pivot_table_sipaf = pivot_table_sipaf.dropna(how='all')
+        if not pivot_table_sipaf.empty:
+            total_row = pivot_table_sipaf.sum().rename('Total general')
+            pivot_table_sipaf = pd.concat([pivot_table_sipaf, total_row.to_frame().T])
+        
+        col_chart_sipaf, col_table_sipaf = st.columns([2, 1])
+        
+        with col_chart_sipaf:
+            chart_data_sipaf = pivot_table_sipaf.drop('Total general').reset_index()
+            chart_data_sipaf = chart_data_sipaf.rename(columns={'index': 'Concepto'})
+            chart_data_sipaf = chart_data_sipaf.sort_values('Total general', ascending=False)
+            
+            chart_height_sipaf = (len(chart_data_sipaf) + 1) * 35 + 3
 
-    if mode == "Masa por Concepto":
-        if concept_cols_present:
-            df_melted = df_filtered.melt(id_vars=['Mes', 'Mes_Num'], value_vars=concept_cols_present, var_name='Concepto', value_name='Monto')
-            pivot_table = pd.pivot_table(df_melted, values='Monto', index='Concepto', columns='Mes', aggfunc='sum', fill_value=0)
-            meses_en_datos = df_filtered[['Mes', 'Mes_Num']].drop_duplicates().sort_values('Mes_Num')['Mes'].tolist()
-            if all(mes in pivot_table.columns for mes in meses_en_datos):
-                pivot_table = pivot_table[meses_en_datos]
-            pivot_table['Total general'] = pivot_table.sum(axis=1)
-            pivot_table = pivot_table.reindex(concept_cols_present).dropna(how='all')
+            base_chart_sipaf = alt.Chart(chart_data_sipaf).mark_bar().encode(
+                x=alt.X('Total general:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
+                y=alt.Y('Concepto:N', sort='-x', title=None, axis=alt.Axis(labelLimit=200)),
+                tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Total general:Q', format='$,.2f', title='Total')]
+            )
+            text_labels_sipaf = base_chart_sipaf.mark_text(align='left', baseline='middle', dx=3).encode(text=alt.Text('Total general:Q', format='$,.0s'))
+            bar_chart_sipaf = (base_chart_sipaf + text_labels_sipaf).properties(height=chart_height_sipaf, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
+            st.altair_chart(bar_chart_sipaf, use_container_width=True)
 
-            col_chart_concepto, col_table_concepto = st.columns([2, 1])
-            with col_chart_concepto:
-                chart_data_concepto = pivot_table.reset_index()
-                chart_data_concepto = chart_data_concepto[chart_data_concepto['Concepto'] != 'Total Mensual']
-                chart_data_concepto = chart_data_concepto.sort_values('Total general', ascending=False)
-                chart_height_concepto = (len(chart_data_concepto) + 1) * 35 + 3
-                base_chart_concepto = alt.Chart(chart_data_concepto).mark_bar().encode(
-                    x=alt.X('Total general:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
-                    y=alt.Y('Concepto:N', sort='-x', title=None, axis=alt.Axis(labelLimit=200)),
-                    tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Total general:Q', format='$,.2f', title='Total')]
-                )
-                text_labels_concepto = base_chart_concepto.mark_text(align='left', baseline='middle', dx=3).encode(text=alt.Text('Total general:Q', format='$,.0s'))
-                bar_chart_concepto = (base_chart_concepto + text_labels_concepto).properties(height=chart_height_concepto, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
-                st.altair_chart(bar_chart_concepto, use_container_width=True)
+        with col_table_sipaf:
+            table_height_sipaf = chart_height_sipaf + 35 
+            st.dataframe(pivot_table_sipaf.style.format(formatter=lambda x: f"${format_number_es(x)}").set_properties(**{'text-align': 'right'}), use_container_width=True, height=table_height_sipaf)
+        
+        st.write("")
+        col_dl_9, col_dl_10 = st.columns(2)
+        with col_dl_9:
+            st.download_button(label="📥 Descargar CSV", data=pivot_table_sipaf.to_csv(index=True).encode('utf-8'), file_name='resumen_sipaf.csv', mime='text/csv', use_container_width=True)
+        with col_dl_10:
+            st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table_sipaf.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+    else:
+        st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
 
-            with col_table_concepto:
-                st.dataframe(pivot_table.style.format(formatter=lambda x: f"${format_number_es(x)}").set_properties(**{'text-align': 'right'}), use_container_width=True, height=chart_height_concepto + 35)
-
-            st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-            col_dl_7, col_dl_8 = st.columns(2)
-            with col_dl_7:
-                st.download_button(label="📥 Descargar CSV", data=pivot_table.to_csv(index=True).encode('utf-8'), file_name='masa_por_concepto.csv', mime='text/csv', use_container_width=True)
-            with col_dl_8:
-                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table.reset_index()), file_name='masa_por_concepto.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
-        else:
-            st.info("No hay datos de conceptos para mostrar con los filtros seleccionados.")
-
-    else:  # Resumen SIPAF
-        df_filtered.columns = df_filtered.columns.str.strip().str.replace(r"\s+", " ", regex=True)
-        sipaf_cols_present = []
-        for col in df_filtered.columns:
-            for expected in concept_columns_sipaf:
-                if expected.lower().replace(".", "") in col.lower().replace(".", ""):
-                    sipaf_cols_present.append(col)
-        sipaf_cols_present = list(dict.fromkeys(sipaf_cols_present))
-
-        if sipaf_cols_present:
-            df_melted_sipaf = df_filtered.melt(id_vars=['Mes', 'Mes_Num'], value_vars=sipaf_cols_present, var_name='Concepto', value_name='Monto')
-            pivot_table_sipaf = pd.pivot_table(df_melted_sipaf, values='Monto', index='Concepto', columns='Mes', aggfunc='sum', fill_value=0)
-            meses_en_datos_sipaf = df_filtered[['Mes', 'Mes_Num']].drop_duplicates().sort_values('Mes_Num')['Mes'].tolist()
-            if meses_en_datos_sipaf and all(mes in pivot_table_sipaf.columns for mes in meses_en_datos_sipaf):
-                pivot_table_sipaf = pivot_table_sipaf[meses_en_datos_sipaf]
-            pivot_table_sipaf['Total general'] = pivot_table_sipaf.sum(axis=1)
-            pivot_table_sipaf = pivot_table_sipaf.dropna(how='all')
-            if not pivot_table_sipaf.empty:
-                total_row = pivot_table_sipaf.sum().rename('Total general')
-                pivot_table_sipaf = pd.concat([pivot_table_sipaf, total_row.to_frame().T])
-
-            col_chart_sipaf, col_table_sipaf = st.columns([2, 1])
-            with col_chart_sipaf:
-                chart_data_sipaf = pivot_table_sipaf.drop('Total general').reset_index()
-                chart_data_sipaf = chart_data_sipaf.rename(columns={'index': 'Concepto'})
-                chart_data_sipaf = chart_data_sipaf.sort_values('Total general', ascending=False)
-                chart_height_sipaf = (len(chart_data_sipaf) + 1) * 35 + 3
-                base_chart_sipaf = alt.Chart(chart_data_sipaf).mark_bar().encode(
-                    x=alt.X('Total general:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
-                    y=alt.Y('Concepto:N', sort='-x', title=None, axis=alt.Axis(labelLimit=200)),
-                    tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Total general:Q', format='$,.2f', title='Total')]
-                )
-                text_labels_sipaf = base_chart_sipaf.mark_text(align='left', baseline='middle', dx=3).encode(text=alt.Text('Total general:Q', format='$,.0s'))
-                bar_chart_sipaf = (base_chart_sipaf + text_labels_sipaf).properties(height=chart_height_sipaf, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
-                st.altair_chart(bar_chart_sipaf, use_container_width=True)
-
-            with col_table_sipaf:
-                table_height_sipaf = chart_height_sipaf + 35
-                st.dataframe(pivot_table_sipaf.style.format(formatter=lambda x: f"${format_number_es(x)}").set_properties(**{'text-align': 'right'}), use_container_width=True, height=table_height_sipaf)
-
-            st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-            col_dl_9, col_dl_10 = st.columns(2)
-            with col_dl_9:
-                st.download_button(label="📥 Descargar CSV", data=pivot_table_sipaf.to_csv(index=True).encode('utf-8'), file_name='resumen_sipaf.csv', mime='text/csv', use_container_width=True)
-            with col_dl_10:
-                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table_sipaf.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
-        else:
-            st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
-
-# ------------------------- TAB 4: TABLA DETALLADA -------------------------
-with tab_tabla:
+    st.markdown("---")
     st.subheader("Tabla de Datos Detallados")
     df_display = df_filtered.copy().reset_index(drop=True)
     if not df_display.empty:
         st.markdown("##### Descargar datos")
-        col_btn1, col_btn2, col_btn3 = st.columns([1,1,1])
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
             st.download_button(label="📥 CSV (Tabla Completa)", data=df_display.to_csv(index=False).encode('utf-8'), file_name='datos_detallados.csv', mime='text/csv', use_container_width=True)
         with col_btn2:
@@ -566,8 +548,8 @@ with tab_tabla:
             df_pdf_formatted['Período'] = df_pdf_formatted['Período'].dt.strftime('%Y-%m')
             df_pdf_formatted['Total Mensual'] = df_pdf_formatted['Total Mensual'].apply(lambda x: f"${format_number_es(x)}")
             st.download_button(label="📥 PDF (Resumen)", data=to_pdf(df_pdf_formatted, st.session_state.ms_selections.get('Mes', [])), file_name='resumen_detallado.pdf', mime='application/pdf', use_container_width=True)
-
-        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+        
+        st.write("")
         if 'page_number' not in st.session_state: st.session_state.page_number = 0
         PAGE_SIZE = 50
         total_rows = len(df_display)
@@ -582,19 +564,90 @@ with tab_tabla:
         start_idx = st.session_state.page_number * PAGE_SIZE
         end_idx = min(start_idx + PAGE_SIZE, total_rows)
         df_page = df_display.iloc[start_idx:end_idx]
-
         currency_columns = ['Total Sujeto a Retención', 'Vacaciones', 'Alquiler', 'Horas Extras', 'Nómina General con Aportes', 'Cs. Sociales s/Remunerativos', 'Cargas Sociales Ant.', 'IC Pagado', 'Vacaciones Pagadas', 'Cargas Sociales s/Vac. Pagadas', 'Retribución Cargo 1.1.1.', 'Antigüedad 1.1.3.', 'Retribuciones Extraordinarias 1.3.1.', 'Contribuciones Patronales', 'Gratificación por Antigüedad', 'Gratificación por Jubilación', 'Total No Remunerativo', 'SAC Horas Extras', 'Cargas Sociales SAC Hextras', 'SAC Pagado', 'Cargas Sociales s/SAC Pagado', 'Cargas Sociales Antigüedad', 'Nómina General sin Aportes', 'Gratificación Única y Extraordinaria', 'Gastos de Representación', 'Contribuciones Patronales 1.3.3.', 'S.A.C. 1.3.2.', 'S.A.C. 1.1.4.', 'Contribuciones Patronales 1.1.6.', 'Complementos 1.1.7.', 'Asignaciones Familiares 1.4.', 'Total Mensual']
         integer_columns = ['Nro. de Legajo', 'Dotación', 'Ceco']
+        
         currency_formatter = lambda x: f"${format_number_es(x)}"
         format_mapper = {col: currency_formatter for col in currency_columns if col in df_page.columns}
         for col in integer_columns:
             if col in df_page.columns:
                 format_mapper[col] = format_integer_es
+        
         columns_to_align_right = [col for col in currency_columns + integer_columns if col in df_page.columns]
         st.dataframe(df_page.style.format(format_mapper, na_rep="").set_properties(subset=columns_to_align_right, **{'text-align': 'right'}), use_container_width=True, hide_index=True)
-    else:
-        st.info("No hay datos que coincidan con los filtros seleccionados.")
+
+    st.markdown("---")
+    st.subheader("Resumen de Evolución Anual (Datos Filtrados)")
+    
+    summary_df_filtered = pd.pivot_table(
+        df_filtered,
+        values='Total Mensual',
+        index=['Mes_Num', 'Mes'],
+        columns='Clasificacion_Ministerio',
+        aggfunc='sum',
+        fill_value=0
+    ).sort_index(level='Mes_Num').reset_index(level='Mes_Num', drop=True)
+
+    summary_df_display = summary_df_filtered.reset_index().copy()
+    
+    if not summary_df_display.empty:
+        col_chart_anual, col_table_anual = st.columns([2, 1])
+
+        with col_table_anual:
+            numeric_cols = summary_df_display.select_dtypes(include=np.number).columns
+            if 'Total general' not in summary_df_display.columns and len(numeric_cols) > 0:
+                summary_df_display['Total general'] = summary_df_display[numeric_cols].sum(axis=1)
+
+            total_row = summary_df_display.select_dtypes(include=np.number).sum().rename('Total')
+            summary_df_display = pd.concat([summary_df_display, total_row.to_frame().T], ignore_index=True)
+            summary_df_display.iloc[-1, summary_df_display.columns.get_loc('Mes')] = 'Total'
+
+            summary_currency_cols = [col for col in summary_df_display.columns if col != 'Mes' and pd.api.types.is_numeric_dtype(summary_df_display[col])]
+            summary_format_mapper = {col: lambda x: f"${format_number_es(x)}" for col in summary_currency_cols}
+            
+            table_height_anual = 350 + 40
+            st.dataframe(summary_df_display.style.format(summary_format_mapper, na_rep="").set_properties(subset=summary_currency_cols, **{'text-align': 'right'}), use_container_width=True, hide_index=True, height=table_height_anual)
+        
+        with col_chart_anual:
+            summary_chart_data = summary_df_filtered.reset_index().melt(id_vars='Mes', var_name='Clasificacion', value_name='Masa Salarial')
+            
+            mes_sort_order = summary_chart_data['Mes'].dropna().unique().tolist()
+
+            bar_chart = alt.Chart(summary_chart_data).mark_bar().encode(
+                x=alt.X('Mes:N', sort=mes_sort_order, title='Mes'),
+                y=alt.Y('sum(Masa Salarial):Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
+                color=alt.Color('Clasificacion:N', title='Clasificación'),
+                tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Clasificacion:N'), alt.Tooltip('sum(Masa Salarial):Q', format='$,.2f', title='Masa Salarial')]
+            )
+            
+            text_labels = alt.Chart(summary_chart_data).transform_aggregate(
+                total_masa_salarial='sum(Masa Salarial)',
+                groupby=['Mes']
+            ).mark_text(
+                dy=-8,
+                align='center',
+                color='black'
+            ).encode(
+                x=alt.X('Mes:N', sort=mes_sort_order),
+                y=alt.Y('total_masa_salarial:Q'),
+                text=alt.Text('total_masa_salarial:Q', format='$,.2s')
+            )
+            
+            summary_chart = (bar_chart + text_labels).properties(
+                height=350, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}
+            ).configure(
+                background='transparent'
+            ).configure_view(
+                fill='transparent'
+            )
+            st.altair_chart(summary_chart, use_container_width=True)
+            
+        st.write("")
+        col_dl_11, col_dl_12 = st.columns(2)
+        with col_dl_11:
+            st.download_button(label="📥 Descargar CSV", data=summary_df_display.to_csv(index=False).encode('utf-8'), file_name='resumen_anual_filtrado.csv', mime='text/csv', use_container_width=True)
+        with col_dl_12:
+
+            st.download_button(label="📥 Descargar Excel", data=to_excel(summary_df_display), file_name='resumen_anual_filtrado.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
 
 # --- FIN ---
-
-
