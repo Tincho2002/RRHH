@@ -27,16 +27,14 @@ body, .stApp {
     background-color: var(--secondary-background-color);
     border-right: 1px solid #e0e0e0;
 }
-/* --- INICIO: MODIFICACIÓN SOLICITADA --- */
 [data-testid="stMetric"], .stDataFrame {
     background-color: var(--secondary-background-color);
     border: 1px solid #e0e0e0;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     border-radius: 10px !important;
     padding: 20px;
-    text-align: center; /* <<< Alineación centrada para el contenido de la tarjeta */
+    text-align: center; 
 }
-/* --- FIN: MODIFICACIÓN SOLICITADA --- */
 div[data-testid="stAltairChart"] {
     background-color: var(--secondary-background-color);
     border: 1px solid #e0e0e0;
@@ -48,16 +46,12 @@ h1, h2, h3 {
     color: var(--primary-color);
     font-family: var(--font);
 }
-/* --- INICIO: MODIFICACIÓN SOLICITADA --- */
-/* Reducir tamaño de fuente en las tarjetas de métricas (ajuste adicional) */
 [data-testid="stMetricValue"] {
-    font-size: 1.7rem; /* <<< Fuente de números reducida */
+    font-size: 1.7rem; 
 }
 [data-testid="stMetricLabel"] {
-    font-size: 0.9rem; /* <<< Fuente de etiquetas reducida */
+    font-size: 0.9rem; 
 }
-/* --- FIN: MODIFICACIÓN SOLICITADA --- */
-/* Quitar subrayado de enlaces y usar azul oscuro */
 a { text-decoration: none; color: #0b3d91; }
 </style>
 """, unsafe_allow_html=True)
@@ -201,7 +195,6 @@ filter_cols = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Me
 if 'ms_selections' not in st.session_state:
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.ms_selections = initial_selections
-    # Forzamos recarga una sola vez para aplicar estado inicial
     st.rerun()
 
 # Botón de reset
@@ -233,7 +226,7 @@ if old_selections != st.session_state.ms_selections:
 df_filtered = apply_filters(df, st.session_state.ms_selections)
 
 
-# --- INICIO: MODIFICACIÓN SOLICITADA ---
+# --- INICIO: CORRECCIÓN DE LÓGICA DE MÉTRICAS ---
 # --- METRICS PRINCIPALES ---
 total_masa_salarial = df_filtered['Total Mensual'].sum()
 
@@ -243,9 +236,8 @@ costo_medio_convenio = 0
 costo_medio_fc = 0
 latest_month_name = "N/A"
 
-# Perform calculations only if the filtered dataframe is not empty
 if not df_filtered.empty:
-    # --- Headcount Calculation (Latest Month) ---
+    # --- Headcount para la tarjeta "Empleados Únicos" (se mantiene como la del último mes) ---
     latest_month_num = df_filtered['Mes_Num'].max()
     df_latest_month = df_filtered[df_filtered['Mes_Num'] == latest_month_num]
     
@@ -254,32 +246,31 @@ if not df_filtered.empty:
     
     cantidad_empleados_total = df_latest_month['Legajo'].nunique()
 
-    # --- Costo Medio Calculation (Convenio vs. Fuera de Convenio) ---
-    # Lógica mejorada: buscar 'convenio' sin distinguir mayúsculas/minúsculas
-    is_convenio_periodo = df_filtered['Clasificacion_Ministerio'].str.contains('convenio', case=False, na=False)
-    df_convenio_periodo = df_filtered[is_convenio_periodo]
-    df_fc_periodo = df_filtered[~is_convenio_periodo]
+    # --- LÓGICA NUEVA Y CORREGIDA PARA COSTO MEDIO ---
+    # 1. Separar los dataframes por grupo (Convenio vs Fuera de Convenio)
+    is_convenio = df_filtered['Clasificacion_Ministerio'].str.contains('convenio', case=False, na=False)
+    df_convenio = df_filtered[is_convenio]
+    df_fc = df_filtered[~is_convenio]
 
-    is_convenio_ultimo_mes = df_latest_month['Clasificacion_Ministerio'].str.contains('convenio', case=False, na=False)
-    df_convenio_ultimo_mes = df_latest_month[is_convenio_ultimo_mes]
-    df_fc_ultimo_mes = df_latest_month[~is_convenio_ultimo_mes]
-    
-    total_masa_convenio = df_convenio_periodo['Total Mensual'].sum()
-    total_masa_fc = df_fc_periodo['Total Mensual'].sum()
+    # 2. Calcular la masa salarial total para cada grupo
+    total_masa_convenio = df_convenio['Total Mensual'].sum()
+    total_masa_fc = df_fc['Total Mensual'].sum()
 
-    empleados_convenio = df_convenio_ultimo_mes['Legajo'].nunique()
-    empleados_fc = df_fc_ultimo_mes['Legajo'].nunique()
-    
-    costo_medio_convenio = total_masa_convenio / empleados_convenio if empleados_convenio > 0 else 0
-    costo_medio_fc = total_masa_fc / empleados_fc if empleados_fc > 0 else 0
+    # 3. Calcular el denominador correcto: la suma de empleados únicos contados CADA MES.
+    dotacion_mes_a_mes_convenio = df_convenio.groupby('Mes_Num')['Legajo'].nunique().sum()
+    dotacion_mes_a_mes_fc = df_fc.groupby('Mes_Num')['Legajo'].nunique().sum()
 
-# Display Metrics - 4 columns
+    # 4. Calcular el costo medio real y estable
+    costo_medio_convenio = total_masa_convenio / dotacion_mes_a_mes_convenio if dotacion_mes_a_mes_convenio > 0 else 0
+    costo_medio_fc = total_masa_fc / dotacion_mes_a_mes_fc if dotacion_mes_a_mes_fc > 0 else 0
+
+# Display Metrics
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Masa Salarial Total (Período)", f"${format_number_es(total_masa_salarial)}")
 col2.metric(f"Empleados Únicos ({latest_month_name})", f"{format_integer_es(cantidad_empleados_total)}")
 col3.metric("Costo Medio Convenio", f"${format_number_es(costo_medio_convenio)}")
 col4.metric("Costo Medio F. Convenio", f"${format_number_es(costo_medio_fc)}")
-# --- FIN: MODIFICACIÓN SOLICITADA ---
+# --- FIN: CORRECCIÓN DE LÓGICA DE MÉTRICAS ---
 
 
 st.markdown("---")
@@ -287,6 +278,7 @@ st.markdown("---")
 # --- TABS PRINCIPALES ---
 tab_evolucion, tab_distribucion, tab_conceptos, tab_tabla = st.tabs(["Evolución Mensual y Anual", "Distribución por Gerencia y Clasificación", "Masa Salarial por Concepto / SIPAF", "Tabla de Datos Detallados"]) 
 
+# El resto del código permanece sin cambios...
 # ------------------------- TAB 1: EVOLUCIÓN -------------------------
 with tab_evolucion:
     st.subheader("Evolución Mensual de la Masa Salarial")
@@ -489,7 +481,6 @@ with tab_conceptos:
     st.subheader("Masa Salarial por Concepto / SIPAF")
     mode = st.radio("Seleccionar vista:", options=["Masa por Concepto", "Resumen SIPAF"], index=0, horizontal=True)
 
-    # Lista de columnas de concepto original
     concept_columns_to_pivot = [
         'Nómina General con Aportes', 'Antigüedad', 'Horas Extras', 'Cs. Sociales s/Remunerativos',
         'Cargas Sociales Antigüedad', 'Cargas Sociales Horas Extras', 'Nómina General sin Aportes',
@@ -500,7 +491,6 @@ with tab_conceptos:
     ]
     concept_cols_present = [col for col in concept_columns_to_pivot if col in df_filtered.columns]
 
-    # Lista de SIPAF aproximada
     concept_columns_sipaf = [
         'Retribución Cargo 1.1.1', 'Antigüedad 1.1.3', 'Retribuciones Extraordinarias 1.3.1',
         'Contribuciones Patronales 1.3.3', 'SAC 1.3.2', 'SAC 1.1.4',
