@@ -408,49 +408,48 @@ if uploaded_file is not None:
     st.info(f"Mostrando **{format_number_es(len(filtered_df), 0)}** registros según los filtros aplicados.")
     st.markdown("---")
 
-    # --- INICIO: LÓGICA DE MÉTRICAS CORREGIDA ---
-    horas_prom_convenio, costo_prom_convenio = 0, 0
-    horas_prom_fc, costo_prom_fc = 0, 0
+    # --- INICIO: CÁLCULO DE COSTO PROMEDIO POR HORA ---
+    st.subheader("Costo Promedio por Hora en el Período")
 
+    # Mapeo directo de las columnas de costo a cantidad
+    cost_quant_map = {
+        'Horas extras al 50 %': 'Cantidad HE 50',
+        'Horas extras al 50 % Sabados': 'Cant HE al 50 Sabados',
+        'Horas extras al 100%': 'Cantidad HE 100',
+        'Importe HE Fc': 'Cantidad HE FC'
+    }
+
+    avg_costs_data = {}
+
+    # Se calcula un promedio para cada tipo de hora extra solicitado
     if not filtered_df.empty:
-        cost_cols = [cost_columns_options[k] for k in st.session_state.cost_types if k in cost_columns_options and cost_columns_options[k] in filtered_df.columns]
-        quant_cols = [quantity_columns_options[k] for k in st.session_state.quantity_types if k in quantity_columns_options and quantity_columns_options[k] in filtered_df.columns]
+        for cost_col, quant_col in cost_quant_map.items():
+            # Verificar que ambas columnas (costo y cantidad) existan en los datos
+            if cost_col in filtered_df.columns and quant_col in filtered_df.columns:
+                
+                # Sumar el total de costo y cantidad para el tipo de hora
+                total_cost = filtered_df[cost_col].sum()
+                total_quant = filtered_df[quant_col].sum()
+                
+                # Calcular el costo promedio por hora (Costo / Cantidad)
+                avg_cost_per_hour = total_cost / total_quant if total_quant > 0 else 0
+                
+                # Preparar el nombre para mostrar en la tarjeta
+                display_name = cost_col.replace("Horas extras al", "HE").replace("Importe ", "")
+                avg_costs_data[display_name] = avg_cost_per_hour
 
-        if quant_cols:
-            # --- DEFINICIÓN PRECISA DE GRUPOS BASADA EN 'Nivel' ---
-            niveles_convenio = ['3', '4', '5']
-            niveles_fc = ['6', '7', 'FC'] # Incluimos 'FC' por si aparece como texto también
+    # Mostrar los resultados en tarjetas de métricas
+    if avg_costs_data:
+        kpi_cols = st.columns(len(avg_costs_data))
+        i = 0
+        for name, value in avg_costs_data.items():
+            kpi_cols[i].metric(f"Costo Promedio {name}", format_currency_es(value))
+            i += 1
+    else:
+        st.info("No hay datos o columnas suficientes para calcular el costo promedio por hora con los filtros actuales.")
 
-            df_convenio = filtered_df[filtered_df['Nivel'].isin(niveles_convenio)]
-            df_fc = filtered_df[filtered_df['Nivel'].isin(niveles_fc)]
-
-            # Calcular totales de costo y horas
-            total_costo_convenio = df_convenio[cost_cols].sum().sum() if cost_cols else 0
-            total_horas_convenio = df_convenio[quant_cols].sum().sum()
-            total_costo_fc = df_fc[cost_cols].sum().sum() if cost_cols else 0
-            total_horas_fc = df_fc[quant_cols].sum().sum()
-
-            # --- CORRECCIÓN DEL DENOMINADOR: Contar solo empleados que SÍ tienen horas extras ---
-            df_convenio_con_hs = df_convenio[df_convenio[quant_cols].sum(axis=1) > 0.01]
-            empleados_con_hs_convenio = df_convenio_con_hs['Legajo'].nunique()
-
-            df_fc_con_hs = df_fc[df_fc[quant_cols].sum(axis=1) > 0.01]
-            empleados_con_hs_fc = df_fc_con_hs['Legajo'].nunique()
-            
-            # Calcular promedios sobre la base correcta (Total / Empleados con HE)
-            horas_prom_convenio = total_horas_convenio / empleados_con_hs_convenio if empleados_con_hs_convenio > 0 else 0
-            costo_prom_convenio = total_costo_convenio / empleados_con_hs_convenio if empleados_con_hs_convenio > 0 else 0
-            horas_prom_fc = total_horas_fc / empleados_con_hs_fc if empleados_con_hs_fc > 0 else 0
-            costo_prom_fc = total_costo_fc / empleados_con_hs_fc if empleados_con_hs_fc > 0 else 0
-
-    st.subheader("Promedios por Empleado (con HE) en el Período")
-    kpi_cols = st.columns(4)
-    kpi_cols[0].metric("Horas Promedio Convenio", f"{format_number_es(horas_prom_convenio, 1)} hs")
-    kpi_cols[1].metric("Costo Medio Convenio", format_currency_es(costo_prom_convenio))
-    kpi_cols[2].metric("Horas Promedio F. Convenio", f"{format_number_es(horas_prom_fc, 1)} hs")
-    kpi_cols[3].metric("Costo Medio F. Convenio", format_currency_es(costo_prom_fc))
     st.markdown("---")
-    # --- FIN: LÓGICA DE MÉTRICAS CORREGIDA ---
+    # --- FIN: CÁLCULO DE COSTO PROMEDIO POR HORA ---
 
     # --- TARJETA DE RESUMEN ANIMADA ---
     if not filtered_df.empty and 'Mes' in filtered_df.columns:
@@ -488,7 +487,6 @@ if uploaded_file is not None:
             st.markdown("<br>", unsafe_allow_html=True)
             with st.spinner("Generando análisis de tendencias..."):
                 monthly_trends_agg = calculate_monthly_trends(df, st.session_state.selections, cost_columns_options, quantity_columns_options, st.session_state.cost_types, st.session_state.quantity_types)
-                
                 if not monthly_trends_agg.empty:
                     total_row = monthly_trends_agg.sum(numeric_only=True).to_frame().T
                     total_row['Mes'] = 'TOTAL'
@@ -663,7 +661,7 @@ if uploaded_file is not None:
                         total_row[primary_col], total_row[secondary_col] = 'TOTAL', ''
                         df_grouped_with_total = pd.concat([df_grouped, total_row], ignore_index=True)
                         secondary_domain = sorted(df_grouped_chart[secondary_col].unique().tolist())
-                        palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+                        palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f0f', '#bcbd22', '#17becf']
                         color_scale = alt.Scale(domain=secondary_domain, range=palette[:len(secondary_domain)])
                         col1, col2 = st.columns(2)
                         with col1:
