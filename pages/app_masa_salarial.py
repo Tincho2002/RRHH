@@ -21,19 +21,22 @@ st.markdown("""
 }
 body, .stApp {
     background-color: var(--background-color) !important;
-    color: var--text-color) !important;
+    color: var(--text-color) !important;
 }
 [data-testid="stSidebar"] {
     background-color: var(--secondary-background-color);
     border-right: 1px solid #e0e0e0;
 }
+/* --- INICIO: MODIFICACIÓN SOLICITADA --- */
 [data-testid="stMetric"], .stDataFrame {
     background-color: var(--secondary-background-color);
     border: 1px solid #e0e0e0;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     border-radius: 10px !important;
     padding: 20px;
+    text-align: center; /* <<< Alineación centrada para el contenido de la tarjeta */
 }
+/* --- FIN: MODIFICACIÓN SOLICITADA --- */
 div[data-testid="stAltairChart"] {
     background-color: var(--secondary-background-color);
     border: 1px solid #e0e0e0;
@@ -46,15 +49,14 @@ h1, h2, h3 {
     font-family: var(--font);
 }
 /* --- INICIO: MODIFICACIÓN SOLICITADA --- */
-/* Reducir tamaño de fuente en las tarjetas de métricas */
+/* Reducir tamaño de fuente en las tarjetas de métricas (ajuste adicional) */
 [data-testid="stMetricValue"] {
-    font-size: 1.8rem;
+    font-size: 1.7rem; /* <<< Fuente de números reducida */
 }
 [data-testid="stMetricLabel"] {
-    font-size: 1rem;
+    font-size: 0.9rem; /* <<< Fuente de etiquetas reducida */
 }
 /* --- FIN: MODIFICACIÓN SOLICITADA --- */
-
 /* Quitar subrayado de enlaces y usar azul oscuro */
 a { text-decoration: none; color: #0b3d91; }
 </style>
@@ -244,40 +246,34 @@ latest_month_name = "N/A"
 # Perform calculations only if the filtered dataframe is not empty
 if not df_filtered.empty:
     # --- Headcount Calculation (Latest Month) ---
-    # Find the most recent month in the filtered data
     latest_month_num = df_filtered['Mes_Num'].max()
     df_latest_month = df_filtered[df_filtered['Mes_Num'] == latest_month_num]
     
-    # Get the name of the latest month for the metric label
     if not df_latest_month.empty:
         latest_month_name = df_latest_month['Mes'].iloc[0]
     
-    # Calculate total unique employees in the latest month by counting unique IDs ('Legajo')
     cantidad_empleados_total = df_latest_month['Legajo'].nunique()
 
     # --- Costo Medio Calculation (Convenio vs. Fuera de Convenio) ---
-    # Data for the entire filtered period, split by classification
-    # Assuming 'Personal de Convenio' is the value for unionized employees
-    df_convenio_periodo = df_filtered[df_filtered['Clasificacion_Ministerio'] == 'Personal de Convenio']
-    df_fc_periodo = df_filtered[df_filtered['Clasificacion_Ministerio'] != 'Personal de Convenio']
+    # Lógica mejorada: buscar 'convenio' sin distinguir mayúsculas/minúsculas
+    is_convenio_periodo = df_filtered['Clasificacion_Ministerio'].str.contains('convenio', case=False, na=False)
+    df_convenio_periodo = df_filtered[is_convenio_periodo]
+    df_fc_periodo = df_filtered[~is_convenio_periodo]
 
-    # Headcount for the latest month, split by classification
-    df_convenio_ultimo_mes = df_latest_month[df_latest_month['Clasificacion_Ministerio'] == 'Personal de Convenio']
-    df_fc_ultimo_mes = df_latest_month[df_latest_month['Clasificacion_Ministerio'] != 'Personal de Convenio']
+    is_convenio_ultimo_mes = df_latest_month['Clasificacion_Ministerio'].str.contains('convenio', case=False, na=False)
+    df_convenio_ultimo_mes = df_latest_month[is_convenio_ultimo_mes]
+    df_fc_ultimo_mes = df_latest_month[~is_convenio_ultimo_mes]
     
-    # Sum of payroll over the period for each group
     total_masa_convenio = df_convenio_periodo['Total Mensual'].sum()
     total_masa_fc = df_fc_periodo['Total Mensual'].sum()
 
-    # Headcount (unique employees) in the latest month for each group
     empleados_convenio = df_convenio_ultimo_mes['Legajo'].nunique()
     empleados_fc = df_fc_ultimo_mes['Legajo'].nunique()
     
-    # Calculate cost: Total payroll for the period / Headcount in the last month
     costo_medio_convenio = total_masa_convenio / empleados_convenio if empleados_convenio > 0 else 0
     costo_medio_fc = total_masa_fc / empleados_fc if empleados_fc > 0 else 0
 
-# Display Metrics - changed to 4 columns to fit the new calculations
+# Display Metrics - 4 columns
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Masa Salarial Total (Período)", f"${format_number_es(total_masa_salarial)}")
 col2.metric(f"Empleados Únicos ({latest_month_name})", f"{format_integer_es(cantidad_empleados_total)}")
