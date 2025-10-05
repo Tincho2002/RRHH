@@ -196,7 +196,7 @@ if 'ms_selections' not in st.session_state:
 if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="ms_clear"):
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.ms_selections = initial_selections
-    st.experimental_rerun()
+    st.rerun()
 
 st.sidebar.markdown("---")
 
@@ -596,4 +596,5 @@ with tab_tabla:
         st.info("No hay datos que coincidan con los filtros seleccionados.")
 
 # --- FIN ---
+
 
