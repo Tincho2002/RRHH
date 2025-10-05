@@ -214,7 +214,6 @@ def get_sorted_unique_options(dataframe, column_name):
 def get_available_options(df, selections, target_column):
     _df = df.copy()
     for col, values in selections.items():
-        # **LA CORRECCIÓN**: Asegurarse de que la columna exista en el DataFrame antes de filtrar
         if col != target_column and values and col in _df.columns:
             _df = _df[_df[col].isin(values)]
     return get_sorted_unique_options(_df, target_column)
@@ -389,26 +388,22 @@ if uploaded_file is not None:
     }
     filter_cols = list(filter_cols_config.keys())
 
-    # 1. INICIALIZACIÓN DEL ESTADO
     if 'selections' not in st.session_state:
         st.session_state.selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
         st.session_state.cost_types = list(cost_columns_options.keys())
         st.session_state.quantity_types = list(quantity_columns_options.keys())
         st.rerun()
 
-    # 2. BOTÓN DE RESETEO
     if st.sidebar.button('🔄 Resetear Filtros', use_container_width=True):
         st.session_state.selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
         st.session_state.cost_types = list(cost_columns_options.keys())
         st.session_state.quantity_types = list(quantity_columns_options.keys())
-        # Forzar el reseteo del checkbox del mapa si existe en el estado de sesión
         if 'show_map_comp_check' in st.session_state:
             st.session_state['show_map_comp_check'] = False
         st.rerun()
     
     st.sidebar.markdown("---")
 
-    # 3. LÓGICA DE RENDERIZADO Y ACTUALIZACIÓN (SLICER)
     old_selections = {k: list(v) for k, v in st.session_state.selections.items()}
 
     for col, title in filter_cols_config.items():
@@ -423,14 +418,10 @@ if uploaded_file is not None:
         )
         st.session_state.selections[col] = selected
 
-    # 4. DETECCIÓN DE CAMBIOS
     if old_selections != st.session_state.selections:
-        # Si los filtros cambian, forzamos la casilla del mapa a desmarcarse.
-        # La clave es 'show_map_comp_check'
         if 'show_map_comp_check' in st.session_state:
             st.session_state['show_map_comp_check'] = False
         st.rerun()
-    # --- FIN: LÓGICA DE FILTROS ---
 
     filtered_df = apply_filters(df, st.session_state.selections)
     
@@ -450,8 +441,50 @@ if uploaded_file is not None:
     )
     
     st.info(f"Mostrando **{format_number_es(len(filtered_df), 0)}** registros según los filtros aplicados.")
+    st.markdown("---")
+
+    # --- INICIO: NUEVAS MÉTRICAS DE COSTO Y HORAS PROMEDIO ---
+    horas_prom_convenio, costo_prom_convenio = 0, 0
+    horas_prom_fc, costo_prom_fc = 0, 0
+
+    if not filtered_df.empty:
+        # 1. Obtener las columnas de costo y cantidad seleccionadas por el usuario
+        cost_cols = [cost_columns_options[k] for k in st.session_state.cost_types if k in cost_columns_options and cost_columns_options[k] in filtered_df.columns]
+        quant_cols = [quantity_columns_options[k] for k in st.session_state.quantity_types if k in quantity_columns_options and quantity_columns_options[k] in filtered_df.columns]
+
+        # 2. Separar los dataframes por grupo, usando la columna 'Nivel'
+        is_fc = filtered_df['Nivel'] == 'FC'
+        df_fc = filtered_df[is_fc]
+        df_convenio = filtered_df[~is_fc]
+
+        # 3. Calcular los totales de costo y horas para cada grupo
+        total_costo_convenio = df_convenio[cost_cols].sum().sum() if cost_cols else 0
+        total_horas_convenio = df_convenio[quant_cols].sum().sum() if quant_cols else 0
+        total_costo_fc = df_fc[cost_cols].sum().sum() if cost_cols else 0
+        total_horas_fc = df_fc[quant_cols].sum().sum() if quant_cols else 0
+
+        # 4. Calcular el denominador correcto: la suma de empleados únicos contados CADA MES.
+        dotacion_mes_convenio = df_convenio.groupby('Mes')['Legajo'].nunique().sum()
+        dotacion_mes_fc = df_fc.groupby('Mes')['Legajo'].nunique().sum()
+
+        # 5. Calcular los promedios
+        horas_prom_convenio = total_horas_convenio / dotacion_mes_convenio if dotacion_mes_convenio > 0 else 0
+        costo_prom_convenio = total_costo_convenio / dotacion_mes_convenio if dotacion_mes_convenio > 0 else 0
+        horas_prom_fc = total_horas_fc / dotacion_mes_fc if dotacion_mes_fc > 0 else 0
+        costo_prom_fc = total_costo_fc / dotacion_mes_fc if dotacion_mes_fc > 0 else 0
+
+    # 6. Mostrar las métricas
+    st.subheader("Promedios por Empleado en el Período")
+    kpi_cols = st.columns(4)
+    kpi_cols[0].metric("Horas Promedio Convenio", f"{format_number_es(horas_prom_convenio, 1)} hs")
+    kpi_cols[1].metric("Costo Medio Convenio", format_currency_es(costo_prom_convenio))
+    kpi_cols[2].metric("Horas Promedio F. Convenio", f"{format_number_es(horas_prom_fc, 1)} hs")
+    kpi_cols[3].metric("Costo Medio F. Convenio", format_currency_es(costo_prom_fc))
+    st.markdown("---")
+    # --- FIN: NUEVAS MÉTRICAS ---
 
     # --- TARJETA DE RESUMEN ANIMADA ---
+    # (El código de la tarjeta animada permanece sin cambios)
     if not filtered_df.empty and 'Mes' in filtered_df.columns:
         try:
             latest_month_str = filtered_df['Mes'].dropna().max()
@@ -642,6 +675,7 @@ if uploaded_file is not None:
 
 
     with tab_mapa:
+        # El código del mapa permanece sin cambios
         st.header("Distribución Geográfica de Horas Extras")
         if filtered_df.empty:
             st.warning("No hay datos para mostrar en el mapa con los filtros seleccionados.")
@@ -716,7 +750,6 @@ if uploaded_file is not None:
                         style2_name = st.selectbox("Selecciona el estilo del mapa derecho:", options=list(map_style_options.keys()), index=1, key="map_style2")
                     st.markdown("---")
             
-                    # 2. BOTÓN DE ACTIVACIÓN/CARGA CONDICIONAL
                     show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=st.session_state.get('show_map_comp_check', False), key="show_map_comp_check")    
                     
                     def generate_map_figure(df_plot_data, mapbox_style):
@@ -760,7 +793,6 @@ if uploaded_file is not None:
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                     else:
-                        # Mensaje que se muestra si el checkbox NO está marcado.
                         st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
 
                 with comp_col2:
@@ -793,6 +825,7 @@ if uploaded_file is not None:
                     st.dataframe(df_final_table_single.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 0)}), use_container_width=True, height=600, hide_index=True)
 
     with tab_desglose_org:
+        # El código de desglose permanece sin cambios
         st.header('Desglose Organizacional Detallado')
         dimension_options = {'Gerencia y Ministerio': ['Gerencia', 'Ministerio'], 'Gerencia y Sexo': ['Gerencia', 'Sexo'], 'Ministerio y Sexo': ['Ministerio', 'Sexo'], 'Nivel y Sexo': ['Nivel', 'Sexo'], 'Función y Sexo': ['Función', 'Sexo']}
         selected_dimension_key = st.selectbox('Selecciona una vista de desglose:', options=list(dimension_options.keys()))
@@ -834,6 +867,7 @@ if uploaded_file is not None:
                         generate_download_buttons(df_grouped_with_total, f'dist_{selected_dimension_key.replace(" y ", "_").lower()}', f'tab2_{selected_dimension_key}')
 
     with tab_empleados:
+        # El código de empleados permanece sin cambios
         with st.container(border=True):
             with st.spinner("Calculando ranking de empleados..."):
                 employee_overtime = calculate_employee_overtime(df, st.session_state.selections, cost_columns_options, quantity_columns_options, st.session_state.cost_types, st.session_state.quantity_types)
@@ -864,8 +898,43 @@ if uploaded_file is not None:
 
     with tab_valor_hora:
         with st.container(border=True):
+            # --- INICIO: NUEVA SECCIÓN DE COSTO PROMEDIO POR TIPO DE HORA ---
+            st.header('Costo Promedio por Tipo de Hora Extra (General)')
+            with st.spinner("Calculando costos promedio por tipo de hora..."):
+                avg_cost_data = []
+                cost_quant_map = {
+                    'Horas extras al 50 %': 'Cantidad HE 50',
+                    'Horas extras al 50 % Sabados': 'Cant HE al 50 Sabados',
+                    'Horas extras al 100%': 'Cantidad HE 100',
+                    'Importe HE Fc': 'Cantidad HE FC'
+                }
+                
+                for cost_col, quant_col in cost_quant_map.items():
+                    if cost_col in filtered_df.columns and quant_col in filtered_df.columns:
+                        total_cost = filtered_df[cost_col].sum()
+                        total_quant = filtered_df[quant_col].sum()
+                        avg_cost = total_cost / total_quant if total_quant > 0 else 0
+                        avg_cost_data.append({
+                            "Tipo de Hora Extra": cost_col.replace("Horas extras al", "HE").replace("Importe ", ""),
+                            "Costo Total": total_cost,
+                            "Cantidad Total (hs)": total_quant,
+                            "Costo Promedio por Hora": avg_cost
+                        })
+                
+                if avg_cost_data:
+                    df_avg_costs = pd.DataFrame(avg_cost_data)
+                    st.dataframe(df_avg_costs.style.format({
+                        "Costo Total": format_currency_es,
+                        "Cantidad Total (hs)": lambda x: format_number_es(x, 0),
+                        "Costo Promedio por Hora": format_currency_es
+                    }), use_container_width=True)
+                else:
+                    st.info("No se encontraron datos para calcular los costos promedio por tipo de hora.")
+            st.markdown("---")
+            # --- FIN: NUEVA SECCIÓN ---
+
+            st.header('Valores Promedio por Hora por Dimensión')
             with st.spinner("Calculando valores promedio por hora..."):
-                st.header('Valores Promedio por Hora')
                 grouping_dimension = st.selectbox('Selecciona la dimensión de desglose:', ['Gerencia', 'Legajo', 'Función', 'CECO', 'Ubicación', 'Nivel', 'Sexo'], key='valor_hora_grouping')
                 df_valor_hora = calculate_average_hourly_rate(df, st.session_state.selections, grouping_dimension)
                 if not df_valor_hora.empty:
