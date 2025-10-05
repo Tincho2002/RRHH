@@ -190,7 +190,7 @@ if 'ms_selections' not in st.session_state:
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.ms_selections = initial_selections
     # Forzamos recarga una sola vez para aplicar estado inicial
-    st.experimental_rerun()
+    st.rerun()
 
 # Botón de reset
 if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="ms_clear"):
@@ -215,7 +215,7 @@ for col in filter_cols:
     st.session_state.ms_selections[col] = selected
 
 if old_selections != st.session_state.ms_selections:
-    st.experimental_rerun()
+    st.rerun()
 
 # Aplicar filtros
 df_filtered = apply_filters(df, st.session_state.ms_selections)
@@ -596,3 +596,4 @@ with tab_tabla:
         st.info("No hay datos que coincidan con los filtros seleccionados.")
 
 # --- FIN ---
+
