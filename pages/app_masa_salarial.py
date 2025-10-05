@@ -238,7 +238,8 @@ latest_month_name = "N/A"
 
 if not df_filtered.empty:
     # --- Headcount para la tarjeta "Empleados Únicos" (se mantiene como la del último mes) ---
-    latest_month_num = df_filtered['Mes_Num'].max()
+    # Lógica robusta para obtener el último mes de los datos filtrados
+    latest_month_num = df_filtered.sort_values('Mes_Num', ascending=False)['Mes_Num'].iloc[0]
     df_latest_month = df_filtered[df_filtered['Mes_Num'] == latest_month_num]
     
     if not df_latest_month.empty:
@@ -246,11 +247,11 @@ if not df_filtered.empty:
     
     cantidad_empleados_total = df_latest_month['Legajo'].nunique()
 
-    # --- LÓGICA NUEVA Y CORREGIDA PARA COSTO MEDIO ---
-    # 1. Separar los dataframes por grupo (Convenio vs Fuera de Convenio)
-    is_convenio = df_filtered['Clasificacion_Ministerio'].str.contains('convenio', case=False, na=False)
-    df_convenio = df_filtered[is_convenio]
-    df_fc = df_filtered[~is_convenio]
+    # --- LÓGICA DEFINITIVA PARA COSTO MEDIO ---
+    # 1. Separar los dataframes por grupo, USANDO LA COLUMNA 'Nivel'
+    is_fc = df_filtered['Nivel'] == 'FC'
+    df_fc = df_filtered[is_fc]
+    df_convenio = df_filtered[~is_fc] # Convenio es todo lo que no es FC
 
     # 2. Calcular la masa salarial total para cada grupo
     total_masa_convenio = df_convenio['Total Mensual'].sum()
