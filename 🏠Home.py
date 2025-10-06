@@ -14,7 +14,7 @@ st.markdown("""
 <style>
 /* --- Pantalla de Carga (Splash Screen) --- */
 #splash-screen {
-    position: center;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
@@ -222,4 +222,5 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
