@@ -8,7 +8,7 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------------------------------
-# --- CSS: PANTALLA DE CARGA, ANIMACIONES Y ESTILOS PRINCIPALES ---
+# --- CSS: PANTALLA DE CARGA Y ANIMACIÓN DE BARRA LATERAL ---
 # ----------------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -27,16 +27,12 @@ st.markdown("""
     align-items: center;
     color: white;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    
-    /* Animación para ocultar el splash screen */
     animation: hideSplash 1.5s ease-out 3.5s forwards;
 }
 
 #splash-logo {
-    /* 👇 CORRECCIÓN: Se añade el borde redondeado al logo de la pantalla de carga */
     border-radius: 25px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-    /* Animación de entrada para el logo */
     animation: fadeInScale 1.5s 0.5s ease-out forwards;
 }
 
@@ -74,13 +70,26 @@ st.markdown("""
 /* --- Estilos del Contenido Principal --- */
 #main-content {
     opacity: 0; /* Inicia oculto */
-    /* Animación para mostrar el contenido principal */
     animation: showContent 1.5s ease-in 3.5s forwards;
 }
 
 @keyframes showContent {
     from { opacity: 0; }
     to { opacity: 1; }
+}
+
+/* 👇 CORRECCIÓN: Animación para ocultar y luego mostrar la barra lateral */
+[data-testid="stSidebar"] {
+    opacity: 0; /* Inicia oculta */
+    transform: translateX(-100%); /* Inicia fuera de la pantalla a la izquierda */
+    animation: showSidebar 0.75s ease-out 3.5s forwards;
+}
+
+@keyframes showSidebar {
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 /* ---------- TARJETAS (CARDS) DE NAVEGACIÓN ---------- */
@@ -143,7 +152,7 @@ a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------
-# --- PANTALLA DE CARGA (SOLO HTML, SIN JAVASCRIPT DE CONTROL) ---
+# --- PANTALLA DE CARGA (SOLO HTML) ---
 # -----------------------------------------------------------------------
 st.html("""
 <div id="splash-screen">
@@ -222,5 +231,3 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
-
-
