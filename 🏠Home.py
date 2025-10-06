@@ -3,7 +3,7 @@ import streamlit as st
 # Se agrega 'layout="wide"' a la configuración de la página.
 st.set_page_config(
     page_title="Portal de RRHH",
-    page_icon="assets/logo_assa.jpg", # Puedes usar un .ico si lo tienes
+    page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", # URL pública del logo
     layout="wide" 
 )
 
@@ -77,6 +77,7 @@ st.markdown("""
 #main-content {
     opacity: 0;
     animation: fadeInContent 1s ease-out forwards;
+    animation-delay: 3s; /* Retraso para que aparezca después del splash */
 }
 
 @keyframes fadeInContent {
@@ -159,7 +160,7 @@ st.html("""
         }
     </script>
     
-    <img id="splash-logo" src="assets/logo_assa.jpg" width="250">
+    <img id="splash-logo" src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" width="250">
     <h1 id="splash-title">Portal de Análisis de RRHH</h1>
 </div>
 
@@ -170,15 +171,9 @@ st.html("""
         if (splash) {
             splash.classList.add('hidden');
         }
-        // Muestra el contenido principal
-        const mainContent = document.getElementById('main-content');
-        if (mainContent) {
-            mainContent.style.opacity = '1';
-        }
     }, 3500);
 </script>
 """)
-
 
 # -----------------------------------------------------------------------
 # --- CONTENIDO PRINCIPAL DE LA APP ---
@@ -188,6 +183,7 @@ st.html("""
 st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
 # --- ENCABEZADO CON LOGOS Y TÍTULO ---
+# NOTA: st.image() SÍ puede usar rutas locales porque Streamlit las procesa.
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
     st.image("assets/logo_assa.jpg", width=200)
@@ -214,7 +210,7 @@ st.markdown(
 # --- TARJETAS NAVEGABLES ---
 st.markdown("""
 <div class="card-container">
-    <a href="/Dotación" target="_self" class="app-card card-dotacion">
+    <a href="/Dotacion" target="_self" class="app-card card-dotacion">
         <div class="card-title">👥 Dotación</div>
         <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
         <div class="access-icon">🔗</div>
