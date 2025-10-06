@@ -146,15 +146,7 @@ div[data-testid="stDownloadButton"] button:hover {
     border-radius: 8px;
     padding: 1rem;
     text-align: center;
-    /* Define la animación de transición */
-    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
 }
-/* Estilo para las métricas al pasar el mouse por encima */
-[data-testid="stMetric"]:hover {
-    background-color: #e3f2fd; /* Un celeste muy pálido */
-    border-color: #90caf9;   /* Un celeste un poco más oscuro para el borde */
-}
-
 [data-testid="stMetricLabel"] {
     font-weight: 600;
     font-size: 0.95rem;
@@ -479,7 +471,13 @@ if uploaded_file is not None:
                     .summary-main-kpi .value{{font-size:2.5rem;font-weight:700;color:#6C5CE7}}
                     .summary-main-kpi .label{{font-size:1rem;color:#5a5a5a}}
                     .summary-breakdown{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
-                    .summary-sub-kpi{{background-color:#ffffff;padding:1rem;border-radius:6px;border:1px solid #e0e0e0;text-align:center}}
+                    .summary-sub-kpi{{background-color:#ffffff;padding:1rem;border-radius:6px;border:1px solid #e0e0e0;text-align:center; transition: all 0.3s ease;}}
+                    .summary-sub-kpi:hover {{
+                        transform: translateY(-3px);
+                        background-color: #ede7f6;
+                        border-color: #b39ddb;
+                        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+                    }}
                     .summary-sub-kpi .type{{font-weight:600;font-size:0.9rem;margin-bottom:0.5rem}}
                     .summary-sub-kpi .value-cost,.summary-sub-kpi .value-qty{{font-size:1.25rem;font-weight:600}}
                     .summary-sub-kpi .value-cost{{color:#2a7a2a}}
@@ -506,8 +504,7 @@ if uploaded_file is not None:
                     counters.forEach(counter=>{{counter.innerHTML='';const target=+counter.getAttribute('data-target');setTimeout(()=>animateValue(counter,0,target,1500),100)}});
                 </script>
                 """
-                components.html(card_html, height=600) # Aumenté la altura para dar espacio a los nuevos KPIs
-                st.markdown("<br>", unsafe_allow_html=True)
+                components.html(card_html, height=600)
         except Exception as e:
             st.warning(f"No se pudo generar el resumen del último mes. Error: {e}")
 
