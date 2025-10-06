@@ -28,12 +28,12 @@ st.markdown("""
     color: white;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     opacity: 1;
-    transition: opacity 1.5s ease-out;
+    transition: opacity 1.5s ease-out; /* Transición para ocultarse */
 }
 
 #splash-screen.hidden {
     opacity: 0;
-    pointer-events: none; /* Desactiva interacciones cuando está oculto */
+    pointer-events: none;
 }
 
 #splash-logo {
@@ -48,13 +48,8 @@ st.markdown("""
     animation: fadeInSlide 1.5s 1s ease-out forwards;
 }
 
-@keyframes fadeInScale {
-    to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes fadeInSlide {
-    to { opacity: 1; transform: translateY(0); }
-}
+@keyframes fadeInScale { to { opacity: 1; transform: scale(1); } }
+@keyframes fadeInSlide { to { opacity: 1; transform: translateY(0); } }
 
 /* --- Animación de Gotas --- */
 .droplet {
@@ -67,21 +62,12 @@ st.markdown("""
     animation: fall linear infinite;
 }
 
-@keyframes fall {
-    to {
-        transform: translateY(100vh);
-    }
-}
+@keyframes fall { to { transform: translateY(100vh); } }
 
 /* --- Estilos del Contenido Principal --- */
 #main-content {
-    opacity: 0;
-    animation: fadeInContent 1s ease-out forwards;
-    animation-delay: 3s; /* Retraso para que aparezca después del splash */
-}
-
-@keyframes fadeInContent {
-    to { opacity: 1; }
+    opacity: 0; /* Inicia oculto */
+    transition: opacity 1.5s ease-in-out; /* Transición para mostrarse */
 }
 
 /* ---------- TARJETAS (CARDS) ---------- */
@@ -165,13 +151,32 @@ st.html("""
 </div>
 
 <script>
-    // Oculta la pantalla de carga después de 3.5 segundos
-    window.setTimeout(() => {
-        const splash = document.getElementById('splash-screen');
-        if (splash) {
-            splash.classList.add('hidden');
-        }
-    }, 3500);
+    // Espera a que toda la página se cargue
+    window.addEventListener('load', (event) => {
+        // Inicia el temporizador para la transición
+        window.setTimeout(() => {
+            const splash = document.getElementById('splash-screen');
+            const mainContent = document.getElementById('main-content');
+            
+            // Oculta la pantalla de carga
+            if (splash) {
+                splash.classList.add('hidden');
+            }
+            
+            // Muestra el contenido principal
+            if (mainContent) {
+                mainContent.style.opacity = '1';
+            }
+
+            // Opcional: Elimina completamente el splash screen del DOM después de que termine la animación
+            window.setTimeout(() => {
+                if (splash) {
+                    splash.style.display = 'none';
+                }
+            }, 1500); // Coincide con la duración de la transición de opacidad
+
+        }, 2500); // Tiempo de espera antes de iniciar la transición (reducido un poco)
+    });
 </script>
 """)
 
@@ -183,7 +188,6 @@ st.html("""
 st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
 # --- ENCABEZADO CON LOGOS Y TÍTULO ---
-# NOTA: st.image() SÍ puede usar rutas locales porque Streamlit las procesa.
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
     st.image("assets/logo_assa.jpg", width=200)
