@@ -372,45 +372,39 @@ if uploaded_file is not None:
     filter_cols_config = {'Gerencia': 'Gerencia', 'Ministerio': 'Ministerio', 'CECO': 'Centro de Costo', 'Ubicación': 'Ubicación', 'Función': 'Función', 'Nivel': 'Nivel', 'Sexo': 'Sexo', 'Liquidación': 'Liquidación', 'Legajo': 'Legajo', 'Mes': 'Mes'}
     filter_cols = list(filter_cols_config.keys())
 
-    # =============================================================================
-    # CORRECCIÓN INICIO: Usar claves de session_state únicas para esta página
-    # =============================================================================
-    if 'he_selections' not in st.session_state:
-        st.session_state.he_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
-        st.session_state.he_cost_types = list(cost_columns_options.keys())
-        st.session_state.he_quantity_types = list(quantity_columns_options.keys())
+    if 'selections' not in st.session_state:
+        st.session_state.selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
+        st.session_state.cost_types = list(cost_columns_options.keys())
+        st.session_state.quantity_types = list(quantity_columns_options.keys())
         st.rerun()
 
     if st.sidebar.button('🔄 Resetear Filtros', use_container_width=True):
-        st.session_state.he_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
-        st.session_state.he_cost_types = list(cost_columns_options.keys())
-        st.session_state.he_quantity_types = list(quantity_columns_options.keys())
+        st.session_state.selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
+        st.session_state.cost_types = list(cost_columns_options.keys())
+        st.session_state.quantity_types = list(quantity_columns_options.keys())
         if 'show_map_comp_check' in st.session_state: st.session_state['show_map_comp_check'] = False
         st.rerun()
     
     st.sidebar.markdown("---")
-    old_selections = {k: list(v) for k, v in st.session_state.he_selections.items()}
+    old_selections = {k: list(v) for k, v in st.session_state.selections.items()}
     for col, title in filter_cols_config.items():
-        available_options = get_available_options(df, st.session_state.he_selections, col)
-        current_selection = [sel for sel in st.session_state.he_selections.get(col, []) if sel in available_options]
+        available_options = get_available_options(df, st.session_state.selections, col)
+        current_selection = [sel for sel in st.session_state.selections.get(col, []) if sel in available_options]
         selected = st.sidebar.multiselect(title, options=available_options, default=current_selection, key=f"multiselect_{col}")
-        st.session_state.he_selections[col] = selected
+        st.session_state.selections[col] = selected
 
-    if old_selections != st.session_state.he_selections:
+    if old_selections != st.session_state.selections:
         if 'show_map_comp_check' in st.session_state: st.session_state['show_map_comp_check'] = False
         st.rerun()
 
-    filtered_df = apply_filters(df, st.session_state.he_selections)
+    filtered_df = apply_filters(df, st.session_state.selections)
     
     top_n_employees = st.sidebar.slider('Mostrar Top N Empleados:', 5, 50, 10)
     st.sidebar.markdown("---")
     st.sidebar.subheader("Selección de Tipos de Horas Extras")
-    st.session_state.he_cost_types = st.sidebar.multiselect('Tipos de Costo de HE:', options=list(cost_columns_options.keys()), default=st.session_state.get('he_cost_types', []))
-    st.session_state.he_quantity_types = st.sidebar.multiselect('Tipos de Cantidad de HE:', options=list(quantity_columns_options.keys()), default=st.session_state.get('he_quantity_types', []))
-    # =============================================================================
-    # CORRECCIÓN FIN
-    # =============================================================================
-
+    st.session_state.cost_types = st.sidebar.multiselect('Tipos de Costo de HE:', options=list(cost_columns_options.keys()), default=st.session_state.get('cost_types', []))
+    st.session_state.quantity_types = st.sidebar.multiselect('Tipos de Cantidad de HE:', options=list(quantity_columns_options.keys()), default=st.session_state.get('quantity_types', []))
+    
     st.info(f"Mostrando **{format_number_es(len(filtered_df), 0)}** registros según los filtros aplicados.")
     st.markdown("---")
 
@@ -463,14 +457,14 @@ if uploaded_file is not None:
             latest_month_str = filtered_df['Mes'].dropna().max()
             if pd.notna(latest_month_str):
                 df_last_month = filtered_df[filtered_df['Mes'] == latest_month_str].copy()
-                costo_50 = df_last_month['Horas extras al 50 %'].sum() if 'Horas extras al 50 %' in st.session_state.he_cost_types else 0
-                cantidad_50 = df_last_month['Cantidad HE 50'].sum() if 'Cantidad HE 50' in st.session_state.he_quantity_types else 0
-                costo_50_sab = df_last_month['Horas extras al 50 % Sabados'].sum() if 'Horas extras al 50 % Sabados' in st.session_state.he_cost_types else 0
-                cantidad_50_sab = df_last_month['Cant HE al 50 Sabados'].sum() if 'Cant HE al 50 Sabados' in st.session_state.he_quantity_types else 0
-                costo_100 = df_last_month['Horas extras al 100%'].sum() if 'Horas extras al 100%' in st.session_state.he_cost_types else 0
-                cantidad_100 = df_last_month['Cantidad HE 100'].sum() if 'Cantidad HE 100' in st.session_state.he_quantity_types else 0
-                costo_fc = df_last_month['Importe HE Fc'].sum() if 'Importe HE Fc' in st.session_state.he_cost_types else 0
-                cantidad_fc = df_last_month['Cantidad HE FC'].sum() if 'Cantidad HE FC' in st.session_state.he_quantity_types else 0
+                costo_50 = df_last_month['Horas extras al 50 %'].sum() if 'Horas extras al 50 %' in st.session_state.cost_types else 0
+                cantidad_50 = df_last_month['Cantidad HE 50'].sum() if 'Cantidad HE 50' in st.session_state.quantity_types else 0
+                costo_50_sab = df_last_month['Horas extras al 50 % Sabados'].sum() if 'Horas extras al 50 % Sabados' in st.session_state.cost_types else 0
+                cantidad_50_sab = df_last_month['Cant HE al 50 Sabados'].sum() if 'Cant HE al 50 Sabados' in st.session_state.quantity_types else 0
+                costo_100 = df_last_month['Horas extras al 100%'].sum() if 'Horas extras al 100%' in st.session_state.cost_types else 0
+                cantidad_100 = df_last_month['Cantidad HE 100'].sum() if 'Cantidad HE 100' in st.session_state.quantity_types else 0
+                costo_fc = df_last_month['Importe HE Fc'].sum() if 'Importe HE Fc' in st.session_state.cost_types else 0
+                cantidad_fc = df_last_month['Cantidad HE FC'].sum() if 'Cantidad HE FC' in st.session_state.quantity_types else 0
                 total_costo_mes = costo_50 + costo_50_sab + costo_100 + costo_fc
                 total_cantidad_mes = cantidad_50 + cantidad_50_sab + cantidad_100 + cantidad_fc
                 month_dt = datetime.strptime(latest_month_str, '%Y-%m')
@@ -481,97 +475,6 @@ if uploaded_file is not None:
                 st.markdown("<br>", unsafe_allow_html=True)
         except Exception as e:
             st.warning(f"No se pudo generar el resumen del último mes. Error: {e}")
-    # --- TARJETA DE RESUMEN ANIMADA (CON KPIS INTEGRADOS) ---
-if not filtered_df.empty and 'Mes' in filtered_df.columns:
-    try:
-        latest_month_str = filtered_df['Mes'].dropna().max()
-        if pd.notna(latest_month_str):
-            df_last_month = filtered_df[filtered_df['Mes'] == latest_month_str].copy()
-            
-            # --- CÁLCULO DE COSTOS PROMEDIO (ahora dentro de esta sección) ---
-            cost_quant_map = {
-                'Horas extras al 50 %': 'Cantidad HE 50',
-                'Horas extras al 50 % Sabados': 'Cant HE al 50 Sabados',
-                'Horas extras al 100%': 'Cantidad HE 100',
-                'Importe HE Fc': 'Cantidad HE FC'
-            }
-            avg_costs_data = {}
-            if not df_last_month.empty:
-                for cost_col, quant_col in cost_quant_map.items():
-                    if cost_col in df_last_month.columns and quant_col in df_last_month.columns:
-                        total_cost = df_last_month[cost_col].sum()
-                        total_quant = df_last_month[quant_col].sum()
-                        avg_cost_per_hour = total_cost / total_quant if total_quant > 0 else 0
-                        display_name = cost_col.replace("Horas extras al", "HE").replace("Importe ", "")
-                        avg_costs_data[display_name] = avg_cost_per_hour
-            
-            # Generar HTML para los KPIs de costo promedio
-            avg_kpi_html = ""
-            for name, value in avg_costs_data.items():
-                avg_kpi_html += f"""
-                <div class="summary-sub-kpi">
-                    <div class="type">Promedio {name}</div>
-                    <div class="value-cost" data-target="{value}" data-type="currency" data-decimals="2"></div>
-                </div>
-                """
-
-            # --- CÁLCULO DE TOTALES PARA LA TARJETA ---
-            costo_50 = df_last_month['Horas extras al 50 %'].sum() if 'Horas extras al 50 %' in st.session_state.cost_types else 0
-            cantidad_50 = df_last_month['Cantidad HE 50'].sum() if 'Cantidad HE 50' in st.session_state.quantity_types else 0
-            costo_50_sab = df_last_month['Horas extras al 50 % Sabados'].sum() if 'Horas extras al 50 % Sabados' in st.session_state.cost_types else 0
-            cantidad_50_sab = df_last_month['Cant HE al 50 Sabados'].sum() if 'Cant HE al 50 Sabados' in st.session_state.quantity_types else 0
-            costo_100 = df_last_month['Horas extras al 100%'].sum() if 'Horas extras al 100%' in st.session_state.cost_types else 0
-            cantidad_100 = df_last_month['Cantidad HE 100'].sum() if 'Cantidad HE 100' in st.session_state.quantity_types else 0
-            costo_fc = df_last_month['Importe HE Fc'].sum() if 'Importe HE Fc' in st.session_state.cost_types else 0
-            cantidad_fc = df_last_month['Cantidad HE FC'].sum() if 'Cantidad HE FC' in st.session_state.quantity_types else 0
-            total_costo_mes = costo_50 + costo_50_sab + costo_100 + costo_fc
-            total_cantidad_mes = cantidad_50 + cantidad_50_sab + cantidad_100 + cantidad_fc
-            month_dt = datetime.strptime(latest_month_str, '%Y-%m')
-            meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
-            month_name = f"{meses_espanol.get(month_dt.month, '')} {month_dt.year}"
-
-            # --- CONSTRUCCIÓN DEL HTML DE LA TARJETA ---
-            card_html = f"""
-            <style>
-                .summary-card{{background-color:#f8f7fc;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,0.05);padding:1.5rem;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif !important}}
-                .summary-card *{{font-family:inherit !important}}
-                .summary-header{{text-align:center;font-size:1.2rem;font-weight:600;margin-bottom:1.5rem;border-bottom:2px solid #e0e0e0;padding-bottom:1rem;color:#6C5CE7 !important}}
-                .summary-totals{{display:flex;justify-content:space-around;gap:1rem;margin-bottom:1.5rem}}
-                .summary-main-kpi{{text-align:center}}
-                .summary-main-kpi .value{{font-size:2.5rem;font-weight:700;color:#6C5CE7}}
-                .summary-main-kpi .label{{font-size:1rem;color:#5a5a5a}}
-                .summary-breakdown{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
-                .summary-sub-kpi{{background-color:#ffffff;padding:1rem;border-radius:6px;border:1px solid #e0e0e0;text-align:center}}
-                .summary-sub-kpi .type{{font-weight:600;font-size:0.9rem;margin-bottom:0.5rem}}
-                .summary-sub-kpi .value-cost,.summary-sub-kpi .value-qty{{font-size:1.25rem;font-weight:600}}
-                .summary-sub-kpi .value-cost{{color:#2a7a2a}}
-                .summary-sub-kpi .value-qty{{color:#3a3a9a}}
-            </style>
-            <div class="summary-card">
-                <div class="summary-header">RESUMEN MENSUAL: {month_name}</div>
-                <div class="summary-totals">
-                    <div class="summary-main-kpi"><div class="value" data-target="{total_costo_mes}" data-type="currency" data-decimals="2"></div><div class="label">Costo Total</div></div>
-                    <div class="summary-main-kpi"><div class="value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="0"></div><div class="label">Cantidad Total</div></div>
-                </div>
-                <div class="summary-breakdown">
-                    {avg_kpi_html}
-                    
-                    <div class="summary-sub-kpi"><div class="type">Total HE 50%</div><div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
-                    <div class="summary-sub-kpi"><div class="type">Total HE 50% Sábados</div><div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
-                    <div class="summary-sub-kpi"><div class="type">Total HE 100%</div><div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
-                    <div class="summary-sub-kpi"><div class="type">Total HE FC</div><div class="value-cost" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
-                </div>
-            </div>
-            <script>
-                function animateValue(obj,start,end,duration){{let startTimestamp=null;const type=obj.getAttribute('data-type')||'number';const suffix=obj.getAttribute('data-suffix')||'';const decimals=parseInt(obj.getAttribute('data-decimals'))||0;const currencyFormatter=new Intl.NumberFormat('es-AR',{{style:'currency',currency:'ARS',minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const numberFormatter=new Intl.NumberFormat('es-AR',{{minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const step=timestamp=>{{if(!startTimestamp)startTimestamp=timestamp;const progress=Math.min((timestamp-startTimestamp)/duration,1);const currentVal=progress*(end-start)+start;let formattedVal;if(type==='currency'){{formattedVal=currencyFormatter.format(currentVal).replace(/^ARS\\s/,'$')}}else{{formattedVal=numberFormatter.format(currentVal)}}obj.innerHTML=formattedVal+suffix;if(progress<1){{window.requestAnimationFrame(step)}}}};window.requestAnimationFrame(step)}}
-                const counters=document.querySelectorAll('[data-target]');
-                counters.forEach(counter=>{{counter.innerHTML='';const target=+counter.getAttribute('data-target');setTimeout(()=>animateValue(counter,0,target,1500),100)}});
-            </script>
-            """
-            components.html(card_html, height=600) # Aumenté la altura para dar espacio a los nuevos KPIs
-            st.markdown("<br>", unsafe_allow_html=True)
-    except Exception as e:
-        st.warning(f"No se pudo generar el resumen del último mes. Error: {e}")
 
     # --- ESTRUCTURA DE PESTAÑAS ---
     tab_list = st.tabs(["📈 Resumen y Tendencias", "🗺️ Mapa de Distribución", "🏢 Desglose Organizacional", "👤 Empleados Destacados", "⚖️ Valor Hora", "📋 Datos Brutos"])
@@ -583,7 +486,7 @@ if not filtered_df.empty and 'Mes' in filtered_df.columns:
             st.header('Tendencias Mensuales de Horas Extras')
             st.markdown("<br>", unsafe_allow_html=True)
             with st.spinner("Generando análisis de tendencias..."):
-                monthly_trends_agg = calculate_monthly_trends(df, st.session_state.he_selections, cost_columns_options, quantity_columns_options, st.session_state.he_cost_types, st.session_state.he_quantity_types)
+                monthly_trends_agg = calculate_monthly_trends(df, st.session_state.selections, cost_columns_options, quantity_columns_options, st.session_state.cost_types, st.session_state.quantity_types)
                 if not monthly_trends_agg.empty:
                     total_row = monthly_trends_agg.sum(numeric_only=True).to_frame().T
                     total_row['Mes'] = 'TOTAL'
@@ -595,7 +498,7 @@ if not filtered_df.empty and 'Mes' in filtered_df.columns:
                         if monthly_trends_agg['Total_Costos'].sum() > 0:
                             chart_data, max_cost = monthly_trends_agg, monthly_trends_agg['Total_Costos'].max()
                             y_scale_cost = alt.Scale(domain=[0, max_cost * 1.25]) if max_cost > 0 else alt.Scale()
-                            cost_bars_vars = [cost_columns_options[k] for k in st.session_state.he_cost_types if k in cost_columns_options]
+                            cost_bars_vars = [cost_columns_options[k] for k in st.session_state.cost_types if k in cost_columns_options]
                             monthly_trends_costos_melted_bars = chart_data.melt('Mes', value_vars=cost_bars_vars, var_name='Tipo de Costo HE', value_name='Costo ($)')
                             bars_costos = alt.Chart(monthly_trends_costos_melted_bars).mark_bar().encode(x='Mes', y=alt.Y('Costo ($):Q', stack='zero', scale=y_scale_cost, axis=alt.Axis(format='$,.0f')), color=alt.Color('Tipo de Costo HE', legend=alt.Legend(orient='bottom', title=None, columns=2, labelLimit=300), scale=alt.Scale(domain=cost_color_domain, range=color_range)))
                             line_costos = alt.Chart(chart_data).mark_line(color='black', point=alt.OverlayMarkDef(filled=False, fill='white', color='black'), strokeWidth=2).encode(x='Mes', y=alt.Y('Total_Costos:Q', title='Costo ($)', scale=y_scale_cost, axis=alt.Axis(format='$,.0f')), tooltip=[alt.Tooltip('Mes'), alt.Tooltip('Total_Costos', title='Total', format='$,.2f')])
@@ -606,7 +509,7 @@ if not filtered_df.empty and 'Mes' in filtered_df.columns:
                         if monthly_trends_agg['Total_Cantidades'].sum() > 0:
                             chart_data, max_quant = monthly_trends_agg, monthly_trends_agg['Total_Cantidades'].max()
                             y_scale_quant = alt.Scale(domain=[0, max_quant * 1.25]) if max_quant > 0 else alt.Scale()
-                            quantity_bars_vars = [quantity_columns_options[k] for k in st.session_state.he_quantity_types if k in quantity_columns_options]
+                            quantity_bars_vars = [quantity_columns_options[k] for k in st.session_state.quantity_types if k in quantity_columns_options]
                             monthly_trends_cantidades_melted_bars = chart_data.melt('Mes', value_vars=quantity_bars_vars, var_name='Tipo de Cantidad HE', value_name='Cantidad')
                             bars_cantidades = alt.Chart(monthly_trends_cantidades_melted_bars).mark_bar().encode(x='Mes', y=alt.Y('Cantidad:Q', stack='zero', scale=y_scale_quant, axis=alt.Axis(format=',.0f')), color=alt.Color('Tipo de Cantidad HE', legend=alt.Legend(orient='bottom', title=None, columns=2, labelLimit=300), scale=alt.Scale(domain=quantity_color_domain, range=color_range)))
                             line_cantidades = alt.Chart(chart_data).mark_line(color='black', point=alt.OverlayMarkDef(filled=False, fill='white', color='black'), strokeWidth=2).encode(x='Mes', y=alt.Y('Total_Cantidades:Q', title='Cantidad', scale=y_scale_quant, axis=alt.Axis(format=',.0f')), tooltip=[alt.Tooltip('Mes'), alt.Tooltip('Total_Cantidades', title='Total', format=',.0f')])
@@ -657,9 +560,9 @@ if not filtered_df.empty and 'Mes' in filtered_df.columns:
         else:
             df_mapa_display = filtered_df.copy()
             latest_month_map = ""
-            if st.session_state.he_selections.get('Mes'):
+            if st.session_state.selections.get('Mes'):
                 all_months_sorted = sorted(df['Mes'].dropna().unique())
-                selected_months_sorted = [m for m in all_months_sorted if m in st.session_state.he_selections['Mes']]
+                selected_months_sorted = [m for m in all_months_sorted if m in st.session_state.selections['Mes']]
                 if selected_months_sorted: latest_month_map = selected_months_sorted[-1]
             else: latest_month_map = df['Mes'].dropna().max()
             month_name_map = "General"
@@ -668,8 +571,8 @@ if not filtered_df.empty and 'Mes' in filtered_df.columns:
                 month_dt_map = datetime.strptime(latest_month_map, '%Y-%m')
                 meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
                 month_name_map = f"{meses_espanol.get(month_dt_map.month, '')} {month_dt_map.year}"
-            selected_cost_cols = [cost_columns_options[k] for k in st.session_state.he_cost_types if k in cost_columns_options]
-            selected_quant_cols = [quantity_columns_options[k] for k in st.session_state.he_quantity_types if k in quantity_columns_options]
+            selected_cost_cols = [cost_columns_options[k] for k in st.session_state.cost_types if k in cost_columns_options]
+            selected_quant_cols = [quantity_columns_options[k] for k in st.session_state.quantity_types if k in quantity_columns_options]
             existing_cost_cols = [col for col in selected_cost_cols if col in df_mapa_display.columns]
             existing_quant_cols = [col for col in selected_quant_cols if col in df_mapa_display.columns]
             if existing_cost_cols: df_mapa_display['Costo_Total_Dinamico'] = df_mapa_display[existing_cost_cols].sum(axis=1)
@@ -746,7 +649,7 @@ if not filtered_df.empty and 'Mes' in filtered_df.columns:
         group_cols = dimension_options[selected_dimension_key]
         primary_col, secondary_col = group_cols[0], group_cols[1]
         with st.spinner(f"Generando desglose por {selected_dimension_key}..."):
-            df_grouped = calculate_grouped_aggregation(df, st.session_state.he_selections, group_cols, cost_columns_options, quantity_columns_options, st.session_state.he_cost_types, st.session_state.he_quantity_types)
+            df_grouped = calculate_grouped_aggregation(df, st.session_state.selections, group_cols, cost_columns_options, quantity_columns_options, st.session_state.cost_types, st.session_state.quantity_types)
             st.subheader(f'Distribución por {selected_dimension_key}')
             if df_grouped.empty: st.warning(f"No hay datos para '{selected_dimension_key}' con los filtros seleccionados.")
             else:
@@ -779,7 +682,7 @@ if not filtered_df.empty and 'Mes' in filtered_df.columns:
     with tab_empleados:
         with st.container(border=True):
             with st.spinner("Calculando ranking de empleados..."):
-                employee_overtime = calculate_employee_overtime(df, st.session_state.he_selections, cost_columns_options, quantity_columns_options, st.session_state.he_cost_types, st.session_state.he_quantity_types)
+                employee_overtime = calculate_employee_overtime(df, st.session_state.selections, cost_columns_options, quantity_columns_options, st.session_state.cost_types, st.session_state.quantity_types)
                 if not employee_overtime.empty:
                     st.header(f'Top {top_n_employees} Empleados con Mayor Horas Extras')
                     top_costo_empleados, top_cantidad_empleados = employee_overtime.nlargest(top_n_employees, 'Total_Costos'), employee_overtime.nlargest(top_n_employees, 'Total_Cantidades')
@@ -823,7 +726,7 @@ if not filtered_df.empty and 'Mes' in filtered_df.columns:
             st.header('Valores Promedio por Hora por Dimensión')
             with st.spinner("Calculando valores promedio por hora..."):
                 grouping_dimension = st.selectbox('Selecciona la dimensión de desglose:', ['Gerencia', 'Legajo', 'Función', 'CECO', 'Ubicación', 'Nivel', 'Sexo'], key='valor_hora_grouping')
-                df_valor_hora = calculate_average_hourly_rate(df, st.session_state.he_selections, grouping_dimension)
+                df_valor_hora = calculate_average_hourly_rate(df, st.session_state.selections, grouping_dimension)
                 if not df_valor_hora.empty:
                     st.dataframe(df_valor_hora.style.format(create_format_dict(df_valor_hora)), use_container_width=True)
                     generate_download_buttons(df_valor_hora, f'valores_promedio_hora_por_{grouping_dimension}', 'tab_valor_hora')
