@@ -1,15 +1,18 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
-# Se agrega 'layout="wide"' a la configuración de la página.
+# --------------------------------------------------------------------
+# CONFIGURACIÓN DE LA PÁGINA
+# --------------------------------------------------------------------
 st.set_page_config(
     page_title="Portal de RRHH",
-    page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", # URL pública del logo
-    layout="wide" 
+    page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg",
+    layout="wide"
 )
 
-# ----------------------------------------------------------------------------------
-# --- CSS: PANTALLA DE CARGA, ANIMACIONES Y TARJETAS MEJORADAS ---
-# ----------------------------------------------------------------------------------
+# --------------------------------------------------------------------
+# CSS (colores, tarjetas, animaciones, estilos)
+# --------------------------------------------------------------------
 st.markdown("""
 <style>
 /* --- Pantalla de Carga (Splash Screen) --- */
@@ -28,26 +31,22 @@ st.markdown("""
     color: white;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     opacity: 1;
-    transition: opacity 1.5s ease-out; /* Transición para ocultarse */
+    transition: opacity 1.5s ease-out;
 }
-
 #splash-screen.hidden {
     opacity: 0;
     pointer-events: none;
 }
-
 #splash-logo {
     opacity: 0;
     transform: scale(0.8);
     animation: fadeInScale 1.5s 0.5s ease-out forwards;
 }
-
 #splash-title {
     opacity: 0;
     transform: translateY(20px);
     animation: fadeInSlide 1.5s 1s ease-out forwards;
 }
-
 @keyframes fadeInScale { to { opacity: 1; transform: scale(1); } }
 @keyframes fadeInSlide { to { opacity: 1; transform: translateY(0); } }
 
@@ -57,20 +56,19 @@ st.markdown("""
     bottom: 100%;
     width: 2px;
     height: 50px;
-    background: linear-gradient(to top, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1));
+    background: linear-gradient(to top, rgba(255,255,255,0.6), rgba(255,255,255,0.1));
     border-radius: 50%;
     animation: fall linear infinite;
 }
-
 @keyframes fall { to { transform: translateY(100vh); } }
 
-/* --- Estilos del Contenido Principal --- */
+/* --- Contenido Principal --- */
 #main-content {
-    opacity: 0; /* Inicia oculto */
-    transition: opacity 1.5s ease-in-out; /* Transición para mostrarse */
+    opacity: 0;
+    transition: opacity 1.5s ease-in-out;
 }
 
-/* ---------- TARJETAS (CARDS) ---------- */
+/* --- Tarjetas (Cards) --- */
 .card-container {
     display: flex;
     gap: 20px;
@@ -78,7 +76,6 @@ st.markdown("""
     flex-wrap: wrap;
     justify-content: center;
 }
-
 .app-card {
     flex: 1;
     min-width: 260px;
@@ -96,31 +93,25 @@ st.markdown("""
     flex-direction: column;
     justify-content: space-between;
 }
-
 .card-dotacion { background-color: #e0f7fa; }
 .card-horas { background-color: #fffde7; }
 .card-masa { background-color: #f1f8e9; }
-
 .app-card:hover {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
     transform: translateY(-5px);
 }
-
 .card-title {
     font-size: 1.5em;
     font-weight: bold;
     color: #003366;
     margin-bottom: 10px;
 }
-
 .access-icon {
     font-size: 1.6em;
     color: #003366;
     transition: transform 0.3s ease;
 }
-.app-card:hover .access-icon {
-    transform: scale(1.2);
-}
+.app-card:hover .access-icon { transform: scale(1.2); }
 
 a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
     text-decoration: none !important;
@@ -129,65 +120,39 @@ a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
 </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------------------------------------------------
-# --- PANTALLA DE CARGA (HTML y JavaScript) ---
-# -----------------------------------------------------------------------
-st.html("""
+# --------------------------------------------------------------------
+# Splash Screen (HTML + JS usando components.html)
+# --------------------------------------------------------------------
+components.html("""
 <div id="splash-screen">
-    <script>
-        const splash = document.getElementById('splash-screen');
-        for (let i = 0; i < 50; i++) {
-            const droplet = document.createElement('div');
-            droplet.className = 'droplet';
-            droplet.style.left = `${Math.random() * 100}vw`;
-            droplet.style.animationDuration = `${0.5 + Math.random() * 0.5}s`;
-            droplet.style.animationDelay = `${Math.random() * 4}s`;
-            splash.appendChild(droplet);
-        }
-    </script>
-    
     <img id="splash-logo" src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" width="250">
     <h1 id="splash-title">Portal de Análisis de RRHH</h1>
 </div>
 
 <script>
-    // Espera a que toda la página se cargue
-    window.addEventListener('load', (event) => {
-        // Inicia el temporizador para la transición
-        window.setTimeout(() => {
-            const splash = document.getElementById('splash-screen');
-            const mainContent = document.getElementById('main-content');
-            
-            // Oculta la pantalla de carga
-            if (splash) {
-                splash.classList.add('hidden');
-            }
-            
-            // Muestra el contenido principal
-            if (mainContent) {
-                mainContent.style.opacity = '1';
-            }
-
-            // Opcional: Elimina completamente el splash screen del DOM después de que termine la animación
-            window.setTimeout(() => {
-                if (splash) {
-                    splash.style.display = 'none';
-                }
-            }, 1500); // Coincide con la duración de la transición de opacidad
-
-        }, 2500); // Tiempo de espera antes de iniciar la transición (reducido un poco)
-    });
+const splash = document.getElementById('splash-screen');
+for (let i = 0; i < 50; i++) {
+    const droplet = document.createElement('div');
+    droplet.className = 'droplet';
+    droplet.style.left = `${Math.random() * 100}vw`;
+    droplet.style.animationDuration = `${0.5 + Math.random() * 0.5}s`;
+    droplet.style.animationDelay = `${Math.random() * 4}s`;
+    splash.appendChild(droplet);
+}
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        splash.classList.add('hidden');
+        setTimeout(() => splash.style.display = 'none', 1500);
+    }, 2500);
+});
 </script>
-""")
+""", height=0)
 
-# -----------------------------------------------------------------------
-# --- CONTENIDO PRINCIPAL DE LA APP ---
-# -----------------------------------------------------------------------
+# --------------------------------------------------------------------
+# Contenido Principal
+# --------------------------------------------------------------------
+st.markdown('<div id="main-content" style="opacity:1;">', unsafe_allow_html=True)
 
-# Envolvemos todo el contenido en un div para poder controlar su aparición
-st.markdown('<div id="main-content">', unsafe_allow_html=True)
-
-# --- ENCABEZADO CON LOGOS Y TÍTULO ---
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
     st.image("assets/logo_assa.jpg", width=200)
@@ -199,19 +164,14 @@ with right_logo:
 
 st.markdown("---")
 
-# --- TEXTO INTRODUCTORIO ---
-st.markdown(
-    """
-    <div style="text-align: center;">
-        <h2>Análisis Estratégico de Capital Humano</h2>
-        <p>Esta es la página de inicio del sistema unificado de gestión de <strong>Recursos Humanos</strong>.</p>
-        <p>Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div style="text-align: center;">
+    <h2>Análisis Estratégico de Capital Humano</h2>
+    <p>Esta es la página de inicio del sistema unificado de gestión de <strong>Recursos Humanos</strong>.</p>
+    <p>Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.</p>
+</div>
+""", unsafe_allow_html=True)
 
-# --- TARJETAS NAVEGABLES ---
 st.markdown("""
 <div class="card-container">
     <a href="/Dotacion" target="_self" class="app-card card-dotacion">
@@ -233,9 +193,5 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("---")
-
-# Cerramos el div del contenido principal
-st.markdown('</div>', unsafe_allow_html=True)
-
-# Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+st.markdown("</div>", unsafe_allow_html=True)
