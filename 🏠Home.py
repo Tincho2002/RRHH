@@ -1,10 +1,10 @@
 import streamlit as st
 
-
-# Esta es la configuración que debes agregar o modificar
+# PASO 1: Se agrega 'layout="wide"' a la configuración de la página.
 st.set_page_config(
     page_title="Portal de RRHH",
-    page_icon="🏠"  # Puedes usar cualquier emoji o la URL a una imagen .ico
+    page_icon="🏠",
+    layout="wide" 
 )
 
 # ----------------------------------------------------------------------------------
@@ -137,44 +137,38 @@ st.markdown("---")
 # -----------------------------------------------------------------------
 # --- CONTENIDO PRINCIPAL Y TARJETAS ---
 # -----------------------------------------------------------------------
-main_col = st.columns([1, 10, 1])[1]
+# PASO 2: Se eliminan las columnas 'main_col' y el 'with main_col:'.
+# El contenido ahora está al nivel principal de la página.
+st.markdown("## Análisis Estratégico de Capital Humano")
+st.markdown(
+    """
+    Esta es la página de inicio del sistema unificado de gestión de **Recursos Humanos**.
+    
+    Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.
+    """
+)
 
-with main_col:
-    st.markdown("## Análisis Estratégico de Capital Humano")
-    st.markdown(
-        """
-        Esta es la página de inicio del sistema unificado de gestión de **Recursos Humanos**.
-        
-        Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.
-        """
-    )
+st.markdown("""
+<div class="card-container">
+    <a href="/Dotacion" target="_self" class="app-card card-dotacion">
+        <div class="card-title">👥 Dotación</div>
+        <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
+        <div class="access-icon">🔗</div>
+    </a>
+    <a href="/Horas_Extras" target="_self" class="app-card card-horas">
+        <div class="card-title">⏰ Horas Extras</div>
+        <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
+        <div class="access-icon">🔗</div>
+    </a>
+    <a href="/Masa_Salarial" target="_self" class="app-card card-masa">
+        <div class="card-title">💵 Masa Salarial</div>
+        <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
+        <div class="access-icon">🔗</div>
+    </a>
+</div>
+""", unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="card-container">
-        <a href="/Dotación" target="_self" class="app-card card-dotacion">
-            <div class="card-title">👥 Dotación</div>
-            <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
-            <div class="access-icon">🔗</div>
-        </a>
-        <a href="/Horas_Extras" target="_self" class="app-card card-horas">
-            <div class="card-title">⏰ Horas Extras</div>
-            <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
-            <div class="access-icon">🔗</div>
-        </a>
-        <a href="/Masa_Salarial" target="_self" class="app-card card-masa">
-            <div class="card-title">💵 Masa Salarial</div>
-            <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
-            <div class="access-icon">🔗</div>
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("---")
+st.markdown("---")
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
-
-
-
-
-
