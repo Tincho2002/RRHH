@@ -3,55 +3,87 @@ import streamlit as st
 # Se agrega 'layout="wide"' a la configuración de la página.
 st.set_page_config(
     page_title="Portal de RRHH",
-    page_icon="🏠",
+    page_icon="assets/logo_assa.jpg", # Puedes usar un .ico si lo tienes
     layout="wide" 
 )
 
 # ----------------------------------------------------------------------------------
-# --- CSS: ANIMACIÓN, LOGOS Y TARJETAS MEJORADAS ---
+# --- CSS: PANTALLA DE CARGA, ANIMACIONES Y TARJETAS MEJORADAS ---
 # ----------------------------------------------------------------------------------
 st.markdown("""
 <style>
-@keyframes openingLogo {
-    0% { transform: scale(3); opacity: 0; }
-    50% { transform: scale(1.1); opacity: 1; }
-    100% { transform: scale(1); opacity: 1; }
+/* --- Pantalla de Carga (Splash Screen) --- */
+#splash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(180deg, #005f73, #0a9396, #94d2bd);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    opacity: 1;
+    transition: opacity 1.5s ease-out;
 }
 
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
+#splash-screen.hidden {
+    opacity: 0;
+    pointer-events: none; /* Desactiva interacciones cuando está oculto */
+}
+
+#splash-logo {
+    opacity: 0;
+    transform: scale(0.8);
+    animation: fadeInScale 1.5s 0.5s ease-out forwards;
+}
+
+#splash-title {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInSlide 1.5s 1s ease-out forwards;
+}
+
+@keyframes fadeInScale {
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fadeInSlide {
     to { opacity: 1; transform: translateY(0); }
 }
 
-.stImage img {
-    animation: openingLogo 2s ease-out forwards;
-    display: block; 
-    margin-left: auto;
-    margin-right: auto;
-    margin-bottom: 10px;
+/* --- Animación de Gotas --- */
+.droplet {
+    position: absolute;
+    bottom: 100%;
+    width: 2px;
+    height: 50px;
+    background: linear-gradient(to top, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1));
+    border-radius: 50%;
+    animation: fall linear infinite;
 }
 
-.st-emotion-cache-1jicfl2 { 
-    animation: slideUp 1s ease-out 1.5s forwards;
-    opacity: 0; 
+@keyframes fall {
+    to {
+        transform: translateY(100vh);
+    }
+}
+
+/* --- Estilos del Contenido Principal --- */
+#main-content {
+    opacity: 0;
+    animation: fadeInContent 1s ease-out forwards;
+}
+
+@keyframes fadeInContent {
+    to { opacity: 1; }
 }
 
 /* ---------- TARJETAS (CARDS) ---------- */
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.25); }
-    100% { transform: scale(1); }
-}
-.app-card:hover .access-icon {
-    animation: pulse 0.8s ease-in-out infinite;
-    transform: translateY(-5px);
-    box-shadow: 0 0 25px rgba(0, 51, 102, 0.25); /* halo azul oscuro */
-}
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
 .card-container {
     display: flex;
     gap: 20px;
@@ -76,12 +108,7 @@ st.markdown("""
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    animation: fadeInUp 1s ease both;
 }
-
-.app-card:nth-child(1) { animation-delay: 0.3s; }
-.app-card:nth-child(2) { animation-delay: 0.6s; }
-.app-card:nth-child(3) { animation-delay: 0.9s; }
 
 .card-dotacion { background-color: #e0f7fa; }
 .card-horas { background-color: #fffde7; }
@@ -99,7 +126,6 @@ st.markdown("""
     margin-bottom: 10px;
 }
 
-/* Ícono de acceso */
 .access-icon {
     font-size: 1.6em;
     color: #003366;
@@ -109,7 +135,6 @@ st.markdown("""
     transform: scale(1.2);
 }
 
-/* Elimina subrayado de todos los enlaces */
 a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
     text-decoration: none !important;
     color: inherit;
@@ -118,27 +143,63 @@ a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------
-# --- ENCABEZADO CON LOGOS Y TÍTULO ---
+# --- PANTALLA DE CARGA (HTML y JavaScript) ---
 # -----------------------------------------------------------------------
-left_logo, center_text, right_logo = st.columns([1, 4, 1])
+st.html("""
+<div id="splash-screen">
+    <script>
+        const splash = document.getElementById('splash-screen');
+        for (let i = 0; i < 50; i++) {
+            const droplet = document.createElement('div');
+            droplet.className = 'droplet';
+            droplet.style.left = `${Math.random() * 100}vw`;
+            droplet.style.animationDuration = `${0.5 + Math.random() * 0.5}s`;
+            droplet.style.animationDelay = `${Math.random() * 4}s`;
+            splash.appendChild(droplet);
+        }
+    </script>
+    
+    <img id="splash-logo" src="assets/logo_assa.jpg" width="250">
+    <h1 id="splash-title">Portal de Análisis de RRHH</h1>
+</div>
 
+<script>
+    // Oculta la pantalla de carga después de 3.5 segundos
+    window.setTimeout(() => {
+        const splash = document.getElementById('splash-screen');
+        if (splash) {
+            splash.classList.add('hidden');
+        }
+        // Muestra el contenido principal
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) {
+            mainContent.style.opacity = '1';
+        }
+    }, 3500);
+</script>
+""")
+
+
+# -----------------------------------------------------------------------
+# --- CONTENIDO PRINCIPAL DE LA APP ---
+# -----------------------------------------------------------------------
+
+# Envolvemos todo el contenido en un div para poder controlar su aparición
+st.markdown('<div id="main-content">', unsafe_allow_html=True)
+
+# --- ENCABEZADO CON LOGOS Y TÍTULO ---
+left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
     st.image("assets/logo_assa.jpg", width=200)
-
 with center_text:
     st.title("Bienvenido a la Aplicación de RRHH")
     st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
-
 with right_logo:
     st.image("assets/logo_assa.jpg", width=200)
 
 st.markdown("---")
 
-# -----------------------------------------------------------------------
-# --- CONTENIDO PRINCIPAL Y TARJETAS ---
-# -----------------------------------------------------------------------
-
-# Bloque de texto ahora centrado
+# --- TEXTO INTRODUCTORIO ---
 st.markdown(
     """
     <div style="text-align: center;">
@@ -150,6 +211,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# --- TARJETAS NAVEGABLES ---
 st.markdown("""
 <div class="card-container">
     <a href="/Dotación" target="_self" class="app-card card-dotacion">
@@ -172,6 +234,8 @@ st.markdown("""
 
 st.markdown("---")
 
+# Cerramos el div del contenido principal
+st.markdown('</div>', unsafe_allow_html=True)
+
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
-
