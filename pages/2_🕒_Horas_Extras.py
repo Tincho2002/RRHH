@@ -481,6 +481,97 @@ if uploaded_file is not None:
                 st.markdown("<br>", unsafe_allow_html=True)
         except Exception as e:
             st.warning(f"No se pudo generar el resumen del último mes. Error: {e}")
+    # --- TARJETA DE RESUMEN ANIMADA (CON KPIS INTEGRADOS) ---
+if not filtered_df.empty and 'Mes' in filtered_df.columns:
+    try:
+        latest_month_str = filtered_df['Mes'].dropna().max()
+        if pd.notna(latest_month_str):
+            df_last_month = filtered_df[filtered_df['Mes'] == latest_month_str].copy()
+            
+            # --- CÁLCULO DE COSTOS PROMEDIO (ahora dentro de esta sección) ---
+            cost_quant_map = {
+                'Horas extras al 50 %': 'Cantidad HE 50',
+                'Horas extras al 50 % Sabados': 'Cant HE al 50 Sabados',
+                'Horas extras al 100%': 'Cantidad HE 100',
+                'Importe HE Fc': 'Cantidad HE FC'
+            }
+            avg_costs_data = {}
+            if not df_last_month.empty:
+                for cost_col, quant_col in cost_quant_map.items():
+                    if cost_col in df_last_month.columns and quant_col in df_last_month.columns:
+                        total_cost = df_last_month[cost_col].sum()
+                        total_quant = df_last_month[quant_col].sum()
+                        avg_cost_per_hour = total_cost / total_quant if total_quant > 0 else 0
+                        display_name = cost_col.replace("Horas extras al", "HE").replace("Importe ", "")
+                        avg_costs_data[display_name] = avg_cost_per_hour
+            
+            # Generar HTML para los KPIs de costo promedio
+            avg_kpi_html = ""
+            for name, value in avg_costs_data.items():
+                avg_kpi_html += f"""
+                <div class="summary-sub-kpi">
+                    <div class="type">Promedio {name}</div>
+                    <div class="value-cost" data-target="{value}" data-type="currency" data-decimals="2"></div>
+                </div>
+                """
+
+            # --- CÁLCULO DE TOTALES PARA LA TARJETA ---
+            costo_50 = df_last_month['Horas extras al 50 %'].sum() if 'Horas extras al 50 %' in st.session_state.cost_types else 0
+            cantidad_50 = df_last_month['Cantidad HE 50'].sum() if 'Cantidad HE 50' in st.session_state.quantity_types else 0
+            costo_50_sab = df_last_month['Horas extras al 50 % Sabados'].sum() if 'Horas extras al 50 % Sabados' in st.session_state.cost_types else 0
+            cantidad_50_sab = df_last_month['Cant HE al 50 Sabados'].sum() if 'Cant HE al 50 Sabados' in st.session_state.quantity_types else 0
+            costo_100 = df_last_month['Horas extras al 100%'].sum() if 'Horas extras al 100%' in st.session_state.cost_types else 0
+            cantidad_100 = df_last_month['Cantidad HE 100'].sum() if 'Cantidad HE 100' in st.session_state.quantity_types else 0
+            costo_fc = df_last_month['Importe HE Fc'].sum() if 'Importe HE Fc' in st.session_state.cost_types else 0
+            cantidad_fc = df_last_month['Cantidad HE FC'].sum() if 'Cantidad HE FC' in st.session_state.quantity_types else 0
+            total_costo_mes = costo_50 + costo_50_sab + costo_100 + costo_fc
+            total_cantidad_mes = cantidad_50 + cantidad_50_sab + cantidad_100 + cantidad_fc
+            month_dt = datetime.strptime(latest_month_str, '%Y-%m')
+            meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
+            month_name = f"{meses_espanol.get(month_dt.month, '')} {month_dt.year}"
+
+            # --- CONSTRUCCIÓN DEL HTML DE LA TARJETA ---
+            card_html = f"""
+            <style>
+                .summary-card{{background-color:#f8f7fc;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,0.05);padding:1.5rem;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif !important}}
+                .summary-card *{{font-family:inherit !important}}
+                .summary-header{{text-align:center;font-size:1.2rem;font-weight:600;margin-bottom:1.5rem;border-bottom:2px solid #e0e0e0;padding-bottom:1rem;color:#6C5CE7 !important}}
+                .summary-totals{{display:flex;justify-content:space-around;gap:1rem;margin-bottom:1.5rem}}
+                .summary-main-kpi{{text-align:center}}
+                .summary-main-kpi .value{{font-size:2.5rem;font-weight:700;color:#6C5CE7}}
+                .summary-main-kpi .label{{font-size:1rem;color:#5a5a5a}}
+                .summary-breakdown{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
+                .summary-sub-kpi{{background-color:#ffffff;padding:1rem;border-radius:6px;border:1px solid #e0e0e0;text-align:center}}
+                .summary-sub-kpi .type{{font-weight:600;font-size:0.9rem;margin-bottom:0.5rem}}
+                .summary-sub-kpi .value-cost,.summary-sub-kpi .value-qty{{font-size:1.25rem;font-weight:600}}
+                .summary-sub-kpi .value-cost{{color:#2a7a2a}}
+                .summary-sub-kpi .value-qty{{color:#3a3a9a}}
+            </style>
+            <div class="summary-card">
+                <div class="summary-header">RESUMEN MENSUAL: {month_name}</div>
+                <div class="summary-totals">
+                    <div class="summary-main-kpi"><div class="value" data-target="{total_costo_mes}" data-type="currency" data-decimals="2"></div><div class="label">Costo Total</div></div>
+                    <div class="summary-main-kpi"><div class="value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="0"></div><div class="label">Cantidad Total</div></div>
+                </div>
+                <div class="summary-breakdown">
+                    {avg_kpi_html}
+                    
+                    <div class="summary-sub-kpi"><div class="type">Total HE 50%</div><div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
+                    <div class="summary-sub-kpi"><div class="type">Total HE 50% Sábados</div><div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
+                    <div class="summary-sub-kpi"><div class="type">Total HE 100%</div><div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
+                    <div class="summary-sub-kpi"><div class="type">Total HE FC</div><div class="value-cost" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
+                </div>
+            </div>
+            <script>
+                function animateValue(obj,start,end,duration){{let startTimestamp=null;const type=obj.getAttribute('data-type')||'number';const suffix=obj.getAttribute('data-suffix')||'';const decimals=parseInt(obj.getAttribute('data-decimals'))||0;const currencyFormatter=new Intl.NumberFormat('es-AR',{{style:'currency',currency:'ARS',minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const numberFormatter=new Intl.NumberFormat('es-AR',{{minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const step=timestamp=>{{if(!startTimestamp)startTimestamp=timestamp;const progress=Math.min((timestamp-startTimestamp)/duration,1);const currentVal=progress*(end-start)+start;let formattedVal;if(type==='currency'){{formattedVal=currencyFormatter.format(currentVal).replace(/^ARS\\s/,'$')}}else{{formattedVal=numberFormatter.format(currentVal)}}obj.innerHTML=formattedVal+suffix;if(progress<1){{window.requestAnimationFrame(step)}}}};window.requestAnimationFrame(step)}}
+                const counters=document.querySelectorAll('[data-target]');
+                counters.forEach(counter=>{{counter.innerHTML='';const target=+counter.getAttribute('data-target');setTimeout(()=>animateValue(counter,0,target,1500),100)}});
+            </script>
+            """
+            components.html(card_html, height=600) # Aumenté la altura para dar espacio a los nuevos KPIs
+            st.markdown("<br>", unsafe_allow_html=True)
+    except Exception as e:
+        st.warning(f"No se pudo generar el resumen del último mes. Error: {e}")
 
     # --- ESTRUCTURA DE PESTAÑAS ---
     tab_list = st.tabs(["📈 Resumen y Tendencias", "🗺️ Mapa de Distribución", "🏢 Desglose Organizacional", "👤 Empleados Destacados", "⚖️ Valor Hora", "📋 Datos Brutos"])
