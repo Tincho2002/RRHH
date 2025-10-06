@@ -1,9 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-# --------------------------------------------------------------------
-# CONFIGURACIÓN DE LA PÁGINA
-# --------------------------------------------------------------------
 st.set_page_config(
     page_title="Portal de RRHH",
     page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg",
@@ -11,46 +8,45 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------------------
-# CSS (colores, tarjetas, animaciones, estilos)
+# CSS
 # --------------------------------------------------------------------
 st.markdown("""
 <style>
-/* --- Pantalla de Carga (Splash Screen) --- */
+/* --- Splash Screen --- */
 #splash-screen {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
     background: linear-gradient(180deg, #005f73, #0a9396, #94d2bd);
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    z-index: 9999;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    overflow: hidden;
     color: white;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    opacity: 1;
     transition: opacity 1.5s ease-out;
 }
-#splash-screen.hidden {
+#splash-screen.fade-out {
     opacity: 0;
-    pointer-events: none;
 }
+
+/* --- Logo y título --- */
 #splash-logo {
+    width: 240px;
     opacity: 0;
     transform: scale(0.8);
-    animation: fadeInScale 1.5s 0.5s ease-out forwards;
+    animation: fadeInScale 2s ease-out forwards;
 }
 #splash-title {
+    font-size: 1.8em;
     opacity: 0;
     transform: translateY(20px);
-    animation: fadeInSlide 1.5s 1s ease-out forwards;
+    animation: fadeInSlide 2s 0.8s ease-out forwards;
 }
 @keyframes fadeInScale { to { opacity: 1; transform: scale(1); } }
 @keyframes fadeInSlide { to { opacity: 1; transform: translateY(0); } }
 
-/* --- Animación de Gotas --- */
+/* --- Gotas --- */
 .droplet {
     position: absolute;
     bottom: 100%;
@@ -59,19 +55,25 @@ st.markdown("""
     background: linear-gradient(to top, rgba(255,255,255,0.6), rgba(255,255,255,0.1));
     border-radius: 50%;
     animation: fall linear infinite;
+    pointer-events: none;
 }
-@keyframes fall { to { transform: translateY(100vh); } }
+@keyframes fall {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(110vh); opacity: 0; }
+}
 
-/* --- Contenido Principal --- */
+/* --- Contenido principal --- */
 #main-content {
     opacity: 0;
-    transition: opacity 1.5s ease-in-out;
+    transition: opacity 1.2s ease-in;
+}
+#main-content.visible {
+    opacity: 1;
 }
 
-/* --- Tarjetas (Cards) --- */
+/* --- Tarjetas --- */
 .card-container {
-    display: flex;
-    gap: 20px;
+    display: flex; gap: 20px;
     margin-top: 40px;
     flex-wrap: wrap;
     justify-content: center;
@@ -104,7 +106,6 @@ st.markdown("""
     font-size: 1.5em;
     font-weight: bold;
     color: #003366;
-    margin-bottom: 10px;
 }
 .access-icon {
     font-size: 1.6em;
@@ -112,8 +113,7 @@ st.markdown("""
     transition: transform 0.3s ease;
 }
 .app-card:hover .access-icon { transform: scale(1.2); }
-
-a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
+a.app-card, a.app-card:hover, a.app-card:visited, a.app-card:active {
     text-decoration: none !important;
     color: inherit;
 }
@@ -121,37 +121,47 @@ a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------
-# Splash Screen (HTML + JS usando components.html)
+# SPLASH (HTML + JS)
 # --------------------------------------------------------------------
 components.html("""
 <div id="splash-screen">
-    <img id="splash-logo" src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" width="250">
+    <img id="splash-logo" src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg">
     <h1 id="splash-title">Portal de Análisis de RRHH</h1>
 </div>
 
 <script>
 const splash = document.getElementById('splash-screen');
-for (let i = 0; i < 50; i++) {
-    const droplet = document.createElement('div');
-    droplet.className = 'droplet';
-    droplet.style.left = `${Math.random() * 100}vw`;
-    droplet.style.animationDuration = `${0.5 + Math.random() * 0.5}s`;
-    droplet.style.animationDelay = `${Math.random() * 4}s`;
-    splash.appendChild(droplet);
+
+// Crear gotas dinámicamente
+for (let i = 0; i < 45; i++) {
+  const drop = document.createElement('div');
+  drop.classList.add('droplet');
+  drop.style.left = Math.random() * 100 + 'vw';
+  drop.style.animationDuration = (0.5 + Math.random() * 0.7) + 's';
+  drop.style.animationDelay = Math.random() * 3 + 's';
+  splash.appendChild(drop);
 }
+
+// Ocultar splash después de 3 segundos
+setTimeout(() => {
+  splash.classList.add('fade-out');
+  setTimeout(() => splash.remove(), 1800);
+}, 3000);
+
+// Mostrar contenido principal
 window.addEventListener('load', () => {
-    setTimeout(() => {
-        splash.classList.add('hidden');
-        setTimeout(() => splash.style.display = 'none', 1500);
-    }, 2500);
+  setTimeout(() => {
+    const main = parent.document.querySelector('#main-content');
+    if (main) main.classList.add('visible');
+  }, 3100);
 });
 </script>
-""", height=0)
+""", height=400)
 
 # --------------------------------------------------------------------
-# Contenido Principal
+# CONTENIDO PRINCIPAL
 # --------------------------------------------------------------------
-st.markdown('<div id="main-content" style="opacity:1;">', unsafe_allow_html=True)
+st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
@@ -168,7 +178,7 @@ st.markdown("""
 <div style="text-align: center;">
     <h2>Análisis Estratégico de Capital Humano</h2>
     <p>Esta es la página de inicio del sistema unificado de gestión de <strong>Recursos Humanos</strong>.</p>
-    <p>Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.</p>
+    <p>Para acceder a cada módulo, haz clic directamente en la tarjeta o usa la barra lateral.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -192,6 +202,5 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("---")
-st.sidebar.success("Selecciona una aplicación arriba.")
 st.markdown("</div>", unsafe_allow_html=True)
+st.sidebar.success("Selecciona una aplicación arriba.")
