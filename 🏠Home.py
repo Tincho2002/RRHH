@@ -1,6 +1,6 @@
 import streamlit as st
 
-# PASO 1: Se agrega 'layout="wide"' a la configuración de la página.
+# Se agrega 'layout="wide"' a la configuración de la página.
 st.set_page_config(
     page_title="Portal de RRHH",
     page_icon="🏠",
@@ -137,15 +137,17 @@ st.markdown("---")
 # -----------------------------------------------------------------------
 # --- CONTENIDO PRINCIPAL Y TARJETAS ---
 # -----------------------------------------------------------------------
-# PASO 2: Se eliminan las columnas 'main_col' y el 'with main_col:'.
-# El contenido ahora está al nivel principal de la página.
-st.markdown("## Análisis Estratégico de Capital Humano")
+
+# Bloque de texto ahora centrado
 st.markdown(
     """
-    Esta es la página de inicio del sistema unificado de gestión de **Recursos Humanos**.
-    
-    Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.
-    """
+    <div style="text-align: center;">
+        <h2>Análisis Estratégico de Capital Humano</h2>
+        <p>Esta es la página de inicio del sistema unificado de gestión de <strong>Recursos Humanos</strong>.</p>
+        <p>Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.</p>
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
 st.markdown("""
