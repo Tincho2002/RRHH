@@ -8,7 +8,7 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------------------------------
-# --- CSS: PANTALLA DE CARGA CON ANIMACIÓN PURA ---
+# --- CSS: PANTALLA DE CARGA, ANIMACIONES Y ESTILOS PRINCIPALES ---
 # ----------------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -29,10 +29,14 @@ st.markdown("""
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     
     /* Animación para ocultar el splash screen */
-    animation: hideSplash 1.5s ease-out 3s forwards;
+    animation: hideSplash 1.5s ease-out 3.5s forwards;
 }
 
 #splash-logo {
+    /* 👇 CORRECCIÓN: Se añade el borde redondeado al logo de la pantalla de carga */
+    border-radius: 25px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    /* Animación de entrada para el logo */
     animation: fadeInScale 1.5s 0.5s ease-out forwards;
 }
 
@@ -71,7 +75,7 @@ st.markdown("""
 #main-content {
     opacity: 0; /* Inicia oculto */
     /* Animación para mostrar el contenido principal */
-    animation: showContent 1.5s ease-in 3s forwards;
+    animation: showContent 1.5s ease-in 3.5s forwards;
 }
 
 @keyframes showContent {
@@ -79,7 +83,7 @@ st.markdown("""
     to { opacity: 1; }
 }
 
-/* ---------- TARJETAS (CARDS) ---------- */
+/* ---------- TARJETAS (CARDS) DE NAVEGACIÓN ---------- */
 .card-container {
     display: flex;
     gap: 20px;
@@ -160,7 +164,7 @@ st.html("""
 """)
 
 # -----------------------------------------------------------------------
-# --- CONTENIDO PRINCIPAL DE LA APP ---
+# --- CONTENIDO PRINCIPAL COMPLETO DE LA APP ---
 # -----------------------------------------------------------------------
 
 # Envolvemos todo el contenido en un div para poder controlar su aparición
