@@ -12,47 +12,162 @@ st.set_page_config(layout="wide")
 # --- CSS Personalizado ---
 st.markdown("""
 <style>
+/* --- TEMA PERSONALIZADO PARA CONSISTENCIA VISUAL --- */
 :root {
-    --primary-color: #0062ff;
+    --primary-color: #6C5CE7;
     --background-color: #f0f2f6;
-    --secondary-background-color: #ffffff;
-    --text-color: #333333;
-    --font: 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+    --secondary-background-color: #f8f7fc;
+    --text-color: #1a1a2e;
+    --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
+
+/* Forzar un fondo claro y color de texto oscuro para evitar el modo oscuro del sistema */
 body, .stApp {
     background-color: var(--background-color) !important;
     color: var(--text-color) !important;
 }
-[data-testid="stSidebar"] {
-    background-color: var(--secondary-background-color);
-    border-right: 1px solid #e0e0e0;
-}
-[data-testid="stMetric"], .stDataFrame {
-    background-color: var(--secondary-background-color);
-    border: 1px solid #e0e0e0;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    border-radius: 10px !important;
-    padding: 20px;
-    text-align: center; 
-}
-div[data-testid="stAltairChart"] {
-    background-color: var(--secondary-background-color);
-    border: 1px solid #e0e0e0;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    border-radius: 10px !important;
-    overflow: hidden !important;
-}
-h1, h2, h3 {
-    color: var(--primary-color);
+
+/* --- GENERAL Y TIPOGRAFÍA --- */
+.stApp {
+    font-size: 0.92rem;
     font-family: var(--font);
 }
-[data-testid="stMetricValue"] {
-    font-size: 1.7rem; 
+
+/* Forzar color de texto oscuro en elementos genéricos que Streamlit pueda cambiar */
+p, div, span, label, li, h1, h2, h3, h4, h5, h6 {
+    color: var(--text-color);
 }
+
+/* --- COLORES BASE DEL TEMA --- */
+[data-testid="stSidebar"],
+.stTabs [data-basweb="tab"][aria-selected="true"] {
+    background-color: var(--secondary-background-color);
+}
+
+/* Estilo para Contenedores (las 'tarjetas') */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background-color: var(--secondary-background-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    padding: 1rem;
+}
+
+/* --- Redondear esquinas de los gráficos --- */
+[data-testid="stAltairChart"], [data-testid="stPlotlyChart"] {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Estilo consistente para títulos y subtítulos */
+h1 { font-size: 2.2rem; border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; margin-bottom: 20px;}
+h2 { font-size: 1.6rem; color: #4a4a4a;}
+h3 { font-size: 1.3rem; color: #5a5a5a;}
+
+/* --- LAYOUT Y CONTENEDORES (FLEXBOX RESPONSIVE) --- */
+@media (max-width: 768px) {
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        flex: 1 1 100% !important;
+        min-width: calc(100% - 1rem) !important;
+    }
+}
+
+/* --- VISUALIZACIÓN DE TABLAS ELABORADA --- */
+.stDataFrame {
+    width: 100%;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    /* 👇 AÑADIDO: Define la animación de transición */
+    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+}
+.stDataFrame thead th {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: bold;
+    text-align: left;
+    padding: 14px 16px;
+    font-size: 0.98rem;
+    border-bottom: 2px solid #5A4ADF;
+}
+.stDataFrame tbody tr:nth-of-type(even) {
+    background-color: #f8f7fc;
+}
+.stDataFrame tbody tr:hover {
+    background-color: #e9e6ff;
+}
+.stDataFrame tbody td {
+    padding: 12px 16px;
+    text-align: right;
+    border-bottom: 1px solid #e0e0e0;
+    color: #333;
+}
+.stDataFrame tbody td:first-child {
+    text-align: left;
+    font-weight: 500;
+}
+
+/* 👇 AÑADIDO: Estilo para las tablas al pasar el mouse por encima */
+.stDataFrame:hover {
+    background-color: #F0FFF0; /* Un verde muy pálido (Honeydew) */
+    border-color: #A9D1A9;   /* Un verde un poco más oscuro para el borde */
+}
+
+
+/* --- BOTONES DE DESCARGA --- */
+div[data-testid="stDownloadButton"] button {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: bold;
+    padding: 0.6rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #5A4ADF;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease-in-out;
+    font-size: 0.9rem;
+}
+div[data-testid="stDownloadButton"] button:hover {
+    background-color: #5A4ADF;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* --- PESTAÑAS (TABS) --- */
+.stTabs [data-basweb="tab"] {
+    border-radius: 6px 6px 0 0;
+    padding: 10px 20px;
+    font-weight: 600;
+}
+.stTabs [data-basweb="tab"][aria-selected="true"] {
+    border-bottom: 3px solid var(--primary-color);
+}
+
+/* --- KPI Metrics Card --- */
+[data-testid="stMetric"] {
+    background-color: #FFFFFF;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    /* 👇 AÑADIDO: Define la animación de transición */
+    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+}
+/* 👇 AÑADIDO: Estilo para las métricas al pasar el mouse por encima */
+[data-testid="stMetric"]:hover {
+    background-color: #F0FFF0; /* Un verde muy pálido (Honeydew) */
+    border-color: #A9D1A9;   /* Un verde un poco más oscuro para el borde */
+}
+
 [data-testid="stMetricLabel"] {
-    font-size: 0.9rem; 
+    font-weight: 600;
+    font-size: 0.95rem;
 }
-a { text-decoration: none; color: #0b3d91; }
+[data-testid="stMetricValue"] {
+    font-size: 1.75rem;
+    color: var(--primary-color);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -633,3 +748,4 @@ with tab_tabla:
         st.info("No hay datos que coincidan con los filtros seleccionados.")
 
 # --- FIN ---
+
