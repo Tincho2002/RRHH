@@ -1,10 +1,10 @@
 import streamlit as st
 
-# --- Configuración Inicial ---
+
+# Esta es la configuración que debes agregar o modificar
 st.set_page_config(
-    page_title="Aplicación Unificada Principal",
-    page_icon="🏠",
-    layout="wide"
+    page_title="Portal de RRHH",
+    page_icon="🏠"  # Puedes usar cualquier emoji o la URL a una imagen .ico
 )
 
 # ----------------------------------------------------------------------------------
@@ -173,5 +173,6 @@ with main_col:
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
 
