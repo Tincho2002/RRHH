@@ -151,17 +151,17 @@ with main_col:
 
     st.markdown("""
     <div class="card-container">
-        <a href="/app_dotacion" target="_self" class="app-card card-dotacion">
+        <a href="/1_👥_Dotación" target="_self" class="app-card card-dotacion">
             <div class="card-title">👥 Dotación</div>
             <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
             <div class="access-icon">🔗</div>
         </a>
-        <a href="/app_horas_extras" target="_self" class="app-card card-horas">
+        <a href="/2_🕒_Horas_Extras" target="_self" class="app-card card-horas">
             <div class="card-title">⏰ Horas Extras</div>
             <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
             <div class="access-icon">🔗</div>
         </a>
-        <a href="/app_masa_salarial" target="_self" class="app-card card-masa">
+        <a href="/3_💵_Masa_Salarial" target="_self" class="app-card card-masa">
             <div class="card-title">💵 Masa Salarial</div>
             <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
             <div class="access-icon">🔗</div>
@@ -173,6 +173,7 @@ with main_col:
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
 
 
