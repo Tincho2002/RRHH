@@ -493,6 +493,13 @@ if uploaded_file is not None:
                 )
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                 return fig
+                            # --- Aquí envolvemos el mapa con un borde redondeado ---
+                map_html = f"""
+                <div style="border-radius: 20px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                    {fig.to_html(include_plotlyjs='cdn', full_html=False)}
+                </div>
+                """
+                st.components.v1.html(map_html, height=600)
 
             if show_map_comparison:
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
@@ -627,3 +634,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
