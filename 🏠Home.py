@@ -100,7 +100,7 @@ st.markdown(
 
 st.markdown("""
 <div class="card-container">
-    <a href="/Dotacion" target="_self" class="app-card card-dotacion">
+    <a href="/Dotación" target="_self" class="app-card card-dotacion">
         <div class="card-title">👥 Dotación</div>
         <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
         <div class="access-icon">🔗</div>
@@ -121,3 +121,4 @@ st.markdown("""
 st.markdown("---")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
+
