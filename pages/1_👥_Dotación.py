@@ -363,54 +363,55 @@ if uploaded_file is not None:
             period_to_display = sorted_selected_periods[-1]
 
     if not filtered_df.empty and period_to_display:
-    df_display = filtered_df[filtered_df['Periodo'] == period_to_display].copy()
-    total_dotacion = len(df_display)
-    convenio_count = df_display[df_display['Relación'] == 'Convenio'].shape[0]
-    fc_count = df_display[df_display['Relación'] == 'FC'].shape[0]
-    masculino_count = df_display[df_display['Sexo'] == 'Masculino'].shape[0]
-    femenino_count = df_display[df_display['Sexo'] == 'Femenino'].shape[0]
-    convenio_pct = (convenio_count / total_dotacion * 100) if total_dotacion > 0 else 0
-    fc_pct = (fc_count / total_dotacion * 100) if total_dotacion > 0 else 0
-    masculino_pct = (masculino_count / total_dotacion * 100) if total_dotacion > 0 else 0
-    femenino_pct = (femenino_count / total_dotacion * 100) if total_dotacion > 0 else 0
-    
-    card_html = f"""
-    <div class="summary-container">
-        <div class="summary-main-kpi">
-            <div class="title">DOTACIÓN {period_to_display.upper()}</div>
-            <div class="value" data-target="{total_dotacion}">👥 0</div>
-        </div>
-        <div class="summary-breakdown">
-            <div class="summary-row">
-                <div class="summary-sub-kpi"><div class="icon">📄</div><div class="details"><div class="value" data-target="{convenio_count}">0</div><div class="label">Convenio ({format_percentage_es(convenio_pct)})</div></div></div>
-                <div class="summary-sub-kpi"><div class="icon">💼</div><div class="details"><div class="value" data-target="{fc_count}">0</div><div class="label">Fuera de Convenio ({format_percentage_es(fc_pct)})</div></div></div>
+        df_display = filtered_df[filtered_df['Periodo'] == period_to_display].copy()
+        total_dotacion = len(df_display)
+        convenio_count = df_display[df_display['Relación'] == 'Convenio'].shape[0]
+        fc_count = df_display[df_display['Relación'] == 'FC'].shape[0]
+        masculino_count = df_display[df_display['Sexo'] == 'Masculino'].shape[0]
+        femenino_count = df_display[df_display['Sexo'] == 'Femenino'].shape[0]
+        convenio_pct = (convenio_count / total_dotacion * 100) if total_dotacion > 0 else 0
+        fc_pct = (fc_count / total_dotacion * 100) if total_dotacion > 0 else 0
+        masculino_pct = (masculino_count / total_dotacion * 100) if total_dotacion > 0 else 0
+        femenino_pct = (femenino_count / total_dotacion * 100) if total_dotacion > 0 else 0
+        
+        card_html = f"""
+        <div class="summary-container">
+            <div class="summary-main-kpi">
+                <div class="title">DOTACIÓN {period_to_display.upper()}</div>
+                <div class="value" data-target="{total_dotacion}">👥 0</div>
             </div>
-            <div class="summary-row">
-                <div class="summary-sub-kpi"><div class="icon">👨</div><div class="details"><div class="value" data-target="{masculino_count}">0</div><div class="label">Masculino ({format_percentage_es(masculino_pct)})</div></div></div>
-                <div class="summary-sub-kpi"><div class="icon">👩</div><div class="details"><div class="value" data-target="{femenino_count}">0</div><div class="label">Femenino ({format_percentage_es(femenino_pct)})</div></div></div>
+            <div class="summary-breakdown">
+                <div class="summary-row">
+                    <div class="summary-sub-kpi"><div class="icon">📄</div><div class="details"><div class="value" data-target="{convenio_count}">0</div><div class="label">Convenio ({format_percentage_es(convenio_pct)})</div></div></div>
+                    <div class="summary-sub-kpi"><div class="icon">💼</div><div class="details"><div class="value" data-target="{fc_count}">0</div><div class="label">Fuera de Convenio ({format_percentage_es(fc_pct)})</div></div></div>
+                </div>
+                <div class="summary-row">
+                    <div class="summary-sub-kpi"><div class="icon">👨</div><div class="details"><div class="value" data-target="{masculino_count}">0</div><div class="label">Masculino ({format_percentage_es(masculino_pct)})</div></div></div>
+                    <div class="summary-sub-kpi"><div class="icon">👩</div><div class="details"><div class="value" data-target="{femenino_count}">0</div><div class="label">Femenino ({format_percentage_es(femenino_pct)})</div></div></div>
+                </div>
             </div>
         </div>
-    </div>
-    <script>
-        function animateValue(obj, start, end, duration) {{
-            let startTimestamp = null;
-            const step = (timestamp) => {{
-                if (!startTimestamp) startTimestamp = timestamp;
-                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                const currentVal = Math.floor(progress * (end - start) + start);
-                let formattedVal = currentVal.toString().replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, ".");
-                if (obj.innerHTML.includes("👥")) {{ obj.innerHTML = `👥 ${{formattedVal}}`; }} else {{ obj.innerHTML = formattedVal; }}
-                if (progress < 1) {{ window.requestAnimationFrame(step); }}
-            }};
-            window.requestAnimationFrame(step);
-        }}
-        const counters = document.querySelectorAll('.value[data-target]');
-        counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
-    </script>
-    """
-    # Esta es la línea clave que dibuja la tarjeta como un solo componente
-    components.html(card_html, scrolling=False)
-    st.markdown("<br>", unsafe_allow_html=True)
+        <script>
+            function animateValue(obj, start, end, duration) {{
+                let startTimestamp = null;
+                const step = (timestamp) => {{
+                    if (!startTimestamp) startTimestamp = timestamp;
+                    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                    const currentVal = Math.floor(progress * (end - start) + start);
+                    let formattedVal = currentVal.toString().replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, ".");
+                    if (obj.innerHTML.includes("👥")) {{ obj.innerHTML = `👥 ${{formattedVal}}`; }} else {{ obj.innerHTML = formattedVal; }}
+                    if (progress < 1) {{ window.requestAnimationFrame(step); }}
+                }};
+                window.requestAnimationFrame(step);
+            }}
+            const counters = document.querySelectorAll('.value[data-target]');
+            counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
+        </script>
+        """
+        # --- CORRECCIÓN CLAVE: Se elimina la altura fija para que sea responsivo ---
+        components.html(card_html, scrolling=False)
+        st.markdown("<br>", unsafe_allow_html=True)
+
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
     if not df_coords.empty:
         tab_names.insert(1, "🗺️ Mapa Geográfico")
@@ -647,4 +648,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
