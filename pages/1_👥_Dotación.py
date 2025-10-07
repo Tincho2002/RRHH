@@ -13,40 +13,72 @@ import re
 from streamlit_image_comparison import image_comparison
 from PIL import Image
 
-
-
 # --- Configuración de la página y Estilos CSS ---
 st.set_page_config(layout="wide")
+
+# --- INICIO: CÓDIGO CSS MEJORADO CON RESPONSIVIDAD ---
 st.markdown("""
 <style>
-@media (max-width: 768px) {
-    div[data-testid="stMetric"] {
-         margin-bottom: 1rem;
+    /* Estilo para los botones de control (Resetear) */
+    div[data-testid="stSidebar"] div[data-testid="stButton"] button {
+        border-radius: 0.5rem;
+        font-weight: bold;
+        width: 100%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-}
-/* Estilo para los botones de control (Resetear) */
-div[data-testid="stSidebar"] div[data-testid="stButton"] button {
-    border-radius: 0.5rem;
-    font-weight: bold;
-    width: 100%;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
 
-/* Estilo general para los botones de descarga */
-div.stDownloadButton button {
-    background-color: #28a745;
-    color: white;
-    font-weight: bold;
-    padding: 0.75rem 1.25rem;
-    border-radius: 0.5rem;
-    border: none;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-div.stDownloadButton button:hover {
-    background-color: #218838;
-}
+    /* Estilo general para los botones de descarga */
+    div.stDownloadButton button {
+        background-color: #28a745;
+        color: white;
+        font-weight: bold;
+        padding: 0.75rem 1.25rem;
+        border-radius: 0.5rem;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    div.stDownloadButton button:hover {
+        background-color: #218838;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* --- CÓDIGO AÑADIDO PARA DISEÑO RESPONSIVO (MÓVILES Y TABLETS) --- */
+    /* ------------------------------------------------------------------ */
+    @media (max-width: 768px) {
+        
+        /* Ajusta la tarjeta de resumen para que se apile verticalmente */
+        .summary-container {
+            flex-direction: column;
+            align-items: stretch; /* Para que los elementos ocupen todo el ancho */
+        }
+
+        .summary-main-kpi {
+            border-right: none; /* Elimina la línea divisora vertical */
+            border-bottom: 2px solid #f0f2f6; /* Añade un divisor horizontal */
+            padding-right: 0;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+
+        .summary-main-kpi .value {
+            font-size: 2.8rem; /* Reduce un poco el tamaño del número principal en móviles */
+        }
+        
+        .summary-row {
+            flex-direction: column; /* Apila los sub-kpi (Convenio/FC, Masculino/Femenino) */
+            align-items: flex-start; /* Los alinea a la izquierda */
+            gap: 15px;
+        }
+
+        /* Mejora el espaciado en las columnas de Streamlit en móviles */
+        /* Aunque no se apilan, esto da un respiro visual */
+        div[data-testid="column"] {
+            margin-bottom: 1.5rem;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
+# --- FIN: CÓDIGO CSS MEJORADO ---
 
 
 # --- Funciones de Formato de Números ---
@@ -80,7 +112,6 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
 def apply_all_filters(df, selections):
     _df = df.copy()
     for col, values in selections.items():
-        # **LA CORRECCIÓN**: Asegurar que la columna exista antes de intentar filtrar
         if values and col in _df.columns: 
             _df = _df[_df[col].isin(values)]
     return _df
@@ -108,7 +139,6 @@ def get_sorted_unique_options(dataframe, column_name):
 def get_available_options(df, selections, target_column):
     _df = df.copy()
     for col, values in selections.items():
-        # Verificación añadida: Asegurarse de que la columna exista en el DataFrame antes de filtrar
         if col != target_column and values and col in _df.columns: 
             _df = _df[_df[col].isin(values)]
     return get_sorted_unique_options(_df, target_column)
@@ -186,8 +216,8 @@ def load_and_clean_data(uploaded_file):
         elif col == 'Periodo': df_excel[col] = df_excel[col].str.capitalize()
     
     return df_excel
+
 # --- INICIO DE LA APLICACIÓN ---
-st.set_page_config(page_title="Dotacion: 2025", page_icon="👥")
 st.title("👥 Dotación 2025")
 
 st.write("Estructura y distribución geográfica y por gerencia de personal")
@@ -218,52 +248,34 @@ if uploaded_file is not None:
     }
     filter_cols = list(filter_cols_config.keys())
 
-    # 1. INICIALIZACIÓN DEL ESTADO: Si es la primera vez, llena todos los filtros.
     if 'selections' not in st.session_state:
         initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
         st.session_state.selections = initial_selections
         st.rerun()
 
-    # 2. BOTÓN DE RESETEO: Restablece el estado al inicial (todo seleccionado).
     if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="reset_filters"):
         initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
         st.session_state.selections = initial_selections
-        #AÑADIR ESTO para el checkbox
-        # Forzar el reseteo del checkbox del mapa si existe en el estado de sesión
         if 'show_map_comp_check' in st.session_state:
             st.session_state['show_map_comp_check'] = False
-        
         st.rerun()
 
     st.sidebar.markdown("---")
-
-    # 3. LÓGICA DE RENDERIZADO Y ACTUALIZACIÓN (SLICER)
-    # Guardamos una copia del estado ANTES de que el usuario interactúe.
+    
     old_selections = {k: list(v) for k, v in st.session_state.selections.items()}
 
-    # Iteramos para crear cada filtro.
     for col, title in filter_cols_config.items():
-        # Las opciones disponibles se basan en el estado actual de los OTROS filtros.
         available_options = get_available_options(df, st.session_state.selections, col)
-        
-        # Las selecciones por defecto son las que ya están en el estado, si siguen siendo válidas.
         current_selection = [sel for sel in st.session_state.selections.get(col, []) if sel in available_options]
-        
-        # Creamos el widget multiselect.
         selected = st.sidebar.multiselect(
             title,
             options=available_options,
             default=current_selection,
             key=f"multiselect_{col}"
         )
-        
-        # Actualizamos el estado de la sesión con el valor que tiene el widget ahora.
         st.session_state.selections[col] = selected
 
-    # 4. DETECCIÓN DE CAMBIOS: Si el estado cambió, recargamos la app para que todo se actualice.
     if old_selections != st.session_state.selections:
-        # AÑADIR ESTO: Si los filtros cambian, forzamos la casilla del mapa a desmarcarse.
-        # La clave es 'show_map_comp_check'
         if 'show_map_comp_check' in st.session_state:
             st.session_state['show_map_comp_check'] = False
         st.rerun()
@@ -452,7 +464,6 @@ if uploaded_file is not None:
 
             st.markdown("---")
             
-            # 2. BOTÓN DE ACTIVACIÓN/CARGA CONDICIONAL
             show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=False, key="show_map_comp_check")
             
             def generate_map_figure(df, mapbox_style):
@@ -477,14 +488,12 @@ if uploaded_file is not None:
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                 return fig
 
-            # 3. LÓGICA CONDICIONAL: Solo si el usuario quiere ver el mapa.
             if show_map_comparison:
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
                 
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
                     st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
                 else:
-                    # Uso la proporción [3, 2] que ya habías corregido para la tabla.
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
@@ -492,23 +501,17 @@ if uploaded_file is not None:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
                                 fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
                                 if fig1 and fig2:
-                                    # Las importaciones ya están al inicio del archivo
-                                    # from streamlit_image_comparison import image_comparison 
-                                    # from PIL import Image
-                                    
-                                    # MANTENEMOS EL AJUSTE PARA ESTABILIDAD
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
                                     
-                                    # AGREGAMOS UN ANCHO ADECUADO PARA QUE SE VEA GRANDE
                                     image_comparison(
                                         img1=img1_pil,
                                         img2=img2_pil,
                                         label1=style1_name,
                                         label2=style2_name,
-                                        width=850, # Ajuste el ancho a 850, puedes probar 800 o 900.
+                                        width=850,
                                     )
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
@@ -517,7 +520,6 @@ if uploaded_file is not None:
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
                     
                     with comp_col2:
-                            # Código de la tabla de pivot:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
                             if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
@@ -525,13 +527,10 @@ if uploaded_file is not None:
                             pivot_table.sort_values(by='Total', ascending=False, inplace=True)
                             total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
                             df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
-                            # NOTA: Asegúrate de que este `height` sea adecuado para tu pantalla
                             st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=500, hide_index=True)
             
             else:
-                # 4. Mensaje que se muestra si el checkbox NO está marcado.
                 st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
-    # --- FIN CORRECCIÓN DEL BLOQUE tab_map_comparador ---
 
     if tab_map_individual and period_to_display:
         with tab_map_individual:
@@ -555,7 +554,6 @@ if uploaded_file is not None:
                         fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                         st.plotly_chart(fig, use_container_width=True, key="map_individual_chart")
             with col_table:
-                # st.markdown("##### Dotación por Distrito")
                 pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                 if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
                 if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
@@ -623,6 +621,9 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+}
+ok...espero que este funcione....me pasarías el código corregido por favor?
+
 
 
 
