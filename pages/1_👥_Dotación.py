@@ -63,6 +63,21 @@ div.stDownloadButton button:hover {
         overflow-x: auto;
     }
 }
+
+/* --- 👇 NUEVAS REGLAS PARA LOS MAPAS --- */
+/* Estilo para el contenedor del mapa de Plotly individual */
+[data-testid="stPlotlyChart"] {
+    border-radius: 15px; /* ¡El radio que querías! */
+    overflow: hidden;    /* Importante para que el mapa no se salga de los bordes redondeados */
+}
+
+/* Estilo para el contenedor del comparador de mapas */
+.map-comparison-container {
+    border-radius: 15px; /* Mismo radio para consistencia */
+    overflow: hidden;
+    width: 100%; /* Asegura que ocupe el espacio disponible */
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -358,8 +373,7 @@ if uploaded_file is not None:
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
         """
-        # --- 👇 CORRECCIÓN APLICADA AQUÍ ---
-        components.html(card_html, height=420, scrolling=True)
+        components.html(card_html, height=220) # Ajustado para que se vea mejor en la mayoría de las pantallas
         st.markdown("<br>", unsafe_allow_html=True)
 
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
@@ -512,6 +526,9 @@ if uploaded_file is not None:
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
                                     
+                                    # --- 👇 MODIFICACIÓN AQUÍ ---
+                                    # Envolvemos el componente en un div con nuestra clase personalizada
+                                    st.markdown('<div class="map-comparison-container">', unsafe_allow_html=True)
                                     image_comparison(
                                         img1=img1_pil,
                                         img2=img2_pil,
@@ -519,6 +536,8 @@ if uploaded_file is not None:
                                         label2=style2_name,
                                         width=850,
                                     )
+                                    st.markdown('</div>', unsafe_allow_html=True)
+                                    # --- 👆 FIN DE LA MODIFICACIÓN ---
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
                             except Exception as e:
@@ -627,6 +646,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
-
