@@ -525,11 +525,12 @@ if uploaded_file is not None:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
                                 fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
                                 if fig1 and fig2:
+                                    st.markdown('<div class="map-container">', unsafe_allow_html=True)
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
-                                    st.markdown('<div class="map-container">', unsafe_allow_html=True)
+                                    
                                     image_comparison(
                                         img1=img1_pil,
                                         img2=img2_pil,
@@ -652,4 +653,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
