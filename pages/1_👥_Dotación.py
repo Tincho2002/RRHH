@@ -358,7 +358,8 @@ if uploaded_file is not None:
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
         """
-        components.html(card_html, height=220)
+        # --- 👇 CORRECCIÓN APLICADA AQUÍ ---
+        components.html(card_html, height=420, scrolling=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
