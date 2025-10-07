@@ -63,21 +63,6 @@ div.stDownloadButton button:hover {
         overflow-x: auto;
     }
 }
-
-/* --- NUEVAS REGLAS PARA LOS MAPAS --- */
-/* Estilo para el contenedor del mapa de Plotly individual */
-[data-testid="stPlotlyChart"] {
-    border-radius: 15px; /* ¡El radio que querías! */
-    overflow: hidden;    /* Importante para que el mapa no se salga de los bordes redondeados */
-}
-
-/* Estilo para el contenedor del comparador de mapas */
-.map-comparison-container {
-    border-radius: 15px; /* Mismo radio para consistencia */
-    overflow: hidden;
-    width: 100%; /* Asegura que ocupe el espacio disponible */
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -373,7 +358,8 @@ if uploaded_file is not None:
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
         """
-        components.html(card_html, height=220)
+        # --- 👇 CORRECCIÓN APLICADA AQUÍ ---
+        components.html(card_html, height=420, scrolling=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
@@ -505,7 +491,7 @@ if uploaded_file is not None:
                     mapbox_style=mapbox_style, 
                     zoom=6, center={"lat": -32.5, "lon": -61.5}
                 )
-                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', margin={"r":0,"t":0,"l":0,"b":0})
+                fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                 return fig
 
             if show_map_comparison:
@@ -526,7 +512,6 @@ if uploaded_file is not None:
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
                                     
-                                    st.markdown('<div class="map-comparison-container">', unsafe_allow_html=True)
                                     image_comparison(
                                         img1=img1_pil,
                                         img2=img2_pil,
@@ -534,7 +519,6 @@ if uploaded_file is not None:
                                         label2=style2_name,
                                         width=850,
                                     )
-                                    st.markdown('</div>', unsafe_allow_html=True)
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
                             except Exception as e:
@@ -549,7 +533,7 @@ if uploaded_file is not None:
                             pivot_table.sort_values(by='Total', ascending=False, inplace=True)
                             total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
                             df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
-                            st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=460, hide_index=True)
+                            st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=500, hide_index=True)
             
             else:
                 st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
@@ -573,7 +557,7 @@ if uploaded_file is not None:
                         mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
                         px.set_mapbox_access_token(mapbox_access_token)
                         fig = px.scatter_mapbox(df_mapa_agg, lat="Latitud", lon="Longitud", size="Dotacion_Total", color="Dotacion_Total", hover_name="Distrito", color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
-                        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', margin={"r":0,"t":0,"l":0,"b":0})
+                        fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                         st.plotly_chart(fig, use_container_width=True, key="map_individual_chart")
             with col_table:
                 pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
