@@ -46,7 +46,7 @@ div.stDownloadButton button:hover {
 /* --- ESTILOS PARA TARJETAS KPI (CARD_HTML) --- */
 .summary-container { 
     display: flex; 
-    flex-wrap: wrap; /* Permite que los elementos se envuelvan en pantallas pequeñas */
+    flex-wrap: wrap;
     background-color: white; 
     padding: 20px; 
     border-radius: 10px; 
@@ -59,8 +59,8 @@ div.stDownloadButton button:hover {
     text-align: center; 
     border-right: 2px solid #f0f2f6; 
     padding-right: 20px; 
-    flex: 1; /* Permite que crezca */
-    min-width: 250px; /* Ancho mínimo para el KPI principal */
+    flex: 1;
+    min-width: 250px;
 }
 .summary-main-kpi .title { 
     font-size: 1.1rem; 
@@ -77,7 +77,7 @@ div.stDownloadButton button:hover {
     display: flex; 
     flex-direction: column; 
     gap: 15px; 
-    flex: 2; /* Permite que crezca más */
+    flex: 2;
     min-width: 300px;
 }
 .summary-row { 
@@ -92,7 +92,7 @@ div.stDownloadButton button:hover {
     display: flex; 
     align-items: center; 
     gap: 10px; 
-    min-width: 200px; /* Ancho mínimo para sub-kpis */
+    min-width: 200px;
     flex: 1;
 }
 .summary-sub-kpi .icon { font-size: 2rem; }
@@ -110,33 +110,31 @@ div.stDownloadButton button:hover {
     color: #7F8C8D; 
 }
 
-/* --- ESTILOS RESPONSIVOS PARA MÓVILES (PANTALLAS DE HASTA 768px) --- */
+/* --- ESTILOS RESPONSIVOS PARA MÓVILES --- */
 @media (max-width: 768px) {
     .summary-container {
         flex-direction: column;
-        align-items: stretch; /* Estirar items para ocupar el ancho */
+        align-items: stretch;
     }
     .summary-main-kpi {
-        border-right: none; /* Quitar borde derecho */
-        border-bottom: 2px solid #f0f2f6; /* Añadir borde inferior */
+        border-right: none;
+        border-bottom: 2px solid #f0f2f6;
         padding-right: 0;
         padding-bottom: 20px;
         margin-bottom: 20px;
     }
     .summary-main-kpi .value {
-        font-size: 2.8rem; /* Reducir tamaño de fuente del KPI principal */
+        font-size: 2.8rem;
     }
     .summary-row {
         flex-direction: column;
-        align-items: flex-start; /* Alinear a la izquierda */
+        align-items: flex-start;
         gap: 20px;
     }
     .summary-sub-kpi {
         width: 100%;
         justify-content: flex-start;
     }
-    
-    /* Hacer el comparador de imágenes responsivo */
     .streamlit-image-comparison {
         max-width: 100%;
         height: auto;
@@ -148,7 +146,6 @@ div.stDownloadButton button:hover {
 }
 </style>
 """, unsafe_allow_html=True)
-
 
 # --- Funciones de Formato de Números ---
 custom_format_locale = {
@@ -642,3 +639,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
