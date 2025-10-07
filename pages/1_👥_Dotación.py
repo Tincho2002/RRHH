@@ -493,12 +493,12 @@ if uploaded_file is not None:
                 )
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                 return fig
-                        # --- Aquí envolvemos el mapa con un borde redondeado ---
+                # --- Aquí envolvemos el mapa con un borde redondeado ---
                 map_html = f"""
-                    <div style="border-radius: 40px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                        {fig.to_html(include_plotlyjs='cdn', full_html=False)}
-                    </div>
-                    """
+                <div style="border-radius: 40px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                    {fig.to_html(include_plotlyjs='cdn', full_html=False)}
+                </div>
+                """
                 st.components.v1.html(map_html, height=700)
                 
 
@@ -567,6 +567,13 @@ if uploaded_file is not None:
                         fig = px.scatter_mapbox(df_mapa_agg, lat="Latitud", lon="Longitud", size="Dotacion_Total", color="Dotacion_Total", hover_name="Distrito", color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
                         fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                         st.plotly_chart(fig, use_container_width=True, key="map_individual_chart")
+                    # --- Aquí envolvemos el mapa con un borde redondeado ---
+                    map_html = f"""
+                    <div style="border-radius: 40px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                        {fig.to_html(include_plotlyjs='cdn', full_html=False)}
+                    </div>
+                    """
+                    st.components.v1.html(map_html, height=700)
             with col_table:
                 pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                 if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -635,6 +642,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
