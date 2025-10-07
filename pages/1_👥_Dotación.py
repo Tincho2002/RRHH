@@ -40,8 +40,7 @@ div.stDownloadButton button {
 div.stDownloadButton button:hover {
     background-color: #218838;
 }
-st.markdown("""
-<style>
+
 /* --- GENERAL PAGE LAYOUT --- */
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
@@ -686,5 +685,6 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
