@@ -9,14 +9,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
 import re
-# Importaciones necesarias para el comparador de mapas
 from streamlit_image_comparison import image_comparison
 from PIL import Image
 
 # --- Configuración de la página y Estilos CSS ---
 st.set_page_config(layout="wide")
-
-# --- INICIO: CÓDIGO CSS MEJORADO CON RESPONSIVIDAD ---
 st.markdown("""
 <style>
     /* Estilo para los botones de control (Resetear) */
@@ -41,44 +38,38 @@ st.markdown("""
         background-color: #218838;
     }
 
-    /* ------------------------------------------------------------------ */
     /* --- CÓDIGO AÑADIDO PARA DISEÑO RESPONSIVO (MÓVILES Y TABLETS) --- */
-    /* ------------------------------------------------------------------ */
     @media (max-width: 768px) {
         
-        /* Ajusta la tarjeta de resumen para que se apile verticalmente */
         .summary-container {
             flex-direction: column;
-            align-items: stretch; /* Para que los elementos ocupen todo el ancho */
+            align-items: stretch;
         }
 
         .summary-main-kpi {
-            border-right: none; /* Elimina la línea divisora vertical */
-            border-bottom: 2px solid #f0f2f6; /* Añade un divisor horizontal */
+            border-right: none;
+            border-bottom: 2px solid #f0f2f6;
             padding-right: 0;
             padding-bottom: 20px;
             margin-bottom: 20px;
         }
 
         .summary-main-kpi .value {
-            font-size: 2.8rem; /* Reduce un poco el tamaño del número principal en móviles */
+            font-size: 2.8rem;
         }
         
         .summary-row {
-            flex-direction: column; /* Apila los sub-kpi (Convenio/FC, Masculino/Femenino) */
-            align-items: flex-start; /* Los alinea a la izquierda */
+            flex-direction: column;
+            align-items: flex-start;
             gap: 15px;
         }
 
-        /* Mejora el espaciado en las columnas de Streamlit en móviles */
-        /* Aunque no se apilan, esto da un respiro visual */
         div[data-testid="column"] {
             margin-bottom: 1.5rem;
         }
     }
 </style>
 """, unsafe_allow_html=True)
-# --- FIN: CÓDIGO CSS MEJORADO ---
 
 
 # --- Funciones de Formato de Números ---
@@ -344,7 +335,7 @@ if uploaded_file is not None:
                     const progress = Math.min((timestamp - startTimestamp) / duration, 1);
                     const currentVal = Math.floor(progress * (end - start) + start);
                     let formattedVal = currentVal.toString().replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, ".");
-                    if (obj.innerHTML.includes("👥")) {{ obj.innerHTML = `👥 ${{formattedVal}}`; }} else {{ obj.innerHTML = formattedVal; }}
+                    if (obj.innerHTML.includes("👥")) {{ obj.innerHTML = '👥 ' + formattedVal; }} else {{ obj.innerHTML = formattedVal; }}
                     if (progress < 1) {{ window.requestAnimationFrame(step); }}
                 }};
                 window.requestAnimationFrame(step);
@@ -622,26 +613,3 @@ if uploaded_file is not None:
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
 }
-ok...espero que este funcione....me pasarías el código corregido por favor?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
