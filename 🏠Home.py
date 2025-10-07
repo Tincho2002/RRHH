@@ -92,26 +92,30 @@ st.markdown("""
     }
 }
 
+/* --- 👇 NUEVA REGLA PARA CENTRAR LOGOS --- */
+div[data-testid="column"]:first-child div[data-testid="stImage"],
+div[data-testid="column"]:last-child div[data-testid="stImage"] {
+    display: flex;
+    justify-content: center;
+}
+
+
 /* --- ESTILOS RESPONSIVE PARA MÓVILES --- */
 @media (max-width: 768px) {
-    /* Ajusta la tipografía para pantallas más pequeñas */
     h1 { font-size: 1.8rem !important; text-align: center;}
     h2 { font-size: 1.5rem !important; }
     .card-title { font-size: 1.4rem !important; }
 
-    /* Apila las columnas del encabezado (logos y título) verticalmente */
     div[data-testid="stHorizontalBlock"] {
         flex-direction: column !important;
     }
     
-    /* Centra los logos en el header cuando se apilan */
     div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
          display: flex;
          justify-content: center;
          margin-bottom: 1rem;
     }
 
-    /* Ajusta el tamaño de los logos en móviles */
     div[data-testid="stImage"] img {
         max-width: 150px !important;
     }
@@ -202,7 +206,6 @@ st.html("""
 # --- CONTENIDO PRINCIPAL COMPLETO DE LA APP ---
 # -----------------------------------------------------------------------
 
-# Envolvemos todo el contenido en un div para poder controlar su aparición
 st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
 # --- ENCABEZADO CON LOGOS Y TÍTULO ---
@@ -252,8 +255,6 @@ st.markdown("""
 
 st.markdown("---")
 
-# Cerramos el div del contenido principal
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
