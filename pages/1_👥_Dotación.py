@@ -17,77 +17,136 @@ from PIL import Image
 
 # --- Configuración de la página y Estilos CSS ---
 st.set_page_config(layout="wide")
+
+# --- BLOQUE DE CSS MEJORADO Y CENTRALIZADO ---
 st.markdown("""
 <style>
-/* --- GENERAL PAGE LAYOUT --- */
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-    scroll-behavior: smooth;
-}
+/* --- ESTILOS GENERALES --- */
 
-/* --- BOTONES --- */
+/* Estilo para los botones de control (Resetear) */
 div[data-testid="stSidebar"] div[data-testid="stButton"] button {
     border-radius: 0.5rem;
-    font-weight: 600;
+    font-weight: bold;
     width: 100%;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
+
+/* Estilo general para los botones de descarga */
 div.stDownloadButton button {
     background-color: #28a745;
     color: white;
-    font-weight: 600;
+    font-weight: bold;
     padding: 0.75rem 1.25rem;
     border-radius: 0.5rem;
     border: none;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 div.stDownloadButton button:hover {
     background-color: #218838;
 }
 
-/* --- FLEXBOX PARA TARJETAS KPI --- */
-.summary-container {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 1rem;
-    padding: 1rem;
-    border-radius: 10px;
-    background-color: white;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+/* --- ESTILOS PARA TARJETAS KPI (USADO EN CARD_HTML) --- */
+.summary-container { 
+    display: flex; 
+    background-color: white; 
+    padding: 20px; 
+    border-radius: 10px; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+    align-items: center; 
+    gap: 20px; 
+    border: 1px solid #e0e0e0; 
 }
-.summary-main-kpi, .summary-breakdown {
-    flex: 1 1 300px;
-    min-width: 280px;
-    text-align: center;
+.summary-main-kpi { 
+    text-align: center; 
+    border-right: 2px solid #f0f2f6; 
+    padding-right: 20px; 
+    flex-grow: 1; 
 }
-.summary-main-kpi .value {
-    font-size: 2.5rem;
+.summary-main-kpi .title { 
+    font-size: 1.1rem; 
+    font-weight: bold; 
+    color: #2C3E50; 
+    margin-bottom: 5px; 
 }
-.summary-sub-kpi .value {
-    font-size: 1.2rem;
+.summary-main-kpi .value { 
+    font-size: 3.5rem; 
+    font-weight: bold; 
+    color: #2C3E50; 
+}
+.summary-breakdown { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 15px; 
+    flex-grow: 2; 
+}
+.summary-row { 
+    display: flex; 
+    justify-content: space-around; 
+    align-items: center; 
+}
+.summary-sub-kpi { 
+    text-align: left; 
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
+    width: 200px; 
+}
+.summary-sub-kpi .icon { font-size: 2rem; }
+.summary-sub-kpi .details { 
+    display: flex; 
+    flex-direction: column; 
+}
+.summary-sub-kpi .value { 
+    font-size: 1.5rem; 
+    font-weight: bold; 
+    color: #34495E; 
+}
+.summary-sub-kpi .label { 
+    font-size: 0.9rem; 
+    color: #7F8C8D; 
 }
 
-/* --- RESPONSIVE: COLUMNAS (Tablas + Gráficos) --- */
-@media (max-width: 900px) {
-    [data-testid="stHorizontalBlock"] {
-        flex-direction: column !important;
-    }
-    .summary-main-kpi .value { font-size: 2rem; }
-    .summary-sub-kpi .value { font-size: 1rem; }
-}
-@media (max-width: 600px) {
+/* --- ESTILOS RESPONSIVOS PARA MÓVILES --- */
+@media (max-width: 768px) {
     .summary-container {
-        padding: 0.5rem;
+        flex-direction: column;
+        align-items: stretch; /* Estirar items para ocupar el ancho */
+        padding: 15px;
     }
-    .summary-main-kpi .value { font-size: 1.8rem; }
-    div.stDownloadButton button {
+    .summary-main-kpi {
+        border-right: none; /* Quitar borde derecho */
+        border-bottom: 2px solid #f0f2f6; /* Añadir borde inferior */
+        padding-right: 0;
+        padding-bottom: 15px;
+        margin-bottom: 15px;
+    }
+    .summary-main-kpi .value {
+        font-size: 2.8rem; /* Reducir tamaño de fuente del KPI principal */
+    }
+    .summary-row {
+        flex-direction: column;
+        align-items: flex-start; /* Alinear a la izquierda */
+        gap: 15px; /* Espacio entre KPIs secundarios apilados */
         width: 100%;
-        padding: 0.5rem 1rem;
+    }
+    .summary-sub-kpi {
+        width: 100%; /* Ocupar todo el ancho */
+    }
+    
+    /* Hacer el comparador de imágenes responsivo */
+    .streamlit-image-comparison {
+        max-width: 100%;
+        height: auto;
+    }
+    /* Asegurar que las imágenes dentro del comparador escalen */
+    .streamlit-image-comparison img {
+        max-width: 100% !important;
+        height: auto !important; /* Forzar altura automática */
     }
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 # --- Funciones de Formato de Números ---
 custom_format_locale = {
@@ -334,20 +393,8 @@ if uploaded_file is not None:
         fc_pct = (fc_count / total_dotacion * 100) if total_dotacion > 0 else 0
         masculino_pct = (masculino_count / total_dotacion * 100) if total_dotacion > 0 else 0
         femenino_pct = (femenino_count / total_dotacion * 100) if total_dotacion > 0 else 0
+        # SE ELIMINÓ EL BLOQUE <style> de aquí porque ahora está en el st.markdown principal
         card_html = f"""
-        <style>
-            .summary-container {{ display: flex; background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); align-items: center; gap: 20px; border: 1px solid #e0e0e0; }}
-            .summary-main-kpi {{ text-align: center; border-right: 2px solid #f0f2f6; padding-right: 20px; flex-grow: 1; }}
-            .summary-main-kpi .title {{ font-size: 1.1rem; font-weight: bold; color: #2C3E50; margin-bottom: 5px; }}
-            .summary-main-kpi .value {{ font-size: 3.5rem; font-weight: bold; color: #2C3E50; }}
-            .summary-breakdown {{ display: flex; flex-direction: column; gap: 15px; flex-grow: 2; }}
-            .summary-row {{ display: flex; justify-content: space-around; align-items: center; }}
-            .summary-sub-kpi {{ text-align: left; display: flex; align-items: center; gap: 10px; width: 200px; }}
-            .summary-sub-kpi .icon {{ font-size: 2rem; }}
-            .summary-sub-kpi .details {{ display: flex; flex-direction: column; }}
-            .summary-sub-kpi .value {{ font-size: 1.5rem; font-weight: bold; color: #34495E; }}
-            .summary-sub-kpi .label {{ font-size: 0.9rem; color: #7F8C8D; }}
-        </style>
         <div class="summary-container">
             <div class="summary-main-kpi">
                 <div class="title">DOTACIÓN {period_to_display.upper()}</div>
@@ -542,13 +589,12 @@ if uploaded_file is not None:
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
                                     
-                                    # AGREGAMOS UN ANCHO ADECUADO PARA QUE SE VEA GRANDE
+                                    # CORRECCIÓN: Se elimina el ancho fijo para que el CSS lo controle
                                     image_comparison(
                                         img1=img1_pil,
                                         img2=img2_pil,
                                         label1=style1_name,
                                         label2=style2_name,
-                                        width=850, # Ajuste el ancho a 850, puedes probar 800 o 900.
                                     )
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
@@ -658,12 +704,8 @@ if uploaded_file is not None:
         display_df = filtered_df.copy()
         if 'LEGAJO' in display_df.columns:
             display_df['LEGAJO'] = display_df['LEGAJO'].apply(lambda x: format_integer_es(x) if pd.notna(x) else '')
-        st.dataframe(display_df)
+        st.dataframe(display_df, use_container_width=True)
         generate_download_buttons(filtered_df, 'datos_filtrados_dotacion', key_suffix="_brutos")
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
-
-
