@@ -19,6 +19,11 @@ from PIL import Image
 st.set_page_config(layout="wide")
 st.markdown("""
 <style>
+@media (max-width: 768px) {
+    div[data-testid="stMetric"] {
+         margin-bottom: 1rem;
+    }
+}
 /* Estilo para los botones de control (Resetear) */
 div[data-testid="stSidebar"] div[data-testid="stButton"] button {
     border-radius: 0.5rem;
@@ -618,6 +623,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
