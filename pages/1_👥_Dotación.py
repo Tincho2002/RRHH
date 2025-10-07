@@ -40,6 +40,78 @@ div.stDownloadButton button {
 div.stDownloadButton button:hover {
     background-color: #218838;
 }
+st.markdown("""
+<style>
+/* --- GENERAL PAGE LAYOUT --- */
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+    scroll-behavior: smooth;
+}
+
+/* --- BOTONES --- */
+div[data-testid="stSidebar"] div[data-testid="stButton"] button {
+    border-radius: 0.5rem;
+    font-weight: 600;
+    width: 100%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+div.stDownloadButton button {
+    background-color: #28a745;
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.5rem;
+    border: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+div.stDownloadButton button:hover {
+    background-color: #218838;
+}
+
+/* --- FLEXBOX PARA TARJETAS KPI --- */
+.summary-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 10px;
+    background-color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+.summary-main-kpi, .summary-breakdown {
+    flex: 1 1 300px;
+    min-width: 280px;
+    text-align: center;
+}
+.summary-main-kpi .value {
+    font-size: 2.5rem;
+}
+.summary-sub-kpi .value {
+    font-size: 1.2rem;
+}
+
+/* --- RESPONSIVE: COLUMNAS (Tablas + Gráficos) --- */
+@media (max-width: 900px) {
+    [data-testid="stHorizontalBlock"] {
+        flex-direction: column !important;
+    }
+    .summary-main-kpi .value { font-size: 2rem; }
+    .summary-sub-kpi .value { font-size: 1rem; }
+}
+@media (max-width: 600px) {
+    .summary-container {
+        padding: 0.5rem;
+    }
+    .summary-main-kpi .value { font-size: 1.8rem; }
+    div.stDownloadButton button {
+        width: 100%;
+        padding: 0.5rem 1rem;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -618,3 +690,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
