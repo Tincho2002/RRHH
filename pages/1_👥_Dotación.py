@@ -520,17 +520,16 @@ if uploaded_file is not None:
                 else:
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
-                        with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
-                            
-                            try:
-                                st.markdown('<div class="map-container">', unsafe_allow_html=True)
+                        with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):                            
+                            try:                                
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
                                 fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
                                 if fig1 and fig2:                                    
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
-                                    img2_pil = Image.open(io.BytesIO(img2_bytes))                                    
+                                    img2_pil = Image.open(io.BytesIO(img2_bytes)) 
+                                    st.markdown('<div class="map-container">', unsafe_allow_html=True)
                                     image_comparison(
                                         img1=img1_pil,
                                         img2=img2_pil,
@@ -538,14 +537,12 @@ if uploaded_file is not None:
                                         label2=style2_name,
                                         width=850,
                                     )
-                                
+                                    st.markdown('</div>', unsafe_allow_html=True)
                                 else:
-                                    st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
-                             
+                                    st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")                             
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
-                                st.info("Intente recargar la página o seleccionar un período con menos datos.")
-                    st.markdown('</div>', unsafe_allow_html=True)
+                                st.info("Intente recargar la página o seleccionar un período con menos datos.")                    
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -654,6 +651,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
