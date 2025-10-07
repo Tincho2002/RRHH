@@ -492,7 +492,7 @@ if uploaded_file is not None:
                     zoom=6, center={"lat": -32.5, "lon": -61.5}
                 )
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-                return fig
+                
                             # --- Aquí envolvemos el mapa con un borde redondeado ---
                 map_html = f"""
                 <div style="border-radius: 40px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
@@ -500,6 +500,7 @@ if uploaded_file is not None:
                 </div>
                 """
                 st.components.v1.html(map_html, height=700)
+                return fig
 
             if show_map_comparison:
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
@@ -634,5 +635,6 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
