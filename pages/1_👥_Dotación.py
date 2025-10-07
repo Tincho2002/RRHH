@@ -13,8 +13,6 @@ import re
 from streamlit_image_comparison import image_comparison
 from PIL import Image
 
-
-
 # --- Configuración de la página y Estilos CSS ---
 st.set_page_config(layout="wide")
 
@@ -23,7 +21,7 @@ st.markdown("""
 <style>
 /* --- ESTILOS GENERALES --- */
 
-/* Estilo para los botones de control (Resetear) */
+/* Botón de Resetear en la barra lateral */
 div[data-testid="stSidebar"] div[data-testid="stButton"] button {
     border-radius: 0.5rem;
     font-weight: bold;
@@ -31,7 +29,7 @@ div[data-testid="stSidebar"] div[data-testid="stButton"] button {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* Estilo general para los botones de descarga */
+/* Botones de descarga */
 div.stDownloadButton button {
     background-color: #28a745;
     color: white;
@@ -45,9 +43,10 @@ div.stDownloadButton button:hover {
     background-color: #218838;
 }
 
-/* --- ESTILOS PARA TARJETAS KPI (USADO EN CARD_HTML) --- */
+/* --- ESTILOS PARA TARJETAS KPI (CARD_HTML) --- */
 .summary-container { 
     display: flex; 
+    flex-wrap: wrap; /* Permite que los elementos se envuelvan en pantallas pequeñas */
     background-color: white; 
     padding: 20px; 
     border-radius: 10px; 
@@ -60,7 +59,8 @@ div.stDownloadButton button:hover {
     text-align: center; 
     border-right: 2px solid #f0f2f6; 
     padding-right: 20px; 
-    flex-grow: 1; 
+    flex: 1; /* Permite que crezca */
+    min-width: 250px; /* Ancho mínimo para el KPI principal */
 }
 .summary-main-kpi .title { 
     font-size: 1.1rem; 
@@ -77,19 +77,23 @@ div.stDownloadButton button:hover {
     display: flex; 
     flex-direction: column; 
     gap: 15px; 
-    flex-grow: 2; 
+    flex: 2; /* Permite que crezca más */
+    min-width: 300px;
 }
 .summary-row { 
     display: flex; 
     justify-content: space-around; 
     align-items: center; 
+    flex-wrap: wrap;
+    gap: 15px;
 }
 .summary-sub-kpi { 
     text-align: left; 
     display: flex; 
     align-items: center; 
     gap: 10px; 
-    width: 200px; 
+    min-width: 200px; /* Ancho mínimo para sub-kpis */
+    flex: 1;
 }
 .summary-sub-kpi .icon { font-size: 2rem; }
 .summary-sub-kpi .details { 
@@ -106,19 +110,18 @@ div.stDownloadButton button:hover {
     color: #7F8C8D; 
 }
 
-/* --- ESTILOS RESPONSIVOS PARA MÓVILES --- */
+/* --- ESTILOS RESPONSIVOS PARA MÓVILES (PANTALLAS DE HASTA 768px) --- */
 @media (max-width: 768px) {
     .summary-container {
         flex-direction: column;
         align-items: stretch; /* Estirar items para ocupar el ancho */
-        padding: 15px;
     }
     .summary-main-kpi {
         border-right: none; /* Quitar borde derecho */
         border-bottom: 2px solid #f0f2f6; /* Añadir borde inferior */
         padding-right: 0;
-        padding-bottom: 15px;
-        margin-bottom: 15px;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
     }
     .summary-main-kpi .value {
         font-size: 2.8rem; /* Reducir tamaño de fuente del KPI principal */
@@ -126,11 +129,11 @@ div.stDownloadButton button:hover {
     .summary-row {
         flex-direction: column;
         align-items: flex-start; /* Alinear a la izquierda */
-        gap: 15px; /* Espacio entre KPIs secundarios apilados */
-        width: 100%;
+        gap: 20px;
     }
     .summary-sub-kpi {
-        width: 100%; /* Ocupar todo el ancho */
+        width: 100%;
+        justify-content: flex-start;
     }
     
     /* Hacer el comparador de imágenes responsivo */
@@ -138,10 +141,9 @@ div.stDownloadButton button:hover {
         max-width: 100%;
         height: auto;
     }
-    /* Asegurar que las imágenes dentro del comparador escalen */
     .streamlit-image-comparison img {
         max-width: 100% !important;
-        height: auto !important; /* Forzar altura automática */
+        height: auto !important;
     }
 }
 </style>
@@ -164,7 +166,7 @@ def format_percentage_es(num, decimals=1):
 
 # --- Funciones Auxiliares ---
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
-    st.markdown("##### Opciones de Descarga:")
+    st.markdown("<h5>Opciones de Descarga:</h5>", unsafe_allow_html=True)
     col_dl1, col_dl2 = st.columns(2)
     csv_buffer = io.StringIO()
     df_to_download.to_csv(csv_buffer, index=False)
@@ -179,7 +181,6 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
 def apply_all_filters(df, selections):
     _df = df.copy()
     for col, values in selections.items():
-        # **LA CORRECCIÓN**: Asegurar que la columna exista antes de intentar filtrar
         if values and col in _df.columns: 
             _df = _df[_df[col].isin(values)]
     return _df
@@ -207,7 +208,6 @@ def get_sorted_unique_options(dataframe, column_name):
 def get_available_options(df, selections, target_column):
     _df = df.copy()
     for col, values in selections.items():
-        # Verificación añadida: Asegurarse de que la columna exista en el DataFrame antes de filtrar
         if col != target_column and values and col in _df.columns: 
             _df = _df[_df[col].isin(values)]
     return get_sorted_unique_options(_df, target_column)
@@ -286,7 +286,6 @@ def load_and_clean_data(uploaded_file):
     
     return df_excel
 # --- INICIO DE LA APLICACIÓN ---
-st.set_page_config(page_title="Dotacion: 2025", page_icon="👥")
 st.title("👥 Dotación 2025")
 
 st.write("Estructura y distribución geográfica y por gerencia de personal")
@@ -317,56 +316,37 @@ if uploaded_file is not None:
     }
     filter_cols = list(filter_cols_config.keys())
 
-    # 1. INICIALIZACIÓN DEL ESTADO: Si es la primera vez, llena todos los filtros.
     if 'selections' not in st.session_state:
         initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
         st.session_state.selections = initial_selections
         st.rerun()
 
-    # 2. BOTÓN DE RESETEO: Restablece el estado al inicial (todo seleccionado).
     if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="reset_filters"):
         initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
         st.session_state.selections = initial_selections
-        #AÑADIR ESTO para el checkbox
-        # Forzar el reseteo del checkbox del mapa si existe en el estado de sesión
         if 'show_map_comp_check' in st.session_state:
             st.session_state['show_map_comp_check'] = False
-        
         st.rerun()
 
     st.sidebar.markdown("---")
 
-    # 3. LÓGICA DE RENDERIZADO Y ACTUALIZACIÓN (SLICER)
-    # Guardamos una copia del estado ANTES de que el usuario interactúe.
     old_selections = {k: list(v) for k, v in st.session_state.selections.items()}
 
-    # Iteramos para crear cada filtro.
     for col, title in filter_cols_config.items():
-        # Las opciones disponibles se basan en el estado actual de los OTROS filtros.
         available_options = get_available_options(df, st.session_state.selections, col)
-        
-        # Las selecciones por defecto son las que ya están en el estado, si siguen siendo válidas.
         current_selection = [sel for sel in st.session_state.selections.get(col, []) if sel in available_options]
-        
-        # Creamos el widget multiselect.
         selected = st.sidebar.multiselect(
             title,
             options=available_options,
             default=current_selection,
             key=f"multiselect_{col}"
         )
-        
-        # Actualizamos el estado de la sesión con el valor que tiene el widget ahora.
         st.session_state.selections[col] = selected
 
-    # 4. DETECCIÓN DE CAMBIOS: Si el estado cambió, recargamos la app para que todo se actualice.
     if old_selections != st.session_state.selections:
-        # AÑADIR ESTO: Si los filtros cambian, forzamos la casilla del mapa a desmarcarse.
-        # La clave es 'show_map_comp_check'
         if 'show_map_comp_check' in st.session_state:
             st.session_state['show_map_comp_check'] = False
         st.rerun()
-    # --- FIN: LÓGICA DE FILTROS ---
 
     filtered_df = apply_all_filters(df, st.session_state.selections)
     
@@ -393,7 +373,7 @@ if uploaded_file is not None:
         fc_pct = (fc_count / total_dotacion * 100) if total_dotacion > 0 else 0
         masculino_pct = (masculino_count / total_dotacion * 100) if total_dotacion > 0 else 0
         femenino_pct = (femenino_count / total_dotacion * 100) if total_dotacion > 0 else 0
-        # SE ELIMINÓ EL BLOQUE <style> de aquí porque ahora está en el st.markdown principal
+        
         card_html = f"""
         <div class="summary-container">
             <div class="summary-main-kpi">
@@ -428,7 +408,8 @@ if uploaded_file is not None:
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
         """
-        components.html(card_html, height=220)
+        # --- CORRECCIÓN CLAVE: Se elimina la altura fija para que sea responsivo ---
+        components.html(card_html, scrolling=False)
         st.markdown("<br>", unsafe_allow_html=True)
 
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
@@ -450,6 +431,7 @@ if uploaded_file is not None:
     tab_desglose = tabs[tab_index + 1]
     tab_brutos = tabs[tab_index + 2]
 
+    # ... (El resto del código para las pestañas es idéntico y no necesita cambios)
     with tab_resumen:
         st.header('Resumen General de la Dotación')
         if filtered_df.empty:
@@ -526,52 +508,27 @@ if uploaded_file is not None:
     if tab_map_comparador and period_to_display:
         with tab_map_comparador:
             st.header(f"Comparador de Mapas para el Período: {period_to_display}")
-            map_style_options = {
-                "Satélite con Calles": "satellite-streets",
-                "Mapa de Calles": "open-street-map",
-                "Estilo Claro": "carto-positron",
-            }
+            map_style_options = {"Satélite con Calles": "satellite-streets", "Mapa de Calles": "open-street-map", "Estilo Claro": "carto-positron"}
             c1, c2 = st.columns(2)
-            with c1:
-                style1_name = st.selectbox("Selecciona el estilo del mapa izquierdo:", options=list(map_style_options.keys()), index=0, key="map_style1")
-            with c2:
-                style2_name = st.selectbox("Selecciona el estilo del mapa derecho:", options=list(map_style_options.keys()), index=1, key="map_style2")
-
+            with c1: style1_name = st.selectbox("Selecciona el estilo del mapa izquierdo:", options=list(map_style_options.keys()), index=0, key="map_style1")
+            with c2: style2_name = st.selectbox("Selecciona el estilo del mapa derecho:", options=list(map_style_options.keys()), index=1, key="map_style2")
             st.markdown("---")
-            
-            # 2. BOTÓN DE ACTIVACIÓN/CARGA CONDICIONAL
             show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=False, key="show_map_comp_check")
-            
             def generate_map_figure(df, mapbox_style):
                 df_mapa_data = pd.merge(df, df_coords, on="Distrito", how="left")
                 df_mapa_agg = df_mapa_data.groupby(['Distrito', 'Latitud', 'Longitud']).size().reset_index(name='Dotacion_Total')
                 df_mapa_agg.dropna(subset=['Latitud', 'Longitud'], inplace=True)
-                if df_mapa_agg.empty:
-                    return None
+                if df_mapa_agg.empty: return None
                 mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
                 px.set_mapbox_access_token(mapbox_access_token)
-                fig = px.scatter_mapbox(
-                    df_mapa_agg,
-                    lat="Latitud", lon="Longitud",
-                    size="Dotacion_Total", color="Dotacion_Total",
-                    hover_name="Distrito",
-                    hover_data={"Latitud": False, "Longitud": False, "Dotacion_Total": True},
-                    color_continuous_scale=px.colors.sequential.Plasma, 
-                    size_max=50,
-                    mapbox_style=mapbox_style, 
-                    zoom=6, center={"lat": -32.5, "lon": -61.5}
-                )
+                fig = px.scatter_mapbox(df_mapa_agg, lat="Latitud", lon="Longitud", size="Dotacion_Total", color="Dotacion_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Dotacion_Total": True}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                 return fig
-
-            # 3. LÓGICA CONDICIONAL: Solo si el usuario quiere ver el mapa.
             if show_map_comparison:
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
-                
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
                     st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
                 else:
-                    # Uso la proporción [3, 2] que ya habías corregido para la tabla.
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
@@ -579,31 +536,18 @@ if uploaded_file is not None:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
                                 fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
                                 if fig1 and fig2:
-                                    # Las importaciones ya están al inicio del archivo
-                                    # from streamlit_image_comparison import image_comparison 
-                                    # from PIL import Image
-                                    
-                                    # MANTENEMOS EL AJUSTE PARA ESTABILIDAD
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
-                                    
-                                    # CORRECCIÓN: Se elimina el ancho fijo para que el CSS lo controle
-                                    image_comparison(
-                                        img1=img1_pil,
-                                        img2=img2_pil,
-                                        label1=style1_name,
-                                        label2=style2_name,
-                                    )
+                                    # --- CORRECCIÓN CLAVE: Se elimina el ancho fijo para que el CSS lo controle ---
+                                    image_comparison(img1=img1_pil, img2=img2_pil, label1=style1_name, label2=style2_name)
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
-                    
                     with comp_col2:
-                            # Código de la tabla de pivot:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
                             if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
@@ -611,13 +555,9 @@ if uploaded_file is not None:
                             pivot_table.sort_values(by='Total', ascending=False, inplace=True)
                             total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
                             df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
-                            # NOTA: Asegúrate de que este `height` sea adecuado para tu pantalla
                             st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=500, hide_index=True)
-            
             else:
-                # 4. Mensaje que se muestra si el checkbox NO está marcado.
                 st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
-    # --- FIN CORRECCIÓN DEL BLOQUE tab_map_comparador ---
 
     if tab_map_individual and period_to_display:
         with tab_map_individual:
@@ -641,7 +581,6 @@ if uploaded_file is not None:
                         fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                         st.plotly_chart(fig, use_container_width=True, key="map_individual_chart")
             with col_table:
-                # st.markdown("##### Dotación por Distrito")
                 pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                 if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
                 if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
