@@ -112,10 +112,6 @@ div.stDownloadButton button:hover {
 </style>
 """, unsafe_allow_html=True)
 
-</style>
-""", unsafe_allow_html=True)
-
-
 # --- Funciones de Formato de Números ---
 custom_format_locale = {
     "decimal": ",", "thousands": ".", "grouping": [3], "currency": ["", ""]
@@ -690,4 +686,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
