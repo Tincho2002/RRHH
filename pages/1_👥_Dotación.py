@@ -14,14 +14,12 @@ from streamlit_image_comparison import image_comparison
 from PIL import Image
 
 # --- Configuración de la página y Estilos CSS ---
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Dotacion: 2025", page_icon="👥")
 
-# --- BLOQUE DE CSS MEJORADO Y CENTRALIZADO ---
+# --- CSS Personalizado para un Estilo Profesional y RESPONSIVE ---
 st.markdown("""
 <style>
-/* --- ESTILOS GENERALES --- */
-
-/* Botón de Resetear en la barra lateral */
+/* Estilo para los botones de control (Resetear) */
 div[data-testid="stSidebar"] div[data-testid="stButton"] button {
     border-radius: 0.5rem;
     font-weight: bold;
@@ -29,7 +27,7 @@ div[data-testid="stSidebar"] div[data-testid="stButton"] button {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* Botones de descarga */
+/* Estilo general para los botones de descarga */
 div.stDownloadButton button {
     background-color: #28a745;
     color: white;
@@ -43,107 +41,26 @@ div.stDownloadButton button:hover {
     background-color: #218838;
 }
 
-/* --- ESTILOS PARA TARJETAS KPI (CARD_HTML) --- */
-.summary-container { 
-    display: flex; 
-    flex-wrap: wrap; /* Permite que los elementos se envuelvan en pantallas pequeñas */
-    background-color: white; 
-    padding: 20px; 
-    border-radius: 10px; 
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
-    align-items: center; 
-    gap: 20px; 
-    border: 1px solid #e0e0e0; 
-}
-.summary-main-kpi { 
-    text-align: center; 
-    border-right: 2px solid #f0f2f6; 
-    padding-right: 20px; 
-    flex: 1; /* Permite que crezca */
-    min-width: 250px; /* Ancho mínimo para el KPI principal */
-}
-.summary-main-kpi .title { 
-    font-size: 1.1rem; 
-    font-weight: bold; 
-    color: #2C3E50; 
-    margin-bottom: 5px; 
-}
-.summary-main-kpi .value { 
-    font-size: 3.5rem; 
-    font-weight: bold; 
-    color: #2C3E50; 
-}
-.summary-breakdown { 
-    display: flex; 
-    flex-direction: column; 
-    gap: 15px; 
-    flex: 2; /* Permite que crezca más */
-    min-width: 300px;
-}
-.summary-row { 
-    display: flex; 
-    justify-content: space-around; 
-    align-items: center; 
-    flex-wrap: wrap;
-    gap: 15px;
-}
-.summary-sub-kpi { 
-    text-align: left; 
-    display: flex; 
-    align-items: center; 
-    gap: 10px; 
-    min-width: 200px; /* Ancho mínimo para sub-kpis */
-    flex: 1;
-}
-.summary-sub-kpi .icon { font-size: 2rem; }
-.summary-sub-kpi .details { 
-    display: flex; 
-    flex-direction: column; 
-}
-.summary-sub-kpi .value { 
-    font-size: 1.5rem; 
-    font-weight: bold; 
-    color: #34495E; 
-}
-.summary-sub-kpi .label { 
-    font-size: 0.9rem; 
-    color: #7F8C8D; 
-}
-
-/* --- ESTILOS RESPONSIVOS PARA MÓVILES (PANTALLAS DE HASTA 768px) --- */
+/* --- REGLAS RESPONSIVE GENERALES --- */
 @media (max-width: 768px) {
-    .summary-container {
-        flex-direction: column;
-        align-items: stretch; /* Estirar items para ocupar el ancho */
+    /* Ajusta la tipografía para pantallas más pequeñas */
+    h1 { font-size: 1.9rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.2rem; }
+
+    /* Regla principal para apilar las columnas de Streamlit verticalmente */
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
     }
-    .summary-main-kpi {
-        border-right: none; /* Quitar borde derecho */
-        border-bottom: 2px solid #f0f2f6; /* Añadir borde inferior */
-        padding-right: 0;
-        padding-bottom: 20px;
-        margin-bottom: 20px;
-    }
-    .summary-main-kpi .value {
-        font-size: 2.8rem; /* Reducir tamaño de fuente del KPI principal */
-    }
-    .summary-row {
-        flex-direction: column;
-        align-items: flex-start; /* Alinear a la izquierda */
-        gap: 20px;
-    }
-    .summary-sub-kpi {
-        width: 100%;
-        justify-content: flex-start;
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        flex: 1 1 100% !important;
+        min-width: 100% !important; /* Ocupa todo el ancho */
+        margin-bottom: 1rem; /* Añade espacio entre elementos apilados */
     }
     
-    /* Hacer el comparador de imágenes responsivo */
-    .streamlit-image-comparison {
-        max-width: 100%;
-        height: auto;
-    }
-    .streamlit-image-comparison img {
-        max-width: 100% !important;
-        height: auto !important;
+    /* Asegura que las pestañas (tabs) no se desborden y permitan scroll horizontal si es necesario */
+    .stTabs {
+        overflow-x: auto;
     }
 }
 </style>
@@ -166,7 +83,7 @@ def format_percentage_es(num, decimals=1):
 
 # --- Funciones Auxiliares ---
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
-    st.markdown("<h5>Opciones de Descarga:</h5>", unsafe_allow_html=True)
+    st.markdown("##### Opciones de Descarga:")
     col_dl1, col_dl2 = st.columns(2)
     csv_buffer = io.StringIO()
     df_to_download.to_csv(csv_buffer, index=False)
@@ -285,13 +202,11 @@ def load_and_clean_data(uploaded_file):
         elif col == 'Periodo': df_excel[col] = df_excel[col].str.capitalize()
     
     return df_excel
-
+    
 # --- INICIO DE LA APLICACIÓN ---
 st.title("👥 Dotación 2025")
-
 st.write("Estructura y distribución geográfica y por gerencia de personal")
 
-# --- Cuerpo Principal de la Aplicación ---
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de dotación", type=["xlsx"])
 st.markdown("---")
 
@@ -307,7 +222,6 @@ if uploaded_file is not None:
     st.success(f"Se ha cargado un total de **{format_integer_es(len(df))}** registros de empleados.")
     st.markdown("---")
 
-    # --- INICIO: LÓGICA DE FILTROS TIPO SLICER ---
     st.sidebar.header('Filtros del Dashboard')
     
     filter_cols_config = {
@@ -363,7 +277,6 @@ if uploaded_file is not None:
         if sorted_selected_periods:
             period_to_display = sorted_selected_periods[-1]
 
-    # --- BLOQUE DE LA TARJETA DE INICIO ---
     if not filtered_df.empty and period_to_display:
         df_display = filtered_df[filtered_df['Periodo'] == period_to_display].copy()
         total_dotacion = len(df_display)
@@ -375,8 +288,43 @@ if uploaded_file is not None:
         fc_pct = (fc_count / total_dotacion * 100) if total_dotacion > 0 else 0
         masculino_pct = (masculino_count / total_dotacion * 100) if total_dotacion > 0 else 0
         femenino_pct = (femenino_count / total_dotacion * 100) if total_dotacion > 0 else 0
-        
         card_html = f"""
+        <style>
+            .summary-container {{ display: flex; background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); align-items: center; gap: 20px; border: 1px solid #e0e0e0; }}
+            .summary-main-kpi {{ text-align: center; border-right: 2px solid #f0f2f6; padding-right: 20px; flex-grow: 1; }}
+            .summary-main-kpi .title {{ font-size: 1.1rem; font-weight: bold; color: #2C3E50; margin-bottom: 5px; }}
+            .summary-main-kpi .value {{ font-size: 3.5rem; font-weight: bold; color: #2C3E50; }}
+            .summary-breakdown {{ display: flex; flex-direction: column; gap: 15px; flex-grow: 2; }}
+            .summary-row {{ display: flex; justify-content: space-around; align-items: center; }}
+            .summary-sub-kpi {{ text-align: left; display: flex; align-items: center; gap: 10px; width: 200px; }}
+            .summary-sub-kpi .icon {{ font-size: 2rem; }}
+            .summary-sub-kpi .details {{ display: flex; flex-direction: column; }}
+            .summary-sub-kpi .value {{ font-size: 1.5rem; font-weight: bold; color: #34495E; }}
+            .summary-sub-kpi .label {{ font-size: 0.9rem; color: #7F8C8D; }}
+
+            @media (max-width: 768px) {{
+                .summary-container {{
+                    flex-direction: column;
+                    padding: 15px;
+                    gap: 15px;
+                }}
+                .summary-main-kpi {{
+                    border-right: none;
+                    border-bottom: 2px solid #f0f2f6;
+                    padding-right: 0;
+                    padding-bottom: 15px;
+                    width: 100%;
+                }}
+                .summary-main-kpi .value {{ font-size: 2.8rem; }}
+                .summary-row {{
+                    flex-direction: column;
+                    gap: 15px;
+                    align-items: flex-start;
+                    width: 100%;
+                }}
+                .summary-sub-kpi {{ width: 100%; }}
+            }}
+        </style>
         <div class="summary-container">
             <div class="summary-main-kpi">
                 <div class="title">DOTACIÓN {period_to_display.upper()}</div>
@@ -410,10 +358,9 @@ if uploaded_file is not None:
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
         """
-        components.html(card_html, scrolling=False)
+        components.html(card_html, height=220)
         st.markdown("<br>", unsafe_allow_html=True)
-    
-    # --- PESTAÑAS (TABS) ---
+
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
     if not df_coords.empty:
         tab_names.insert(1, "🗺️ Mapa Geográfico")
@@ -460,8 +407,11 @@ if uploaded_file is not None:
                     fig_sexo = make_subplots(specs=[[{"secondary_y": True}]])
                     if 'Masculino' in sexo_pivot.columns:
                         fig_sexo.add_trace(go.Bar(x=sexo_pivot['Periodo'], y=sexo_pivot['Masculino'], name='Masculino', marker_color='#5b9bd5', text=sexo_pivot['Masculino'], textposition='outside'), secondary_y=False)
+                        min_v, max_v = sexo_pivot['Masculino'].min(), sexo_pivot['Masculino'].max(); rng = max_v - min_v; pad = max(1, rng * 0.1) if rng > 0 else max(1, abs(min_v * 0.1))
+                        fig_sexo.update_yaxes(title_text="Cantidad Masculino", range=[min_v - pad, max_v + pad * 1.5], secondary_y=False, showgrid=False)
                     if 'Femenino' in sexo_pivot.columns:
                         fig_sexo.add_trace(go.Scatter(x=sexo_pivot['Periodo'], y=sexo_pivot['Femenino'], name='Femenino', mode='lines+markers+text', text=sexo_pivot['Femenino'], textposition='top center', line=dict(color='#ed7d31')), secondary_y=True)
+                        fig_sexo.update_yaxes(title_text="Cantidad Femenino", secondary_y=True, showgrid=True)
                     fig_sexo.update_layout(title_text="Distribución Comparativa por Sexo", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     st.plotly_chart(fig_sexo, use_container_width=True, key="sexo_chart")
             with col_table_sexo:
@@ -477,8 +427,11 @@ if uploaded_file is not None:
                     fig_rel = make_subplots(specs=[[{"secondary_y": True}]])
                     if 'Convenio' in rel_pivot.columns:
                         fig_rel.add_trace(go.Bar(x=rel_pivot['Periodo'], y=rel_pivot['Convenio'], name='Convenio', marker_color='#4472c4', text=rel_pivot['Convenio'], textposition='outside'), secondary_y=False)
+                        min_v, max_v = rel_pivot['Convenio'].min(), rel_pivot['Convenio'].max(); rng = max_v - min_v; pad = max(1, rng * 0.1) if rng > 0 else max(1, abs(min_v * 0.1))
+                        fig_rel.update_yaxes(title_text="Cantidad Convenio", range=[min_v - pad, max_v + pad * 1.5], secondary_y=False, showgrid=False)
                     if 'FC' in rel_pivot.columns:
                         fig_rel.add_trace(go.Scatter(x=rel_pivot['Periodo'], y=rel_pivot['FC'], name='FC', mode='lines+markers+text', text=rel_pivot['FC'], textposition='top center', line=dict(color='#ffc000')), secondary_y=True)
+                        fig_rel.update_yaxes(title_text="Cantidad FC", secondary_y=True, showgrid=True)
                     fig_rel.update_layout(title_text="Distribución Comparativa por Relación", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     st.plotly_chart(fig_rel, use_container_width=True, key="rel_chart")
             with col_table_rel:
@@ -503,24 +456,46 @@ if uploaded_file is not None:
     if tab_map_comparador and period_to_display:
         with tab_map_comparador:
             st.header(f"Comparador de Mapas para el Período: {period_to_display}")
-            map_style_options = {"Satélite con Calles": "satellite-streets", "Mapa de Calles": "open-street-map", "Estilo Claro": "carto-positron"}
+            map_style_options = {
+                "Satélite con Calles": "satellite-streets",
+                "Mapa de Calles": "open-street-map",
+                "Estilo Claro": "carto-positron",
+            }
             c1, c2 = st.columns(2)
-            with c1: style1_name = st.selectbox("Selecciona el estilo del mapa izquierdo:", options=list(map_style_options.keys()), index=0, key="map_style1")
-            with c2: style2_name = st.selectbox("Selecciona el estilo del mapa derecho:", options=list(map_style_options.keys()), index=1, key="map_style2")
+            with c1:
+                style1_name = st.selectbox("Selecciona el estilo del mapa izquierdo:", options=list(map_style_options.keys()), index=0, key="map_style1")
+            with c2:
+                style2_name = st.selectbox("Selecciona el estilo del mapa derecho:", options=list(map_style_options.keys()), index=1, key="map_style2")
+
             st.markdown("---")
+            
             show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=False, key="show_map_comp_check")
+            
             def generate_map_figure(df, mapbox_style):
                 df_mapa_data = pd.merge(df, df_coords, on="Distrito", how="left")
                 df_mapa_agg = df_mapa_data.groupby(['Distrito', 'Latitud', 'Longitud']).size().reset_index(name='Dotacion_Total')
                 df_mapa_agg.dropna(subset=['Latitud', 'Longitud'], inplace=True)
-                if df_mapa_agg.empty: return None
+                if df_mapa_agg.empty:
+                    return None
                 mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
                 px.set_mapbox_access_token(mapbox_access_token)
-                fig = px.scatter_mapbox(df_mapa_agg, lat="Latitud", lon="Longitud", size="Dotacion_Total", color="Dotacion_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Dotacion_Total": True}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
+                fig = px.scatter_mapbox(
+                    df_mapa_agg,
+                    lat="Latitud", lon="Longitud",
+                    size="Dotacion_Total", color="Dotacion_Total",
+                    hover_name="Distrito",
+                    hover_data={"Latitud": False, "Longitud": False, "Dotacion_Total": True},
+                    color_continuous_scale=px.colors.sequential.Plasma, 
+                    size_max=50,
+                    mapbox_style=mapbox_style, 
+                    zoom=6, center={"lat": -32.5, "lon": -61.5}
+                )
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                 return fig
+
             if show_map_comparison:
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
+                
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
                     st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
                 else:
@@ -535,12 +510,20 @@ if uploaded_file is not None:
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
-                                    image_comparison(img1=img1_pil, img2=img2_pil, label1=style1_name, label2=style2_name)
+                                    
+                                    image_comparison(
+                                        img1=img1_pil,
+                                        img2=img2_pil,
+                                        label1=style1_name,
+                                        label2=style2_name,
+                                        width=850,
+                                    )
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
+                    
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -550,6 +533,7 @@ if uploaded_file is not None:
                             total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
                             df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
                             st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=500, hide_index=True)
+            
             else:
                 st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
 
@@ -637,7 +621,7 @@ if uploaded_file is not None:
         display_df = filtered_df.copy()
         if 'LEGAJO' in display_df.columns:
             display_df['LEGAJO'] = display_df['LEGAJO'].apply(lambda x: format_integer_es(x) if pd.notna(x) else '')
-        st.dataframe(display_df, use_container_width=True)
+        st.dataframe(display_df)
         generate_download_buttons(filtered_df, 'datos_filtrados_dotacion', key_suffix="_brutos")
 
 else:
