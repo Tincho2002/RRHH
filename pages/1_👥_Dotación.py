@@ -64,7 +64,7 @@ div.stDownloadButton button:hover {
     }
 }
 
-/* --- 👇 NUEVAS REGLAS PARA LOS MAPAS --- */
+/* --- NUEVAS REGLAS PARA LOS MAPAS --- */
 /* Estilo para el contenedor del mapa de Plotly individual */
 [data-testid="stPlotlyChart"] {
     border-radius: 15px; /* ¡El radio que querías! */
@@ -373,7 +373,7 @@ if uploaded_file is not None:
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
         """
-        components.html(card_html, height=220) # Ajustado para que se vea mejor en la mayoría de las pantallas
+        components.html(card_html, height=220)
         st.markdown("<br>", unsafe_allow_html=True)
 
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
@@ -505,7 +505,7 @@ if uploaded_file is not None:
                     mapbox_style=mapbox_style, 
                     zoom=6, center={"lat": -32.5, "lon": -61.5}
                 )
-                fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', margin={"r":0,"t":0,"l":0,"b":0})
                 return fig
 
             if show_map_comparison:
@@ -526,8 +526,6 @@ if uploaded_file is not None:
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
                                     
-                                    # --- 👇 MODIFICACIÓN AQUÍ ---
-                                    # Envolvemos el componente en un div con nuestra clase personalizada
                                     st.markdown('<div class="map-comparison-container">', unsafe_allow_html=True)
                                     image_comparison(
                                         img1=img1_pil,
@@ -537,7 +535,6 @@ if uploaded_file is not None:
                                         width=850,
                                     )
                                     st.markdown('</div>', unsafe_allow_html=True)
-                                    # --- 👆 FIN DE LA MODIFICACIÓN ---
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
                             except Exception as e:
@@ -576,7 +573,7 @@ if uploaded_file is not None:
                         mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
                         px.set_mapbox_access_token(mapbox_access_token)
                         fig = px.scatter_mapbox(df_mapa_agg, lat="Latitud", lon="Longitud", size="Dotacion_Total", color="Dotacion_Total", hover_name="Distrito", color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
-                        fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+                        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', margin={"r":0,"t":0,"l":0,"b":0})
                         st.plotly_chart(fig, use_container_width=True, key="map_individual_chart")
             with col_table:
                 pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
