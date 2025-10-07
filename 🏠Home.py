@@ -92,13 +92,11 @@ st.markdown("""
     }
 }
 
-/* --- 👇 NUEVA REGLA PARA CENTRAR LOGOS --- */
-div[data-testid="column"]:first-child div[data-testid="stImage"],
-div[data-testid="column"]:last-child div[data-testid="stImage"] {
-    display: flex;
-    justify-content: center;
+/* --- 👇 CORRECCIÓN DEFINITIVA PARA CENTRAR LOGOS --- */
+div[data-testid="column"]:first-child,
+div[data-testid="column"]:last-child {
+    text-align: center;
 }
-
 
 /* --- ESTILOS RESPONSIVE PARA MÓVILES --- */
 @media (max-width: 768px) {
@@ -106,21 +104,20 @@ div[data-testid="column"]:last-child div[data-testid="stImage"] {
     h2 { font-size: 1.5rem !important; }
     .card-title { font-size: 1.4rem !important; }
 
+    /* Apila las columnas del encabezado verticalmente */
     div[data-testid="stHorizontalBlock"] {
         flex-direction: column !important;
     }
     
     div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-         display: flex;
-         justify-content: center;
          margin-bottom: 1rem;
     }
 
+    /* Ajusta el tamaño de los logos en móviles */
     div[data-testid="stImage"] img {
         max-width: 150px !important;
     }
 }
-
 
 /* ---------- TARJETAS (CARDS) DE NAVEGACIÓN ---------- */
 .card-container {
