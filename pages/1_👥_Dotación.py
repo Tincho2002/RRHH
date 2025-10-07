@@ -19,28 +19,6 @@ from PIL import Image
 st.set_page_config(layout="wide")
 st.markdown("""
 <style>
-/* Estilo para los botones de control (Resetear) */
-div[data-testid="stSidebar"] div[data-testid="stButton"] button {
-    border-radius: 0.5rem;
-    font-weight: bold;
-    width: 100%;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* Estilo general para los botones de descarga */
-div.stDownloadButton button {
-    background-color: #28a745;
-    color: white;
-    font-weight: bold;
-    padding: 0.75rem 1.25rem;
-    border-radius: 0.5rem;
-    border: none;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-div.stDownloadButton button:hover {
-    background-color: #218838;
-}
-
 /* --- GENERAL PAGE LAYOUT --- */
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
@@ -685,6 +663,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
