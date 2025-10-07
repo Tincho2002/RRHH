@@ -285,6 +285,7 @@ def load_and_clean_data(uploaded_file):
         elif col == 'Periodo': df_excel[col] = df_excel[col].str.capitalize()
     
     return df_excel
+
 # --- INICIO DE LA APLICACIÓN ---
 st.title("👥 Dotación 2025")
 
@@ -362,6 +363,7 @@ if uploaded_file is not None:
         if sorted_selected_periods:
             period_to_display = sorted_selected_periods[-1]
 
+    # --- BLOQUE DE LA TARJETA DE INICIO ---
     if not filtered_df.empty and period_to_display:
         df_display = filtered_df[filtered_df['Periodo'] == period_to_display].copy()
         total_dotacion = len(df_display)
@@ -408,10 +410,10 @@ if uploaded_file is not None:
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
         """
-        # --- CORRECCIÓN CLAVE: Se elimina la altura fija para que sea responsivo ---
         components.html(card_html, scrolling=False)
         st.markdown("<br>", unsafe_allow_html=True)
-
+    
+    # --- PESTAÑAS (TABS) ---
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
     if not df_coords.empty:
         tab_names.insert(1, "🗺️ Mapa Geográfico")
@@ -431,7 +433,6 @@ if uploaded_file is not None:
     tab_desglose = tabs[tab_index + 1]
     tab_brutos = tabs[tab_index + 2]
 
-    # ... (El resto del código para las pestañas es idéntico y no necesita cambios)
     with tab_resumen:
         st.header('Resumen General de la Dotación')
         if filtered_df.empty:
@@ -459,11 +460,8 @@ if uploaded_file is not None:
                     fig_sexo = make_subplots(specs=[[{"secondary_y": True}]])
                     if 'Masculino' in sexo_pivot.columns:
                         fig_sexo.add_trace(go.Bar(x=sexo_pivot['Periodo'], y=sexo_pivot['Masculino'], name='Masculino', marker_color='#5b9bd5', text=sexo_pivot['Masculino'], textposition='outside'), secondary_y=False)
-                        min_v, max_v = sexo_pivot['Masculino'].min(), sexo_pivot['Masculino'].max(); rng = max_v - min_v; pad = max(1, rng * 0.1) if rng > 0 else max(1, abs(min_v * 0.1))
-                        fig_sexo.update_yaxes(title_text="Cantidad Masculino", range=[min_v - pad, max_v + pad * 1.5], secondary_y=False, showgrid=False)
                     if 'Femenino' in sexo_pivot.columns:
                         fig_sexo.add_trace(go.Scatter(x=sexo_pivot['Periodo'], y=sexo_pivot['Femenino'], name='Femenino', mode='lines+markers+text', text=sexo_pivot['Femenino'], textposition='top center', line=dict(color='#ed7d31')), secondary_y=True)
-                        fig_sexo.update_yaxes(title_text="Cantidad Femenino", secondary_y=True, showgrid=True)
                     fig_sexo.update_layout(title_text="Distribución Comparativa por Sexo", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     st.plotly_chart(fig_sexo, use_container_width=True, key="sexo_chart")
             with col_table_sexo:
@@ -479,11 +477,8 @@ if uploaded_file is not None:
                     fig_rel = make_subplots(specs=[[{"secondary_y": True}]])
                     if 'Convenio' in rel_pivot.columns:
                         fig_rel.add_trace(go.Bar(x=rel_pivot['Periodo'], y=rel_pivot['Convenio'], name='Convenio', marker_color='#4472c4', text=rel_pivot['Convenio'], textposition='outside'), secondary_y=False)
-                        min_v, max_v = rel_pivot['Convenio'].min(), rel_pivot['Convenio'].max(); rng = max_v - min_v; pad = max(1, rng * 0.1) if rng > 0 else max(1, abs(min_v * 0.1))
-                        fig_rel.update_yaxes(title_text="Cantidad Convenio", range=[min_v - pad, max_v + pad * 1.5], secondary_y=False, showgrid=False)
                     if 'FC' in rel_pivot.columns:
                         fig_rel.add_trace(go.Scatter(x=rel_pivot['Periodo'], y=rel_pivot['FC'], name='FC', mode='lines+markers+text', text=rel_pivot['FC'], textposition='top center', line=dict(color='#ffc000')), secondary_y=True)
-                        fig_rel.update_yaxes(title_text="Cantidad FC", secondary_y=True, showgrid=True)
                     fig_rel.update_layout(title_text="Distribución Comparativa por Relación", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     st.plotly_chart(fig_rel, use_container_width=True, key="rel_chart")
             with col_table_rel:
@@ -540,7 +535,6 @@ if uploaded_file is not None:
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
-                                    # --- CORRECCIÓN CLAVE: Se elimina el ancho fijo para que el CSS lo controle ---
                                     image_comparison(img1=img1_pil, img2=img2_pil, label1=style1_name, label2=style2_name)
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
