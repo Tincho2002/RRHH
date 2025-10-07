@@ -13,7 +13,7 @@ from streamlit_image_comparison import image_comparison
 # --- Configuración de la página ---
 st.set_page_config(layout="wide")
 
-# --- CSS Personalizado para un Estilo Profesional ---
+# --- CSS Personalizado para un Estilo Profesional y RESPONSIVE ---
 st.markdown("""
 <style>
 /* --- TEMA PERSONALIZADO PARA CONSISTENCIA VISUAL --- */
@@ -67,16 +67,34 @@ h1 { font-size: 2.2rem; border-bottom: 2px solid var(--primary-color); padding-b
 h2 { font-size: 1.6rem; color: #4a4a4a;}
 h3 { font-size: 1.3rem; color: #5a5a5a;}
 
-/* --- LAYOUT Y CONTENEDORES (FLEXBOX RESPONSIVE) --- */
+/* --- LAYOUT Y CONTENEDORES (REGLAS RESPONSIVE) --- */
 @media (max-width: 768px) {
+    /* Ajusta la tipografía para pantallas más pequeñas */
+    h1 { font-size: 1.9rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.2rem; }
+
+    /* Regla principal para apilar las columnas de Streamlit verticalmente */
     div[data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
     }
     div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
         flex: 1 1 100% !important;
-        min-width: calc(100% - 1rem) !important;
+        min-width: 100% !important; /* Ocupa todo el ancho */
+        margin-bottom: 1rem; /* Añade espacio entre elementos apilados */
+    }
+
+    /* Reducir el padding de los contenedores para ganar espacio */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        padding: 0.8rem;
+    }
+
+    /* Asegura que las pestañas (tabs) no se desborden y permitan scroll horizontal si es necesario */
+    .stTabs {
+        overflow-x: auto;
     }
 }
+
 
 /* --- VISUALIZACIÓN DE TABLAS ELABORADA --- */
 .stDataFrame {
@@ -146,7 +164,13 @@ div[data-testid="stDownloadButton"] button:hover {
     border-radius: 8px;
     padding: 1rem;
     text-align: center;
+    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
 }
+[data-testid="stMetric"]:hover {
+    background-color: #e3f2fd;
+    border-color: #90caf9;
+}
+
 [data-testid="stMetricLabel"] {
     font-weight: 600;
     font-size: 0.95rem;
@@ -466,22 +490,29 @@ if uploaded_file is not None:
                     .summary-card{{background-color:#f8f7fc;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,0.05);padding:1.5rem;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif !important}}
                     .summary-card *{{font-family:inherit !important}}
                     .summary-header{{text-align:center;font-size:1.2rem;font-weight:600;margin-bottom:1.5rem;border-bottom:2px solid #e0e0e0;padding-bottom:1rem;color:#6C5CE7 !important}}
-                    .summary-totals{{display:flex;justify-content:space-around;gap:1rem;margin-bottom:1.5rem}}
+                    .summary-totals{{display:flex;justify-content:space-around;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}}
                     .summary-main-kpi{{text-align:center}}
                     .summary-main-kpi .value{{font-size:2.5rem;font-weight:700;color:#6C5CE7}}
                     .summary-main-kpi .label{{font-size:1rem;color:#5a5a5a}}
                     .summary-breakdown{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
-                    .summary-sub-kpi{{background-color:#ffffff;padding:1rem;border-radius:6px;border:1px solid #e0e0e0;text-align:center; transition: all 0.3s ease;}}
-                    .summary-sub-kpi:hover {{
-                        transform: translateY(-3px);
-                        background-color: #ede7f6;
-                        border-color: #b39ddb;
-                        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-                    }}
+                    .summary-sub-kpi{{background-color:#ffffff;padding:1rem;border-radius:6px;border:1px solid #e0e0e0;text-align:center}}
                     .summary-sub-kpi .type{{font-weight:600;font-size:0.9rem;margin-bottom:0.5rem}}
                     .summary-sub-kpi .value-cost,.summary-sub-kpi .value-qty{{font-size:1.25rem;font-weight:600}}
                     .summary-sub-kpi .value-cost{{color:#2a7a2a}}
                     .summary-sub-kpi .value-qty{{color:#3a3a9a}}
+                    
+                    @media (max-width: 768px) {{
+                        .summary-card {{ padding: 1rem; }}
+                        .summary-header {{ font-size: 1.1rem; }}
+                        .summary-totals {{
+                            flex-direction: column;
+                            gap: 1.5rem;
+                            align-items: center;
+                        }}
+                        .summary-main-kpi .value {{ font-size: 2.1rem; }}
+                        .summary-main-kpi .label {{ font-size: 0.9rem; }}
+                        .summary-sub-kpi {{ padding: 0.8rem; }}
+                    }}
                 </style>
                 <div class="summary-card">
                     <div class="summary-header">RESUMEN MENSUAL: {month_name}</div>
@@ -491,7 +522,6 @@ if uploaded_file is not None:
                     </div>
                     <div class="summary-breakdown">
                         {avg_kpi_html}
-                        
                         <div class="summary-sub-kpi"><div class="type">Total HE 50%</div><div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
                         <div class="summary-sub-kpi"><div class="type">Total HE 50% Sábados</div><div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
                         <div class="summary-sub-kpi"><div class="type">Total HE 100%</div><div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
@@ -504,7 +534,8 @@ if uploaded_file is not None:
                     counters.forEach(counter=>{{counter.innerHTML='';const target=+counter.getAttribute('data-target');setTimeout(()=>animateValue(counter,0,target,1500),100)}});
                 </script>
                 """
-                components.html(card_html, height=600)
+                components.html(card_html, height=600, scrolling=True)
+                st.markdown("<br>", unsafe_allow_html=True)
         except Exception as e:
             st.warning(f"No se pudo generar el resumen del último mes. Error: {e}")
 
