@@ -521,8 +521,9 @@ if uploaded_file is not None:
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
-                            st.markdown('<div class="map-container">', unsafe_allow_html=True)
+                            
                             try:
+                                st.markdown('<div class="map-container">', unsafe_allow_html=True)
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
                                 fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
                                 if fig1 and fig2:                                    
@@ -536,10 +537,11 @@ if uploaded_file is not None:
                                         label1=style1_name,
                                         label2=style2_name,
                                         width=850,
-                                    )                                   
+                                    )
+                                st.markdown('</div>', unsafe_allow_html=True)
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
-                             st.markdown('</div>', unsafe_allow_html=True)
+                             
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
@@ -652,6 +654,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
