@@ -514,7 +514,7 @@ if uploaded_file is not None:
 
             if show_map_comparison:
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
-                
+                st.markdown('<div class="map-container">', unsafe_allow_html=True)
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
                     st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
                 else:
@@ -538,14 +538,14 @@ if uploaded_file is not None:
                                         label2=style2_name,
                                         width=850,
                                     )
-                                st.markdown('</div>', unsafe_allow_html=True)
+                                
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
                              
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
-                    
+                    st.markdown('</div>', unsafe_allow_html=True)
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -654,6 +654,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
