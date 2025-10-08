@@ -513,9 +513,9 @@ if uploaded_file is not None:
                 return fig
 
             if show_map_comparison:
-                st.markdown('<div class="map-container">', unsafe_allow_html=True)
+                
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
-                st.markdown('<div class="map-container">', unsafe_allow_html=True)
+                
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
                     st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
                 else:
@@ -555,7 +555,7 @@ if uploaded_file is not None:
             
             else:
                 st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
-            st.markdown('</div>', unsafe_allow_html=True)
+           
     if tab_map_individual and period_to_display:
         with tab_map_individual:
             st.header(f"Distribución Geográfica para el Período: {period_to_display}")
@@ -651,6 +651,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
