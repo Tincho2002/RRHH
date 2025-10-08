@@ -41,9 +41,9 @@ div.stDownloadButton button:hover {
     background-color: #218838;
 }
 
-/* --- ESTILOS AGREGADOS PARA BORDES REDONDEADOS EN MAPAS --- */
+/* --- ESTILOS PARA BORDES REDONDEADOS --- */
 
-/* Estilo para redondear el contenedor del mapa individual de Plotly (Funciona OK) */
+/* Estilo para redondear el mapa individual (Funciona OK) */
 div[data-testid="stPlotlyChart"] {
     border-radius: 0.8rem;
     overflow: hidden; 
@@ -61,22 +61,19 @@ div[data-testid="column"]:nth-of-type(1) {
 
 /* --- REGLAS RESPONSIVE GENERALES --- */
 @media (max-width: 768px) {
-    /* Ajusta la tipografía para pantallas más pequeñas */
     h1 { font-size: 1.9rem; }
     h2 { font-size: 1.5rem; }
     h3 { font-size: 1.2rem; }
 
-    /* Regla principal para apilar las columnas de Streamlit verticalmente */
     div[data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
     }
     div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
         flex: 1 1 100% !important;
-        min-width: 100% !important; /* Ocupa todo el ancho */
-        margin-bottom: 1rem; /* Añade espacio entre elementos apilados */
+        min-width: 100% !important;
+        margin-bottom: 1rem;
     }
     
-    /* Asegura que las pestañas (tabs) no se desborden y permitan scroll horizontal si es necesario */
     .stTabs {
         overflow-x: auto;
     }
@@ -519,7 +516,7 @@ if uploaded_file is not None:
                 else:
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
-                        # st.markdown('<div class="rounded-column-container">', unsafe_allow_html=True) # Contenedor de apertura
+                        #st.markdown('<div class="rounded-column-container">', unsafe_allow_html=True) # Contenedor de apertura
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
                             try:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
@@ -542,7 +539,7 @@ if uploaded_file is not None:
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
-                        # st.markdown('</div>', unsafe_allow_html=True) # Contenedor de cierre
+                        #st.markdown('</div>', unsafe_allow_html=True) # Contenedor de cierre
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -645,10 +642,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
-
-
-
-
-
