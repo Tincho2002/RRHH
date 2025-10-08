@@ -42,17 +42,18 @@ div.stDownloadButton button:hover {
 }
 
 /* --- ESTILOS AGREGADOS PARA BORDES REDONDEADOS EN MAPAS --- */
-/* Estilo para redondear el contenedor del mapa individual de Plotly */
+
+/* Estilo para redondear el contenedor del mapa individual de Plotly (Funciona OK) */
 div[data-testid="stPlotlyChart"] {
     border-radius: 0.8rem;
-    overflow: hidden; /* Asegura que el contenido del mapa respete el borde redondeado */
+    overflow: hidden; 
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Estilo para redondear el componente de comparación de imágenes */
-div[data-testid="stImageComparison"] {
+/* Estilo CORREGIDO para redondear el componente de comparación de imágenes */
+/* Este selector apunta al iframe del componente personalizado */
+div[data-testid="stCustomComponent"] iframe {
     border-radius: 0.8rem;
-    overflow: hidden; /* Importante para que las imágenes no se salgan del borde */
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 /* --- FIN DE ESTILOS AGREGADOS --- */
@@ -643,3 +644,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
