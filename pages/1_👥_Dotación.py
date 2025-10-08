@@ -55,6 +55,18 @@ div[data-testid="stPlotlyChart"] {
 div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-testid="stPlotlyChart"]) [data-testid="stVerticalBlock"] {
     gap: 0;
 }
+
+/* Regla #3: Estilos para el COMPARADOR DE MAPAS (LA PIEZA FINAL) */
+/* Le ponemos la sombra y el redondeo al contenedor principal del comparador */
+.img-comp-container {
+    border-radius: 0.8rem;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+/* Hacemos transparente el fondo blanco que tapa nuestras esquinas redondeadas */
+.img-comp-img {
+    background-color: transparent !important;
+}
+
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
 
@@ -661,6 +673,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
