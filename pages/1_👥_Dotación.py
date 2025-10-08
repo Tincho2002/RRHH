@@ -50,8 +50,8 @@ div[data-testid="stPlotlyChart"] {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* ÚLTIMO RECURSO: Apuntar al primer div dentro del bloque horizontal de columnas */
-div[data-testid="stHorizontalBlock"] > div:first-child {
+/* Estilo para redondear el contenedor de los mapas */
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
     border-radius: 0.8rem;
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
@@ -647,6 +647,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
