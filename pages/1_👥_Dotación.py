@@ -41,6 +41,23 @@ div.stDownloadButton button:hover {
     background-color: #218838;
 }
 
+/* --- ESTILOS AGREGADOS PARA BORDES REDONDEADOS EN MAPAS --- */
+/* Estilo para redondear el contenedor del mapa individual de Plotly */
+div[data-testid="stPlotlyChart"] {
+    border-radius: 0.8rem;
+    overflow: hidden; /* Asegura que el contenido del mapa respete el borde redondeado */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Estilo para redondear el componente de comparación de imágenes */
+div[data-testid="stImageComparison"] {
+    border-radius: 0.8rem;
+    overflow: hidden; /* Importante para que las imágenes no se salgan del borde */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+/* --- FIN DE ESTILOS AGREGADOS --- */
+
+
 /* --- REGLAS RESPONSIVE GENERALES --- */
 @media (max-width: 768px) {
     /* Ajusta la tipografía para pantallas más pequeñas */
@@ -358,8 +375,7 @@ if uploaded_file is not None:
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
         """
-        # --- 👇 CORRECCIÓN APLICADA AQUÍ ---
-        components.html(card_html, height=420, scrolling=True)
+        components.html(card_html, height=220)
         st.markdown("<br>", unsafe_allow_html=True)
 
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
