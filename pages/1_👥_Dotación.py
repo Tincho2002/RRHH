@@ -50,11 +50,8 @@ div[data-testid="stPlotlyChart"] {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Estilo AGRESIVO para el comparador de imágenes */
-/* Se usan múltiples selectores y !important para forzar el estilo */
-div[data-testid="stCustomComponent"],
-div[data-testid="stCustomComponent"] > div,
-div[data-testid="stCustomComponent"] iframe {
+/* Intento #5 para el comparador: Selector ultra-específico */
+div[data-testid="column"]:nth-of-type(1) div[data-testid="stCustomComponent"] {
     border-radius: 0.8rem !important;
     overflow: hidden !important;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
@@ -647,6 +644,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
