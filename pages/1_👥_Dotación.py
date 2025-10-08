@@ -104,15 +104,24 @@ def format_percentage_es(num, decimals=1):
 
 # --- Funciones Auxiliares ---
 def create_rounded_image_with_matte(im, rad, background_color='#f0f2f6'):
-    # Creamos una máscara con un rectángulo redondeado
+    # Creamos la máscara "a mano" para máxima compatibilidad
     mask = Image.new('L', im.size, 0)
     draw = ImageDraw.Draw(mask)
-    draw.rounded_rectangle((0, 0) + im.size, radius=rad, fill=255)
+    
+    # Dibujamos las partes rectas de la máscara
+    draw.rectangle((rad, 0, im.size[0] - rad, im.size[1]), fill=255)
+    draw.rectangle((0, rad, im.size[0], im.size[1] - rad), fill=255)
+    
+    # Dibujamos las 4 esquinas circulares en la máscara
+    draw.pieslice((0, 0, rad * 2, rad * 2), 180, 270, fill=255)
+    draw.pieslice((im.size[0] - rad * 2, 0, im.size[0], rad * 2), 270, 360, fill=255)
+    draw.pieslice((0, im.size[1] - rad * 2, rad * 2, im.size[1]), 90, 180, fill=255)
+    draw.pieslice((im.size[0] - rad * 2, im.size[1] - rad * 2, im.size[0], im.size[1]), 0, 90, fill=255)
 
-    # Creamos una imagen de fondo con el color de la página de Streamlit
+    # Creamos el fondo
     background = Image.new('RGB', im.size, background_color)
     
-    # Pegamos la imagen del mapa sobre el fondo, usando la máscara para darle la forma redondeada
+    # Pegamos la imagen original usando la máscara que acabamos de dibujar
     background.paste(im.convert('RGB'), (0, 0), mask)
     return background
     
@@ -670,6 +679,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
