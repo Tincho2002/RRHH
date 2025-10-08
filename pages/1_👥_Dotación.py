@@ -48,6 +48,7 @@ div[data-testid="stPlotlyChart"] {
     border-radius: 0.8rem;
     overflow: hidden; 
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    width:100%;
 }
 
 /* ÚLTIMO RECURSO: Apuntar al primer div dentro del bloque horizontal de columnas */
@@ -55,6 +56,7 @@ div[data-testid="stHorizontalBlock"] > div:first-child {
     border-radius: 0.8rem;
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    width:100%;
 }
 /* Y aquí aplicamos el margen negativo para eliminar el zócalo */
 div[data-testid="stHorizontalBlock"] > div:first-child > div[data-testid="stVerticalBlock"] {
@@ -646,6 +648,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
