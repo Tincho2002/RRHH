@@ -75,7 +75,7 @@ div[data-testid="stHorizontalBlock"] > div:first-child > div[data-testid="stVert
     }
     div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
         flex: 1 1 100% !important;
-        #min-width: 100% !important;
+        min-width: 100% !important;
         margin-bottom: 1rem;
     }
     
@@ -647,6 +647,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
