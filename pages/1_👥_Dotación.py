@@ -41,26 +41,31 @@ div.stDownloadButton button:hover {
     background-color: #218838;
 }
 
-/* --- ESTILOS PARA BORDES REDONDEADOS --- */
+/* --- ESTILOS PARA BORDES REDONDEADOS Y ZÓCALOS --- */
 
-/* Estilo para redondear el mapa individual (Funciona OK) */
+/* Regla #1: Redondea el MAPA INDIVIDUAL (Plotly Chart) */
 div[data-testid="stPlotlyChart"] {
     border-radius: 0.8rem;
     overflow: hidden; 
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Estilo para redondear el contenedor de los mapas */
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
+/* Regla #2: Redondea el COMPARADOR DE MAPAS (Esta es la corrección) */
+/* Apuntamos a la clase específica '.stImageComparison' que usa el componente */
+.stImageComparison {
     border-radius: 0.8rem;
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* AQUÍ ESTÁ LA MAGIA: Eliminamos el espaciado vertical (gap) dentro de la columna del mapa */
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child [data-testid="stVerticalBlock"] {
+/* Regla #3: Elimina el zócalo blanco de AMBOS contenedores */
+/* Usamos el pseudo-selector :has() para encontrar la columna que CONTIENE el mapa o el comparador
+   y solo a esa columna le quitamos el espacio vertical (gap). */
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-testid="stPlotlyChart"]) [data-testid="stVerticalBlock"],
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(.stImageComparison) [data-testid="stVerticalBlock"] {
     gap: 0;
 }
+
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
 
@@ -647,6 +652,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
