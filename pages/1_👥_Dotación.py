@@ -55,12 +55,10 @@ div[data-testid="stHorizontalBlock"] > div:first-child {
     border-radius: 0.8rem;
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    display: flex;
-    flex-direction: column;
 }
-/* ▼▼▼ CAMBIO 2: Le decimos al contenido que crezca y ocupe el espacio sobrante ▼▼▼ */
+/* Y aquí aplicamos el margen negativo para eliminar el zócalo */
 div[data-testid="stHorizontalBlock"] > div:first-child > div[data-testid="stVerticalBlock"] {
-    flex-grow: 1;
+    margin-bottom: -10px !important;
 }
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
@@ -648,6 +646,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
