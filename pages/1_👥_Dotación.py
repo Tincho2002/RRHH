@@ -44,27 +44,24 @@ div.stDownloadButton button:hover {
 
 /* --- ESTILOS PARA BORDES REDONDEADOS Y ZÓCALOS --- */
 
-/* Regla #1: Redondea el MAPA INDIVIDUAL (funciona OK) */
+/* Regla #1: Redondea el MAPA INDIVIDUAL (Plotly Chart) */
 div[data-testid="stPlotlyChart"] {
     border-radius: 0.8rem;
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Regla #2: Contenedor DEFINITIVO para el Comparador */
-.map-comparator-container {
-    border-radius: 0.8rem; /* El redondeo que queremos */
-    overflow: hidden;      /* La orden de recortar el contenido */
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-
-    /* EL TRUCO FINAL: Esto fuerza al navegador a respetar el "overflow: hidden" */
-    transform: translateZ(0);
-}
-
-/* Regla #3: Elimina el zócalo blanco del mapa individual */
+/* Regla #2: Elimina el zócalo blanco SOLO de la columna del mapa individual */
 div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-testid="stPlotlyChart"]) [data-testid="stVerticalBlock"] {
     gap: 0;
 }
+
+/* Regla #3: Agrega una sombra al contenedor del comparador para consistencia visual */
+.img-comp-container {
+   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+   border-radius: 0.8rem; /* Esto ayuda a que la sombra también se vea redondeada */
+}
+
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
 
@@ -106,19 +103,18 @@ def format_percentage_es(num, decimals=1):
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 # --- Funciones Auxiliares ---
-def add_rounded_corners(im, rad):
-    # Función para agregar esquinas redondeadas a una imagen de PIL
-    circle = Image.new('L', (rad * 2, rad * 2), 0)
-    draw = ImageDraw.Draw(circle)
-    draw.ellipse((0, 0, rad * 2 - 1, rad * 2 - 1), fill=255)
-    alpha = Image.new('L', im.size, 255)
-    w, h = im.size
-    alpha.paste(circle.crop((0, 0, rad, rad)), (0, 0))
-    alpha.paste(circle.crop((0, rad, rad, rad * 2)), (0, h - rad))
-    alpha.paste(circle.crop((rad, 0, rad * 2, rad)), (w - rad, 0))
-    alpha.paste(circle.crop((rad, rad, rad * 2, rad * 2)), (w - rad, h - rad))
-    im.putalpha(alpha)
-    return im
+def create_rounded_image_with_matte(im, rad, background_color='#f0f2f6'):
+    # Creamos una máscara con un rectángulo redondeado
+    mask = Image.new('L', im.size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rounded_rectangle((0, 0) + im.size, radius=rad, fill=255)
+
+    # Creamos una imagen de fondo con el color de la página de Streamlit
+    background = Image.new('RGB', im.size, background_color)
+    
+    # Pegamos la imagen del mapa sobre el fondo, usando la máscara para darle la forma redondeada
+    background.paste(im.convert('RGB'), (0, 0), mask)
+    return background
     
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     st.markdown("##### Opciones de Descarga:")
@@ -548,11 +544,20 @@ if uploaded_file is not None:
                                 if fig1 and fig2:
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
+                                    
+                                    # Ya no convertimos a RGBA
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
+                                
+                                    # --- Usamos la nueva función ---
+                                    radius = 30 
+                                    img1_final = create_rounded_image_with_matte(img1_pil, radius)
+                                    img2_final = create_rounded_image_with_matte(img2_pil, radius)
+                                    # -----------------------------
+                                                                    
                                     image_comparison(
-                                        img1=img1_pil,
-                                        img2=img2_pil,
+                                        img1=img1_final, # Usamos la nueva imagen final
+                                        img2=img2_final, # Usamos la nueva imagen final
                                         label1=style1_name,
                                         label2=style2_name,
                                     )
@@ -665,6 +670,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
