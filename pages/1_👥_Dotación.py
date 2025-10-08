@@ -532,7 +532,7 @@ if uploaded_file is not None:
                                         img2=img2_pil,
                                         label1=style1_name,
                                         label2=style2_name,
-                                        width=850,
+                                        #width=850,
                                     )
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
@@ -642,6 +642,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
