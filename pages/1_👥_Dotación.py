@@ -536,15 +536,22 @@ if uploaded_file is not None:
                                 if fig1 and fig2:
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
-                                    img1_pil = Image.open(io.BytesIO(img1_bytes))
-                                    img2_pil = Image.open(io.BytesIO(img2_bytes))
+                                    img1_pil = Image.open(io.BytesIO(img1_bytes)).convert("RGBA")
+                                    img2_pil = Image.open(io.BytesIO(img2_bytes)).convert("RGBA")
                                     
+                                    # --- ¡AQUÍ ESTÁ LA MAGIA! ---
+                                    # Definimos un radio para las esquinas (puedes ajustarlo)
+                                    radius = 30 
+                                    # Aplicamos el redondeo a cada imagen
+                                    img1_rounded = add_rounded_corners(img1_pil, radius)
+                                    img2_rounded = add_rounded_corners(img2_pil, radius)
+                                    # -----------------------------
+                                                                        
                                     image_comparison(
-                                        img1=img1_pil,
-                                        img2=img2_pil,
+                                        img1=img1_rounded, # Usamos la imagen redondeada
+                                        img2=img2_rounded, # Usamos la imagen redondeada
                                         label1=style1_name,
                                         label2=style2_name,
-                                        #width=100%,
                                     )
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
@@ -654,6 +661,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
