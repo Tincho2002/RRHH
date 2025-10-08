@@ -50,11 +50,13 @@ div[data-testid="stPlotlyChart"] {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Estilo CORREGIDO para redondear el componente de comparación de imágenes */
-/* Este selector apunta al iframe del componente personalizado */
+/* Estilo AGRESIVO para el comparador de imágenes */
+/* Se usan múltiples selectores y !important para forzar el estilo */
+div[data-testid="stCustomComponent"],
+div[data-testid="stCustomComponent"] > div,
 div[data-testid="stCustomComponent"] iframe {
-    border-radius: 0.8rem;
-    overflow: hidden; /* Clave para recortar el contenido interno */
+    border-radius: 0.8rem !important;
+    overflow: hidden !important;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 /* --- FIN DE ESTILOS AGREGADOS --- */
@@ -645,5 +647,6 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
