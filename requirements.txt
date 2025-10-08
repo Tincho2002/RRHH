@@ -11,7 +11,8 @@ requests
 streamlit-lottie
 streamlit-card
 st-pages
-Pillow
+Pillow==10.1.0
+
 
 
 
