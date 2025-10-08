@@ -56,10 +56,9 @@ div[data-testid="stHorizontalBlock"] > div:first-child {
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
-/* ▼▼▼ REGLA AÑADIDA PARA ELIMINAR EL ZÓCALO ▼▼▼ */
-/* Fuerza al contenido de la columna a ocupar el 100% de la altura */
+/* ▼▼▼ CAMBIO 2: Le decimos al contenido que crezca y ocupe el espacio sobrante ▼▼▼ */
 div[data-testid="stHorizontalBlock"] > div:first-child > div[data-testid="stVerticalBlock"] {
-    height: 100%;
+    flex-grow: 1;
 }
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
@@ -647,6 +646,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
