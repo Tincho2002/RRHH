@@ -513,6 +513,7 @@ if uploaded_file is not None:
                 return fig
 
             if show_map_comparison:
+                st.markdown('<div class="map-container">', unsafe_allow_html=True)
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
                 st.markdown('<div class="map-container">', unsafe_allow_html=True)
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
@@ -529,7 +530,6 @@ if uploaded_file is not None:
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes)) 
-                                    st.markdown('<div class="map-container">', unsafe_allow_html=True)
                                     image_comparison(
                                         img1=img1_pil,
                                         img2=img2_pil,
@@ -537,7 +537,7 @@ if uploaded_file is not None:
                                         label2=style2_name,
                                         width=850,
                                     )
-                                    st.markdown('</div>', unsafe_allow_html=True)
+                                    
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")                             
                             except Exception as e:
@@ -555,7 +555,7 @@ if uploaded_file is not None:
             
             else:
                 st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
-
+            st.markdown('</div>', unsafe_allow_html=True)
     if tab_map_individual and period_to_display:
         with tab_map_individual:
             st.header(f"Distribución Geográfica para el Período: {period_to_display}")
@@ -651,6 +651,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
