@@ -529,7 +529,8 @@ if uploaded_file is not None:
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
-                                    img2_pil = Image.open(io.BytesIO(img2_bytes)) 
+                                    img2_pil = Image.open(io.BytesIO(img2_bytes))
+                                    st.markdown('<div class="map-container">', unsafe_allow_html=True)
                                     image_comparison(
                                         img1=img1_pil,
                                         img2=img2_pil,
@@ -537,7 +538,7 @@ if uploaded_file is not None:
                                         label2=style2_name,
                                         width=850,
                                     )
-                                    
+                                    st.markdown('</div>', unsafe_allow_html=True)
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")                             
                             except Exception as e:
@@ -651,6 +652,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
