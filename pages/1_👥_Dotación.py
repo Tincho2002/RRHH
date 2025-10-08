@@ -536,7 +536,7 @@ if uploaded_file is not None:
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
                         # 1. Abrimos el div con la nueva clase
-                        st.markdown('<div class="map-comparator-container">', unsafe_allow_html=True)
+                        #st.markdown('<div class="map-comparator-container">', unsafe_allow_html=True)
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
                             try:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
@@ -567,7 +567,7 @@ if uploaded_file is not None:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
                         # 2. Cerramos el div
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        #st.markdown('</div>', unsafe_allow_html=True)
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -670,6 +670,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
