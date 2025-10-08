@@ -54,6 +54,7 @@ div[data-testid="stPlotlyChart"] {
 /* Este selector apunta al iframe del componente personalizado */
 div[data-testid="stCustomComponent"] iframe {
     border-radius: 0.8rem;
+    overflow: hidden; /* Clave para recortar el contenido interno */
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 /* --- FIN DE ESTILOS AGREGADOS --- */
@@ -644,4 +645,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
