@@ -11,7 +11,8 @@ import plotly.express as px
 import re
 # Importaciones necesarias para el comparador de mapas
 from streamlit_image_comparison import image_comparison
-from PIL import Image
+from PIL import Image, ImageDraw
+
 
 # --- Configuración de la página y Estilos CSS ---
 st.set_page_config(layout="wide", page_title="Dotacion: 2025", page_icon="👥")
@@ -50,15 +51,7 @@ div[data-testid="stPlotlyChart"] {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Regla #2: Define el estilo de la TARJETA (Versión corregida) */
-/* Quitamos el padding y el borde, y agregamos overflow: hidden para que RECORTE el contenido */
-.map-card {
-    border-radius: 0.8rem;
-    overflow: hidden; /* <-- LA PROPIEDAD CLAVE */
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-/* Regla #3: Elimina el zócalo blanco SOLO de la columna del mapa individual */
+/* Regla #2: Elimina el zócalo blanco SOLO de la columna del mapa individual */
 div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-testid="stPlotlyChart"]) [data-testid="stVerticalBlock"] {
     gap: 0;
 }
@@ -103,6 +96,20 @@ def format_percentage_es(num, decimals=1):
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 # --- Funciones Auxiliares ---
+def add_rounded_corners(im, rad):
+    # Función para agregar esquinas redondeadas a una imagen de PIL
+    circle = Image.new('L', (rad * 2, rad * 2), 0)
+    draw = ImageDraw.Draw(circle)
+    draw.ellipse((0, 0, rad * 2 - 1, rad * 2 - 1), fill=255)
+    alpha = Image.new('L', im.size, 255)
+    w, h = im.size
+    alpha.paste(circle.crop((0, 0, rad, rad)), (0, 0))
+    alpha.paste(circle.crop((0, rad, rad, rad * 2)), (0, h - rad))
+    alpha.paste(circle.crop((rad, 0, rad * 2, rad)), (w - rad, 0))
+    alpha.paste(circle.crop((rad, rad, rad * 2, rad * 2)), (w - rad, h - rad))
+    im.putalpha(alpha)
+    return im
+    
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     st.markdown("##### Opciones de Descarga:")
     col_dl1, col_dl2 = st.columns(2)
@@ -522,9 +529,6 @@ if uploaded_file is not None:
                 else:
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
-                        # 1. ABRIMOS el div de la tarjeta antes de mostrar nada
-                        st.markdown('<div class="map-card">', unsafe_allow_html=True)
-
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
                             try:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
@@ -547,10 +551,7 @@ if uploaded_file is not None:
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
-                        
-                        # 2. CERRAMOS el div de la tarjeta al final
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        
+
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -653,5 +654,6 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
