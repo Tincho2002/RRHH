@@ -63,24 +63,6 @@ div.stDownloadButton button:hover {
         overflow-x: auto;
     }
 }
-/* --- Borde redondeado y fondo gris claro para mapas --- */
-.map-container {
-    border-radius: 20px;
-    overflow: hidden;
-    background-color: #f8f9fa;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    padding: 5px;
-}
-
-/* --- Estilo para el comparador de imágenes --- */
-div[data-testid="stImage"] img {
-    border-radius: 20px !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-div[data-testid="stImage"] canvas {
-    border-radius: 20px !important;
-    overflow: hidden;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -513,7 +495,6 @@ if uploaded_file is not None:
                 return fig
 
             if show_map_comparison:
-                
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
                 
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
@@ -521,16 +502,16 @@ if uploaded_file is not None:
                 else:
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
-                        with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):                            
-                            try:                                
+                        with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
+                            try:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
                                 fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
-                                if fig1 and fig2:                                    
+                                if fig1 and fig2:
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
-                                    st.markdown('<div class="map-container">', unsafe_allow_html=True)
+                                    
                                     image_comparison(
                                         img1=img1_pil,
                                         img2=img2_pil,
@@ -538,12 +519,12 @@ if uploaded_file is not None:
                                         label2=style2_name,
                                         width=850,
                                     )
-                                    st.markdown('</div>', unsafe_allow_html=True)
                                 else:
-                                    st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")                             
+                                    st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
-                                st.info("Intente recargar la página o seleccionar un período con menos datos.")                    
+                                st.info("Intente recargar la página o seleccionar un período con menos datos.")
+                    
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -556,7 +537,7 @@ if uploaded_file is not None:
             
             else:
                 st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
-           
+
     if tab_map_individual and period_to_display:
         with tab_map_individual:
             st.header(f"Distribución Geográfica para el Período: {period_to_display}")
@@ -577,12 +558,6 @@ if uploaded_file is not None:
                         px.set_mapbox_access_token(mapbox_access_token)
                         fig = px.scatter_mapbox(df_mapa_agg, lat="Latitud", lon="Longitud", size="Dotacion_Total", color="Dotacion_Total", hover_name="Distrito", color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
                         fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-                        map_html = f"""
-                        <div class="map-container">
-                            {fig.to_html(include_plotlyjs='cdn', full_html=False)}
-                        </div>
-                        """
-                        components.html(map_html, height=600)
                         st.plotly_chart(fig, use_container_width=True, key="map_individual_chart")
             with col_table:
                 pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
@@ -652,12 +627,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
-
-
-
-
-
-
-
