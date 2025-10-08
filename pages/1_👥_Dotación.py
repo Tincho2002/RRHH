@@ -43,8 +43,6 @@ div.stDownloadButton button:hover {
 
 /* --- ESTILOS PARA BORDES REDONDEADOS Y ZÓCALOS --- */
 
-/* --- ESTILOS PARA BORDES REDONDEADOS Y ZÓCALOS --- */
-
 /* Regla #1: Redondea el MAPA INDIVIDUAL (Plotly Chart) */
 div[data-testid="stPlotlyChart"] {
     border-radius: 0.8rem;
@@ -52,26 +50,19 @@ div[data-testid="stPlotlyChart"] {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Regla #2: Redondea el COMPARADOR DE MAPAS (Versión reforzada) */
-/* Apuntamos al contenedor principal y usamos !important para forzar el estilo */
-.stImageComparison {
-    border-radius: 0.8rem !important;
-    overflow: hidden !important;
+/* Regla #2: Define el estilo de la NUEVA TARJETA para el comparador */
+.map-card {
+    border-radius: 0.8rem;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-/* También aplicamos el redondeo al contenedor interno del componente por si acaso */
-.img-comp-container {
-    border-radius: inherit !important; 
+    padding: 1rem; /* Le damos un poco de espacio interior */
+    background-color: #ffffff;
+    border: 1px solid #e6e6e6; /* Un borde sutil para que se vea bien */
 }
 
-
-/* Regla #3: Elimina el zócalo blanco de AMBOS contenedores */
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-testid="stPlotlyChart"]) [data-testid="stVerticalBlock"],
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(.stImageComparison) [data-testid="stVerticalBlock"] {
+/* Regla #3: Elimina el zócalo blanco SOLO de la columna del mapa individual */
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-testid="stPlotlyChart"]) [data-testid="stVerticalBlock"] {
     gap: 0;
 }
-/* --- FIN DE ESTILOS AGREGADOS --- */
-
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
 
@@ -532,7 +523,7 @@ if uploaded_file is not None:
                 else:
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
-                        #st.markdown('<div class="rounded-column-container">', unsafe_allow_html=True) # Contenedor de apertura
+                        st.markdown('<div class="map-card">', unsafe_allow_html=True)
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
                             try:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
@@ -555,7 +546,8 @@ if uploaded_file is not None:
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
-                        #st.markdown('</div>', unsafe_allow_html=True) # Contenedor de cierre
+                         # 2. CERRAMOS el div de la tarjeta al final
+                         st.markdown('</div>', unsafe_allow_html=True)
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -658,6 +650,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
