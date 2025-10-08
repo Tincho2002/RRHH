@@ -59,7 +59,7 @@ div[data-testid="stHorizontalBlock"] > div:first-child {
 /* Y aquí aplicamos el margen negativo para eliminar el zócalo */
 div[data-testid="stHorizontalBlock"] > div:first-child > div[data-testid="stVerticalBlock"] {
     #margin-bottom: -10px !important;
-    padding-bottom: -0.5rem;
+    padding-bottom: -0.5rem !important;
 }
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
@@ -647,6 +647,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
