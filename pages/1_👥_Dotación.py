@@ -50,14 +50,12 @@ div[data-testid="stPlotlyChart"] {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Regla #2: Define el estilo de la NUEVA TARJETA para el comparador */
+/* Regla #2: Define el estilo de la TARJETA (Versión corregida) */
+/* Quitamos el padding y el borde, y agregamos overflow: hidden para que RECORTE el contenido */
 .map-card {
     border-radius: 0.8rem;
+    overflow: hidden; /* <-- LA PROPIEDAD CLAVE */
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    overflow: hidden;
-    padding: 1rem; /* Le damos un poco de espacio interior */
-    background-color: #ffffff;
-    border: 1px solid #e6e6e6; /* Un borde sutil para que se vea bien */
 }
 
 /* Regla #3: Elimina el zócalo blanco SOLO de la columna del mapa individual */
@@ -655,4 +653,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
