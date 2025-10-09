@@ -11,7 +11,7 @@ import plotly.express as px
 import re
 # Importaciones necesarias para el comparador de mapas
 from streamlit_image_comparison import image_comparison
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw
 
 
 # --- Configuración de la página y Estilos CSS ---
@@ -56,11 +56,13 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
     gap: 0;
 }
 
-[data-testid="stImageComparison"] {
-   border-radius: 0.8rem !important;
-   overflow: hidden !important;
+/* Regla #3: Agrega una sombra y redondeo al contenedor del comparador */
+.img-comp-container {
    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+   border-radius: 0.8rem; /* Ayuda a que la sombra se vea redondeada */
+   overflow: hidden; /* CORRECCIÓN: Asegura que el contenido (imágenes) se recorte */
 }
+
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
 
@@ -102,17 +104,27 @@ def format_percentage_es(num, decimals=1):
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 # --- Funciones Auxiliares ---
-def create_rounded_image_with_matte(im, rad, background_color='#f0f2f6'):
-    """Crea una imagen con bordes redondeados y fondo suave compatible con streamlit-image-comparison."""
-    im = im.convert("RGBA")
-    mask = Image.new("L", im.size, 0)
+# ▼▼▼ INICIO DE LA CORRECCIÓN ▼▼▼
+def create_rounded_image_with_matte(im, rad):
+    """
+    Crea una imagen con esquinas redondeadas y fondo transparente.
+    Esta versión corregida genera un canal Alfa para la transparencia.
+    """
+    # Crear una máscara alfa con esquinas redondeadas. Es un lienzo en blanco y negro.
+    mask = Image.new('L', im.size, 0)
     draw = ImageDraw.Draw(mask)
-    draw.rounded_rectangle([(0, 0), im.size], radius=rad, fill=255)
-    rounded = ImageOps.fit(im, im.size, centering=(0.5, 0.5))
-    rounded.putalpha(mask)
-    background = Image.new("RGBA", im.size, background_color)
-    background.paste(rounded, (0, 0), mask=rounded)
-    return background.convert("RGB")
+    draw.rounded_rectangle((0, 0, im.size[0], im.size[1]), radius=rad, fill=255)
+
+    # Crear una imagen de salida con canal alfa (RGBA) y fondo completamente transparente.
+    output = Image.new('RGBA', im.size, (0, 0, 0, 0))
+
+    # Pegar la imagen original (convertida a RGB por seguridad) en la imagen
+    # de salida, utilizando la máscara. La máscara asegura que solo el área
+    # del rectángulo redondeado sea visible.
+    output.paste(im.convert("RGB"), (0, 0), mask)
+
+    return output
+# ▲▲▲ FIN DE LA CORRECCIÓN ▲▲▲
     
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     st.markdown("##### Opciones de Descarga:")
@@ -533,8 +545,6 @@ if uploaded_file is not None:
                 else:
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
-                        # 1. Abrimos el div con la nueva clase
-                        #st.markdown('<div class="map-comparator-container">', unsafe_allow_html=True)
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
                             try:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
@@ -543,19 +553,17 @@ if uploaded_file is not None:
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     
-                                    # Ya no convertimos a RGBA
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
                                 
-                                    # --- Usamos la nueva función ---
                                     radius = 30 
+                                    # Usamos la función corregida para crear imágenes con fondo transparente
                                     img1_final = create_rounded_image_with_matte(img1_pil, radius)
                                     img2_final = create_rounded_image_with_matte(img2_pil, radius)
-                                    # -----------------------------
                                                                     
                                     image_comparison(
-                                        img1=img1_final, # Usamos la nueva imagen final
-                                        img2=img2_final, # Usamos la nueva imagen final
+                                        img1=img1_final,
+                                        img2=img2_final,
                                         label1=style1_name,
                                         label2=style2_name,
                                     )
@@ -564,8 +572,6 @@ if uploaded_file is not None:
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
-                        # 2. Cerramos el div
-                        #st.markdown('</div>', unsafe_allow_html=True)
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -668,6 +674,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
-
