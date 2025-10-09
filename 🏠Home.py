@@ -1,46 +1,69 @@
 import streamlit as st
+import base64
+from pathlib import Path
 
+# --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
     page_title="Portal de RRHH",
     page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg",
-    layout="wide" 
+    layout="wide"
 )
 
-# --- CSS ÚNICO Y SEGURO PARA LA PÁGINA DE INICIO ---
+# --- FUNCIÓN PARA CODIFICAR IMÁGENES ---
+def img_to_bytes(img_path):
+    """Convierte una imagen local a bytes codificados en Base64."""
+    try:
+        img_bytes = Path(img_path).read_bytes()
+        encoded = base64.b64encode(img_bytes).decode()
+        return encoded
+    except FileNotFoundError:
+        # En caso de que el archivo no se encuentre, para evitar que la app se rompa.
+        return None
+
+# --- CSS PERSONALIZADO ---
 st.markdown("""
 <style>
-    /* Corrección para que las tarjetas se apilen en móviles (pantallas angostas) */
-    @media (max-width: 768px) {
-        .card-container {
-            flex-direction: column;
-            align-items: center;
-        }
+    /* Estilos para el nuevo Encabezado (Header) */
+    .header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 0;
+    }
+
+    .header-logo {
+        width: 150px;
+        height: auto;
+    }
+
+    .header-text {
+        flex-grow: 1;
     }
 
     /* Estilos de las Tarjetas (Flexbox y Responsivo) */
     .card-container {
-        display: flex; 
-        gap: 20px; 
+        display: flex;
+        gap: 20px;
         margin-top: 40px;
-        flex-wrap: wrap; 
+        flex-wrap: wrap;
         justify-content: center;
     }
 
     .app-card {
-        flex: 1; 
-        min-width: 260px; 
-        max-width: 350px; 
+        flex: 1;
+        min-width: 260px;
+        max-width: 350px;
         padding: 20px;
-        border-radius: 12px; 
+        border-radius: 12px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease-in-out; 
-        text-align: center; 
+        transition: all 0.3s ease-in-out;
+        text-align: center;
         cursor: pointer;
-        text-decoration: none; 
-        color: #333; 
+        text-decoration: none;
+        color: #333;
         min-height: 180px;
-        display: flex; 
-        flex-direction: column; 
+        display: flex;
+        flex-direction: column;
         justify-content: space-between;
     }
 
@@ -54,39 +77,67 @@ st.markdown("""
     }
 
     .card-title {
-        font-size: 1.5em; 
-        font-weight: bold; 
-        color: #003366; 
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #003366;
         margin-bottom: 10px;
     }
 
     .access-icon {
-        font-size: 1.6em; 
-        color: #003366; 
+        font-size: 1.6em;
+        color: #003366;
         transition: transform 0.3s ease;
     }
 
     .app-card:hover .access-icon { transform: scale(1.2); }
-    
+
     a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
-        text-decoration: none !important; 
+        text-decoration: none !important;
         color: inherit;
+    }
+
+    /* Reglas para diseño responsivo en móviles */
+    @media (max-width: 768px) {
+        .card-container {
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .header-container {
+            flex-direction: column;
+            gap: 15px;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
-left_logo, center_text, right_logo = st.columns([1, 4, 1])
-with left_logo:
-    st.image("assets/logo_assa.jpg", width=200)
-with center_text:    
-    st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True) 
-    st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
-with right_logo:
-    st.image("assets/logo_assa.jpg", width=200)
+
+# --- ENCABEZADO RESPONSIVO ---
+logo_path = "assets/logo_assa.jpg"
+logo_base64 = img_to_bytes(logo_path)
+
+# Solo muestra el encabezado si el logo se cargó correctamente
+if logo_base64:
+    logo_html = f'<img src="data:image/jpeg;base64,{logo_base64}" class="header-logo">'
+    
+    st.markdown(f"""
+    <div class="header-container">
+        {logo_html}
+        <div class="header-text">
+            <h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>
+            <h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>
+        </div>
+        {logo_html}
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    # Muestra un encabezado de texto simple si no se encuentra el logo
+    st.error("No se pudo cargar el logo. Verifique la ruta: assets/logo_assa.jpg")
+    st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True)
 
 st.markdown("---")
 
+# --- CONTENIDO DE INTRODUCCIÓN ---
 st.markdown(
     """
     <div style="text-align: center;">
@@ -98,6 +149,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# --- TARJETAS DE NAVEGACIÓN ---
 st.markdown("""
 <div class="card-container">
     <a href="/Dotación" target="_self" class="app-card card-dotacion">
@@ -120,5 +172,6 @@ st.markdown("""
 
 st.markdown("---")
 
+# --- BARRA LATERAL ---
 st.sidebar.success("Selecciona una aplicación arriba.")
 
