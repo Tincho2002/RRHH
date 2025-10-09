@@ -577,7 +577,6 @@ if uploaded_file is not None:
                                     # -----------------------------
                                                                     
                                     image_comparison(
-                                        radius = 30 
                                         img1=img1_final, # Usamos la nueva imagen final
                                         img2=img2_final, # Usamos la nueva imagen final
                                         #label1=style1_name,
@@ -692,6 +691,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
