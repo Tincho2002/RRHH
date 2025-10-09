@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -7,9 +8,14 @@ st.set_page_config(
     layout="wide" 
 )
 
-# --- CSS CORREGIDO PARA LA ANIMACIÓN Y LA APP ---
+# --- CSS CORREGIDO Y MEJORADO PARA LA CORTINA DE AGUA DE INICIO ---
 st.markdown("""
 <style>
+    /* Oculta la barra lateral y el contenido principal de Streamlit por defecto */
+    /* para que la cortina de agua pueda cubrir toda la pantalla al inicio */
+    #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) { visibility: hidden; } /* Sidebar */
+    #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) { visibility: hidden; } /* Main Content */
+
     /* Estilos para el overlay de la animación de inicio */
     .water-curtain-overlay {
         position: fixed;
@@ -17,65 +23,52 @@ st.markdown("""
         left: 0;
         width: 100%;
         height: 100%;
-        background: linear-gradient(135deg, rgba(0, 150, 255, 0.9) 0%, rgba(0, 51, 102, 0.95) 100%);
+        /* Degradado de azul más suave con transparencia */
+        background: linear-gradient(180deg, rgba(0, 102, 204, 0.95) 0%, rgba(0, 51, 102, 0.9) 100%);
         display: flex;
         justify-content: center;
         align-items: center;
         z-index: 9999;
-        /* La animación dura 1.5s, empieza después de un delay de 2s, y se mantiene en su estado final (oculto) */
-        animation: fadeOutCurtain 1.5s ease-out 2s forwards;
+        animation: fadeOutCurtain 2s ease-out 2.5s forwards; /* Dura 2s, empieza después de 2.5s */
     }
 
     /* Animación para el logo dentro de la cortina */
     .water-curtain-logo {
         opacity: 0;
-        transform: scale(0.8);
-        /* La animación dura 1.5s y empieza después de 0.5s */
-        animation: fadeInLogo 1.5s ease-out 0.5s forwards;
-        max-width: 300px;
+        transform: scale(0.6); /* Logo más chico */
+        border-radius: 20px; /* Bordes más redondeados */
+        animation: fadeInLogo 1.5s ease-out 0.5s forwards; /* Aparece después de 0.5s */
+        max-width: 250px; /* Tamaño máximo del logo */
         height: auto;
     }
     
-    /* El contenido principal de la app */
+    /* El contenido principal de la app se muestra DESPUÉS de la animación de la cortina */
     .main-content {
-        /* Empieza invisible */
         visibility: hidden;
         opacity: 0;
-        /* La animación para mostrarlo empieza después de 3.5s, justo cuando la cortina se va */
-        animation: showContent 0.5s ease-in 3.5s forwards;
+        /* La animación para mostrarlo empieza después de 4.5s (2.5s delay + 2s curtain animation) */
+        animation: showMainContent 0.5s ease-in 4.5s forwards;
     }
 
     /* Keyframes para desvanecer la cortina */
     @keyframes fadeOutCurtain {
-        to {
-            opacity: 0;
-            visibility: hidden; /* Oculta completamente la cortina al final */
-        }
+        0% { opacity: 1; visibility: visible; }
+        100% { opacity: 0; visibility: hidden; } /* Oculta completamente la cortina al final */
     }
 
     /* Keyframes para aparecer el logo */
     @keyframes fadeInLogo {
-        to {
-            opacity: 1;
-            transform: scale(1);
-        }
+        0% { opacity: 0; transform: scale(0.6); }
+        100% { opacity: 1; transform: scale(1); }
     }
 
     /* Keyframes para mostrar el contenido principal */
-    @keyframes showContent {
-        /* En el primer instante de la animación, se hace visible */
-        0% {
-            visibility: visible;
-            opacity: 0;
-        }
-        /* Al final, es totalmente opaco */
-        100% {
-            visibility: visible;
-            opacity: 1;
-        }
+    @keyframes showMainContent {
+        0% { visibility: visible; opacity: 0; }
+        100% { visibility: visible; opacity: 1; }
     }
     
-    /* --- ESTILOS GENERALES DE LA APP (SIN CAMBIOS) --- */
+    /* --- ESTILOS GENERALES DE LA APP (TARJETAS, ETC. - SIN CAMBIOS) --- */
 
     @media (max-width: 768px) {
         .card-container {
@@ -151,8 +144,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
-# Se envuelve todo en un div con la clase 'main-content' para que la animación de entrada funcione
+# --- CONTENIDO PRINCIPAL DE LA PÁGINA (VISIBLE DESPUÉS DE LA ANIMACIÓN) ---
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
 
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
@@ -202,5 +194,4 @@ st.markdown("---")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
 
-# Cierra el div que envuelve el contenido principal
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True) # Cierra el div del contenido principal
