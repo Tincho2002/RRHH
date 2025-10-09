@@ -56,19 +56,33 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
     gap: 0;
 }
 
-/* Regla #3: Agrega una sombra y redondeo al contenedor del comparador */
+/* Regla #3: Agrega una sombra al contenedor del comparador para consistencia visual */
 .img-comp-container {
    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-   border-radius: 1.5rem;
-   overflow: hidden;
+   border-radius: 0.8rem; /* Esto ayuda a que la sombra también se vea redondeada */
 }
 
-/* Regla #4: Estiliza las etiquetas del comparador de mapas */
-div[data-testid="stImageComparison"] > div > div[class*="label"] {
-    background-color: transparent !important;
-    color: white !important;
-    text-shadow: 1px 1px 2px black;
-    font-weight: bold;
+/* --- FIN DE ESTILOS AGREGADOS --- */
+
+
+/* --- REGLAS RESPONSIVE GENERALES --- */
+@media (max-width: 768px) {
+    h1 { font-size: 1.9rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.2rem; }
+
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+        margin-bottom: 1rem;
+    }
+    
+    .stTabs {
+        overflow-x: auto;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -89,36 +103,28 @@ def format_percentage_es(num, decimals=1):
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 # --- Funciones Auxiliares ---
-def create_rounded_image_with_matte(im, rad):
+def create_rounded_image_with_matte(im, rad, background_color='#f0f2f6'):
+    # Creamos la máscara "a mano" para máxima compatibilidad
     mask = Image.new('L', im.size, 0)
     draw = ImageDraw.Draw(mask)
-    draw.rounded_rectangle((0, 0, im.size[0], im.size[1]), radius=rad, fill=255)
-    output = Image.new('RGBA', im.size, (0, 0, 0, 0))
-    output.paste(im.convert("RGB"), (0, 0), mask)
-    return output
+    
+    # Dibujamos las partes rectas de la máscara
+    draw.rectangle((rad, 0, im.size[0] - rad, im.size[1]), fill=255)
+    draw.rectangle((0, rad, im.size[0], im.size[1] - rad), fill=255)
+    
+    # Dibujamos las 4 esquinas circulares en la máscara
+    draw.pieslice((0, 0, rad * 2, rad * 2), 180, 270, fill=255)
+    draw.pieslice((im.size[0] - rad * 2, 0, im.size[0], rad * 2), 270, 360, fill=255)
+    draw.pieslice((0, im.size[1] - rad * 2, rad * 2, im.size[1]), 90, 180, fill=255)
+    draw.pieslice((im.size[0] - rad * 2, im.size[1] - rad * 2, im.size[0], im.size[1]), 0, 90, fill=255)
 
-def remove_background_chroma_key(img, tolerance=30):
-    """
-    Solución definitiva. Pinta el fondo con un color clave (magenta) y luego
-    hace transparente solo ese color.
-    """
-    # 1. Pintar el fondo de un color clave (magenta)
-    img_filled = img.convert("RGB")
-    key_color = (255, 0, 255)
-    ImageDraw.floodfill(img_filled, (0, 0), key_color, thresh=tolerance)
-
-    # 2. Hacer transparente el color clave
-    final_img = img_filled.convert("RGBA")
-    datas = final_img.getdata()
-    newData = []
-    for item in datas:
-        if item[0] == key_color[0] and item[1] == key_color[1] and item[2] == key_color[2]:
-            newData.append((255, 255, 255, 0))  # Pixel transparente
-        else:
-            newData.append(item)
-    final_img.putdata(newData)
-    return final_img
-
+    # Creamos el fondo
+    background = Image.new('RGB', im.size, background_color)
+    
+    # Pegamos la imagen original usando la máscara que acabamos de dibujar
+    background.paste(im.convert('RGB'), (0, 0), mask)
+    return background
+    
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     st.markdown("##### Opciones de Descarga:")
     col_dl1, col_dl2 = st.columns(2)
@@ -135,7 +141,7 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
 def apply_all_filters(df, selections):
     _df = df.copy()
     for col, values in selections.items():
-        if values and col in _df.columns:
+        if values and col in _df.columns: 
             _df = _df[_df[col].isin(values)]
     return _df
 
@@ -158,11 +164,11 @@ def get_sorted_unique_options(dataframe, column_name):
             return sorted(unique_values, key=lambda x: month_order.get(x, 99))
         return sorted(unique_values)
     return []
-
+    
 def get_available_options(df, selections, target_column):
     _df = df.copy()
     for col, values in selections.items():
-        if col != target_column and values and col in _df.columns:
+        if col != target_column and values and col in _df.columns: 
             _df = _df[_df[col].isin(values)]
     return get_sorted_unique_options(_df, target_column)
 
@@ -185,12 +191,12 @@ def load_and_clean_data(uploaded_file):
         return pd.DataFrame()
     if df_excel.empty: return pd.DataFrame()
     if 'LEGAJO' in df_excel.columns: df_excel['LEGAJO'] = pd.to_numeric(df_excel['LEGAJO'], errors='coerce')
-
+    
     excel_col_fecha_ingreso_raw = 'Fecha ing.'
     excel_col_fecha_nacimiento_raw = 'Fecha Nac.'
     excel_col_rango_antiguedad_raw = 'Rango (Antigüedad)'
     excel_col_rango_edad_raw = 'Rango (Edad)'
-
+    
     if excel_col_rango_antiguedad_raw in df_excel.columns and df_excel[excel_col_rango_antiguedad_raw].notna().sum() > 0:
         df_excel['Rango Antiguedad'] = df_excel[excel_col_rango_antiguedad_raw].astype(str).str.strip().str.lower()
     else:
@@ -203,7 +209,7 @@ def load_and_clean_data(uploaded_file):
                 df_excel['Rango Antiguedad'] = pd.cut(df_excel['Antiguedad (años)'], bins=bins_antiguedad, labels=labels_antiguedad, right=False, include_lowest=True).astype(str).str.strip().str.lower()
             else: df_excel['Rango Antiguedad'] = 'no disponible'
         else: df_excel['Rango Antiguedad'] = 'no disponible'
-
+    
     if excel_col_rango_edad_raw in df_excel.columns and df_excel[excel_col_rango_edad_raw].notna().sum() > 0:
         df_excel['Rango Edad'] = df_excel[excel_col_rango_edad_raw].astype(str).str.strip().str.lower()
     else:
@@ -216,7 +222,7 @@ def load_and_clean_data(uploaded_file):
                 df_excel['Rango Edad'] = pd.cut(df_excel['Edad (años)'], bins=bins_edad, labels=labels_edad, right=False, include_lowest=True).astype(str).str.strip().str.lower()
             else: df_excel['Rango Edad'] = 'no disponible'
         else: df_excel['Rango Edad'] = 'no disponible'
-
+    
     if 'Periodo' in df_excel.columns:
         try:
             temp_periodo = pd.to_datetime(df_excel['Periodo'], errors='coerce')
@@ -237,9 +243,9 @@ def load_and_clean_data(uploaded_file):
         df_excel[col] = df_excel[col].astype(str).replace(['None', 'nan', ''], 'no disponible').str.strip()
         if col in ['Rango Antiguedad', 'Rango Edad']: df_excel[col] = df_excel[col].str.lower()
         elif col == 'Periodo': df_excel[col] = df_excel[col].str.capitalize()
-
+    
     return df_excel
-
+    
 # --- INICIO DE LA APLICACIÓN ---
 st.title("👥 Dotación 2025")
 st.write("Estructura y distribución geográfica y por gerencia de personal")
@@ -260,7 +266,7 @@ if uploaded_file is not None:
     st.markdown("---")
 
     st.sidebar.header('Filtros del Dashboard')
-
+    
     filter_cols_config = {
         'Periodo': 'Periodo', 'Gerencia': 'Gerencia', 'Relación': 'Relación', 'Función': 'Función',
         'Distrito': 'Distrito', 'Ministerio': 'Ministerio', 'Rango Antiguedad': 'Antigüedad',
@@ -301,14 +307,14 @@ if uploaded_file is not None:
         st.rerun()
 
     filtered_df = apply_all_filters(df, st.session_state.selections)
-
+    
     st.write(f"Después de aplicar los filtros, se muestran **{format_integer_es(len(filtered_df))}** registros.")
     st.markdown("---")
-
+    
     period_to_display = None
     all_periodos = get_sorted_unique_options(df, 'Periodo')
     selected_periodos = st.session_state.selections.get('Periodo', [])
-
+    
     if selected_periodos:
         sorted_selected_periods = [p for p in all_periodos if p in selected_periodos]
         if sorted_selected_periods:
@@ -402,10 +408,10 @@ if uploaded_file is not None:
     if not df_coords.empty:
         tab_names.insert(1, "🗺️ Mapa Geográfico")
         tab_names.insert(1, "🗺️ Comparador de Mapas")
-
+    
     tabs = st.tabs(tab_names)
     tab_map_comparador, tab_map_individual = (None, None)
-
+    
     tab_resumen = tabs[0]
     tab_index = 1
     if not df_coords.empty:
@@ -522,13 +528,12 @@ if uploaded_file is not None:
                     size="Dotacion_Total", color="Dotacion_Total",
                     hover_name="Distrito",
                     hover_data={"Latitud": False, "Longitud": False, "Dotacion_Total": True},
-                    color_continuous_scale=px.colors.sequential.Plasma,
+                    color_continuous_scale=px.colors.sequential.Plasma, 
                     size_max=50,
-                    mapbox_style=mapbox_style,
+                    mapbox_style=mapbox_style, 
                     zoom=6, center={"lat": -32.5, "lon": -61.5}
                 )
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 return fig
 
             if show_map_comparison:
@@ -537,8 +542,10 @@ if uploaded_file is not None:
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
                     st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
                 else:
-                    comp_col1, comp_col2 = st.columns([3, 2])
+                    comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
+                        # 1. Abrimos el div con la nueva clase
+                        #st.markdown('<div class="map-comparator-container">', unsafe_allow_html=True)
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
                             try:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
@@ -547,19 +554,19 @@ if uploaded_file is not None:
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     
+                                    # Ya no convertimos a RGBA
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
-                                    
-                                    img1_pil = remove_background_chroma_key(img1_pil, tolerance=40)
-                                    img2_pil = remove_background_chroma_key(img2_pil, tolerance=40)
-                                    
-                                    radius = 50
+                                
+                                    # --- Usamos la nueva función ---
+                                    radius = 30 
                                     img1_final = create_rounded_image_with_matte(img1_pil, radius)
                                     img2_final = create_rounded_image_with_matte(img2_pil, radius)
+                                    # -----------------------------
                                                                     
                                     image_comparison(
-                                        img1=img1_final,
-                                        img2=img2_final,
+                                        img1=img1_final, # Usamos la nueva imagen final
+                                        img2=img2_final, # Usamos la nueva imagen final
                                         label1=style1_name,
                                         label2=style2_name,
                                     )
@@ -568,16 +575,17 @@ if uploaded_file is not None:
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
-                    
+                        # 2. Cerramos el div
+                        #st.markdown('</div>', unsafe_allow_html=True)
                     with comp_col2:
-                        pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
-                        if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
-                        if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
-                        pivot_table['Total'] = pivot_table['Convenio'] + pivot_table['FC']
-                        pivot_table.sort_values(by='Total', ascending=False, inplace=True)
-                        total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
-                        df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
-                        st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=500, hide_index=True)
+                            pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
+                            if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
+                            if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
+                            pivot_table['Total'] = pivot_table['Convenio'] + pivot_table['FC']
+                            pivot_table.sort_values(by='Total', ascending=False, inplace=True)
+                            total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
+                            df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
+                            st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=500, hide_index=True)
             
             else:
                 st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
