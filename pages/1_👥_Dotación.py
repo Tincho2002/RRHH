@@ -41,31 +41,27 @@ div.stDownloadButton button:hover {
     background-color: #218838;
 }
 
-/* --- ESTILOS PARA BORDES REDONDEADOS Y ZÓCALOS --- */
+/* --- ESTILOS PARA BORDES REDONDEADOS --- */
 
-/* Regla #1: Redondea el MAPA INDIVIDUAL (Plotly Chart) */
+/* Estilo para redondear el mapa individual (Funciona OK) */
 div[data-testid="stPlotlyChart"] {
     border-radius: 0.8rem;
     overflow: hidden; 
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    width:100%;
 }
 
-/* Regla #2: Redondea el COMPARADOR DE MAPAS (Esta es la corrección) */
-/* Apuntamos a la clase específica '.stImageComparison' que usa el componente */
-.stImageComparison {
+/* ÚLTIMO RECURSO: Apuntar al primer div dentro del bloque horizontal de columnas */
+div[data-testid="stHorizontalBlock"] > div:first-child {
     border-radius: 0.8rem;
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    width:100%;
 }
-
-/* Regla #3: Elimina el zócalo blanco de AMBOS contenedores */
-/* Usamos el pseudo-selector :has() para encontrar la columna que CONTIENE el mapa o el comparador
-   y solo a esa columna le quitamos el espacio vertical (gap). */
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-testid="stPlotlyChart"]) [data-testid="stVerticalBlock"],
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(.stImageComparison) [data-testid="stVerticalBlock"] {
-    gap: 0;
+/* Y aquí aplicamos el margen negativo para eliminar el zócalo */
+div[data-testid="stHorizontalBlock"] > div:first-child > div[data-testid="stVerticalBlock"] {
+    margin-bottom: 0px !important;
 }
-
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
 
