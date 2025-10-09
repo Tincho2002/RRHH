@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -7,52 +8,56 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- ESTADO 1: PANTALLA DE PRESENTACIÓN ---
-def show_splash_screen():
-    # Contiene todo: CSS para ocultar la app, HTML para la animación, y JS para la transición
-    splash_page_content = """
-    <style>
-        /* Oculta la app de Streamlit completamente mientras el splash está activo */
-        [data-testid="stSidebar"],
-        [data-t'estid="stHeader"],
-        #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) {
-            display: none;
-        }
+# --- LÓGICA DE CONTROL ---
+# Si la URL no tiene el parámetro "page=app", mostramos la presentación.
+if st.query_params.get("page") != "app":
 
-        /* Estilos para el overlay de la animación */
-        .splash-container {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: linear-gradient(180deg, rgba(0, 102, 204, 0.95) 0%, rgba(0, 51, 102, 0.9) 100%);
-            display: flex; justify-content: center; align-items: center; z-index: 9999;
-        }
+    # Usamos components.html para encapsular la presentación y su lógica
+    components.html("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Cargando...</title>
+            <style>
+                body, html {
+                    margin: 0;
+                    padding: 0;
+                    width: 100%;
+                    height: 100%;
+                    overflow: hidden;
+                }
+                .splash-container {
+                    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                    background: linear-gradient(180deg, rgba(0, 102, 204, 0.95) 0%, rgba(0, 51, 102, 0.9) 100%);
+                    display: flex; justify-content: center; align-items: center; z-index: 9999;
+                }
+                .splash-logo {
+                    opacity: 0; transform: scale(0.6); border-radius: 20px;
+                    animation: fadeInLogo 1.5s ease-out 0.5s forwards;
+                    max-width: 250px; height: auto;
+                }
+                @keyframes fadeInLogo { to { opacity: 1; transform: scale(1); } }
+            </style>
+        </head>
+        <body>
+            <div class="splash-container">
+                <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="splash-logo" alt="Logo ASSA">
+            </div>
+            <script>
+                setTimeout(function() {
+                    // Navega a la URL de la app principal
+                    window.top.location.href = window.top.location.pathname + "?page=app";
+                }, 4000); // 4 segundos
+            </script>
+        </body>
+        </html>
+    """, height=1200) # Una altura grande para asegurar que ocupe todo
 
-        .splash-logo {
-            opacity: 0; transform: scale(0.6); border-radius: 20px;
-            animation: fadeInLogo 1.5s ease-out 0.5s forwards;
-            max-width: 250px; height: auto;
-        }
-
-        @keyframes fadeInLogo { to { opacity: 1; transform: scale(1); } }
-    </style>
-
-    <div class="splash-container">
-        <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="splash-logo" alt="Logo ASSA">
-    </div>
-
-    <script>
-        setTimeout(function() {
-            // Navega a la misma URL pero añadiendo un parámetro para señalar que la animación terminó
-            window.location.href = window.location.pathname + "?splash=done";
-        }, 4000); // 4 segundos
-    </script>
-    """
-    st.markdown(splash_page_content, unsafe_allow_html=True)
-
-# --- ESTADO 2: APLICACIÓN PRINCIPAL ---
-def show_main_app():
+# Si el parámetro es "page=app", mostramos la aplicación principal.
+else:
+    # Estilos ÚNICAMENTE para el contenido de la app (tarjetas, etc.)
     st.markdown("""
     <style>
-        /* Estilos para las tarjetas y el contenido de la app */
         @media (max-width: 768px) { .card-container { flex-direction: column; align-items: center; } }
         .card-container { display: flex; gap: 20px; margin-top: 40px; flex-wrap: wrap; justify-content: center; }
         .app-card { flex: 1; min-width: 260px; max-width: 350px; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); transition: all 0.3s ease-in-out; text-align: center; cursor: pointer; text-decoration: none; color: #333; min-height: 180px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -65,7 +70,9 @@ def show_main_app():
     </style>
     """, unsafe_allow_html=True)
 
+    # El menú y todo el contenido se dibujan de forma natural por Streamlit
     st.sidebar.success("Selecciona una aplicación arriba.")
+
     left_logo, center_text, right_logo = st.columns([1, 4, 1])
 
     with left_logo:
@@ -107,12 +114,3 @@ def show_main_app():
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
-
-
-# --- LÓGICA PRINCIPAL ---
-# La decisión se toma mirando la URL. Si 'splash=done' está en la URL, muestra la app.
-# Si no, muestra la presentación.
-if "splash" in st.query_params:
-    show_main_app()
-else:
-    show_splash_screen()
