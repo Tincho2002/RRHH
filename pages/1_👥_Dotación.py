@@ -11,8 +11,7 @@ import plotly.express as px
 import re
 # Importaciones necesarias para el comparador de mapas
 from streamlit_image_comparison import image_comparison
-from PIL import Image, ImageDraw
-
+from PIL import Image
 
 # --- Configuración de la página y Estilos CSS ---
 st.set_page_config(layout="wide", page_title="Dotacion: 2025", page_icon="👥")
@@ -47,19 +46,24 @@ div.stDownloadButton button:hover {
 /* Regla #1: Redondea el MAPA INDIVIDUAL (Plotly Chart) */
 div[data-testid="stPlotlyChart"] {
     border-radius: 0.8rem;
+    overflow: hidden; 
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Regla #2: Redondea el COMPARADOR DE MAPAS (Esta es la corrección) */
+/* Apuntamos a la clase específica '.stImageComparison' que usa el componente */
+.stImageComparison {
+    border-radius: 0.8rem;
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Regla #2: Elimina el zócalo blanco SOLO de la columna del mapa individual */
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-testid="stPlotlyChart"]) [data-testid="stVerticalBlock"] {
+/* Regla #3: Elimina el zócalo blanco de AMBOS contenedores */
+/* Usamos el pseudo-selector :has() para encontrar la columna que CONTIENE el mapa o el comparador
+   y solo a esa columna le quitamos el espacio vertical (gap). */
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-testid="stPlotlyChart"]) [data-testid="stVerticalBlock"],
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(.stImageComparison) [data-testid="stVerticalBlock"] {
     gap: 0;
-}
-
-/* Regla #3: Agrega una sombra al contenedor del comparador para consistencia visual */
-.img-comp-container {
-   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-   border-radius: 0.8rem; /* Esto ayuda a que la sombra también se vea redondeada */
 }
 
 /* --- FIN DE ESTILOS AGREGADOS --- */
@@ -103,28 +107,6 @@ def format_percentage_es(num, decimals=1):
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 # --- Funciones Auxiliares ---
-def create_rounded_image_with_matte(im, rad, background_color='#f0f2f6'):
-    # Creamos la máscara "a mano" para máxima compatibilidad
-    mask = Image.new('L', im.size, 0)
-    draw = ImageDraw.Draw(mask)
-    
-    # Dibujamos las partes rectas de la máscara
-    draw.rectangle((rad, 0, im.size[0] - rad, im.size[1]), fill=255)
-    draw.rectangle((0, rad, im.size[0], im.size[1] - rad), fill=255)
-    
-    # Dibujamos las 4 esquinas circulares en la máscara
-    draw.pieslice((0, 0, rad * 2, rad * 2), 180, 270, fill=255)
-    draw.pieslice((im.size[0] - rad * 2, 0, im.size[0], rad * 2), 270, 360, fill=255)
-    draw.pieslice((0, im.size[1] - rad * 2, rad * 2, im.size[1]), 90, 180, fill=255)
-    draw.pieslice((im.size[0] - rad * 2, im.size[1] - rad * 2, im.size[0], im.size[1]), 0, 90, fill=255)
-
-    # Creamos el fondo
-    background = Image.new('RGB', im.size, background_color)
-    
-    # Pegamos la imagen original usando la máscara que acabamos de dibujar
-    background.paste(im.convert('RGB'), (0, 0), mask)
-    return background
-    
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     st.markdown("##### Opciones de Descarga:")
     col_dl1, col_dl2 = st.columns(2)
@@ -544,8 +526,7 @@ if uploaded_file is not None:
                 else:
                     comp_col1, comp_col2 = st.columns([3, 2]) 
                     with comp_col1:
-                        # 1. Abrimos el div con la nueva clase
-                        #st.markdown('<div class="map-comparator-container">', unsafe_allow_html=True)
+                        #st.markdown('<div class="rounded-column-container">', unsafe_allow_html=True) # Contenedor de apertura
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
                             try:
                                 fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
@@ -553,30 +534,22 @@ if uploaded_file is not None:
                                 if fig1 and fig2:
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
-                                    
-                                    # Ya no convertimos a RGBA
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
-                                
-                                    # --- Usamos la nueva función ---
-                                    radius = 30 
-                                    img1_final = create_rounded_image_with_matte(img1_pil, radius)
-                                    img2_final = create_rounded_image_with_matte(img2_pil, radius)
-                                    # -----------------------------
-                                                                    
+                                    
                                     image_comparison(
-                                        img1=img1_final, # Usamos la nueva imagen final
-                                        img2=img2_final, # Usamos la nueva imagen final
+                                        img1=img1_pil,
+                                        img2=img2_pil,
                                         label1=style1_name,
                                         label2=style2_name,
+                                        #width=100%,
                                     )
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
-                        # 2. Cerramos el div
-                        #st.markdown('</div>', unsafe_allow_html=True)
+                        #st.markdown('</div>', unsafe_allow_html=True) # Contenedor de cierre
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -679,12 +652,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
-
-
-
-
-
-
-
