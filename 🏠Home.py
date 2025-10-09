@@ -61,8 +61,8 @@ st.markdown("""
     width: 2px;
     height: 50px;
     /*background: linear-gradient(to top, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1));*/
-    background: linear-gradient(to top, #0077b6, #00b4d8);
-    /*background: linear-gradient(to top, #005FA3, #5AC8FA);*/
+    /*background: linear-gradient(to top, #0077b6, #00b4d8);*/
+    background: linear-gradient(to top, #005FA3, #5AC8FA);
     border-radius: 50%;
     animation: fall linear infinite;
 }
@@ -235,6 +235,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
 
 
