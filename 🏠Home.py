@@ -7,8 +7,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 1. CSS INYECTADO CORRECTAMENTE CON ST.MARKDOWN ---
-# Todos los estilos van aquí para que se apliquen a toda la página.
+# --- 1. CSS CON LA SOLUCIÓN DE "FUERZA BRUTA" ---
 st.markdown("""
 <style>
     /* Ocultamos el menú y la barra superior de Streamlit por defecto */
@@ -16,29 +15,27 @@ st.markdown("""
         visibility: hidden;
     }
 
+    /* !! LA SOLUCIÓN CLAVE !! */
+    /* Esta clase anula CUALQUIER estilo que mantenga un elemento oculto */
+    .force-visible {
+        visibility: visible !important;
+        opacity: 1 !important;
+        transform: none !important; /* Anula si está movido fuera de pantalla */
+        transition: none !important; /* Anula transiciones que lo oculten */
+    }
+
     /* Estilos para el overlay de la animación de inicio */
     .water-curtain-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
         background: linear-gradient(180deg, rgba(0, 102, 204, 0.95) 0%, rgba(0, 51, 102, 0.9) 100%);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
+        display: flex; justify-content: center; align-items: center; z-index: 9999;
         animation: fadeOutCurtain 2s ease-out 2.5s forwards;
     }
 
-    /* Animación para el logo dentro de la cortina */
     .water-curtain-logo {
-        opacity: 0;
-        transform: scale(0.6);
-        border-radius: 20px;
+        opacity: 0; transform: scale(0.6); border-radius: 20px;
         animation: fadeInLogo 1.5s ease-out 0.5s forwards;
-        max-width: 250px;
-        height: auto;
+        max-width: 250px; height: auto;
     }
 
     /* El contenido principal de la app empieza transparente */
@@ -52,8 +49,7 @@ st.markdown("""
     @keyframes fadeInLogo { to { opacity: 1; transform: scale(1); } }
     @keyframes fadeInApp { to { opacity: 1; } }
 
-    /* --- ESTILOS GENERALES DE LA APP (TARJETAS, ETC.) --- */
-    /* Estos estilos ahora volverán a funcionar */
+    /* --- ESTILOS GENERALES DE LA APP --- */
     @media (max-width: 768px) { .card-container { flex-direction: column; align-items: center; } }
     .card-container { display: flex; gap: 20px; margin-top: 40px; flex-wrap: wrap; justify-content: center; }
     .app-card { flex: 1; min-width: 260px; max-width: 350px; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); transition: all 0.3s ease-in-out; text-align: center; cursor: pointer; text-decoration: none; color: #333; min-height: 180px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -67,38 +63,30 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. HTML PARA LA ANIMACIÓN DE INICIO ---
-st.markdown(
-    f"""
+st.markdown(f"""
     <div class="water-curtain-overlay">
         <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="water-curtain-logo" alt="Logo ASSA">
     </div>
-    """,
-    unsafe_allow_html=True
-)
+    """, unsafe_allow_html=True)
 
-# --- 3. JAVASCRIPT ROBUSTO PARA RESTAURAR LA VISIBILIDAD ---
+# --- 3. JAVASCRIPT FINAL PARA RESTAURAR LA VISIBILIDAD ---
 st.markdown("""
 <script>
-    // Espera a que la animación de la cortina termine (4.5 segundos)
     setTimeout(function() {
-        // Función para buscar y mostrar un componente de forma insistente
         function showComponent(selector) {
             const interval = setInterval(function() {
                 const element = document.querySelector(selector);
                 if (element) {
-                    element.style.visibility = 'visible';
-                    clearInterval(interval); // Detiene la búsqueda una vez encontrado
+                    // En lugar de solo cambiar la visibilidad,
+                    // añadimos la clase de "fuerza bruta"
+                    element.classList.add('force-visible');
+                    clearInterval(interval);
                 }
-            }, 100); // Intenta encontrarlo cada 100 milisegundos
-
-            // Por seguridad, deja de intentar después de 10 segundos
+            }, 100);
             setTimeout(() => clearInterval(interval), 10000);
         }
-
-        // Llama a la función para el menú y la barra superior
         showComponent('[data-testid="stSidebar"]');
         showComponent('[data-testid="stHeader"]');
-
     }, 4500);
 </script>
 """, unsafe_allow_html=True)
