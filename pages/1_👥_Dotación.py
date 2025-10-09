@@ -543,6 +543,8 @@ if uploaded_file is not None:
                     zoom=6, center={"lat": -32.5, "lon": -61.5}
                 )
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+                # ▼▼▼ LÍNEA AÑADIDA PARA FONDO TRANSPARENTE ▼▼▼
+                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 return fig
 
             if show_map_comparison:
@@ -682,6 +684,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
