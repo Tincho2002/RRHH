@@ -1,20 +1,30 @@
 import streamlit as st
-import time
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
     page_title="Portal de RRHH",
     page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg",
-    layout="wide" 
+    layout="wide"
 )
 
-# --- CSS CORREGIDO Y MEJORADO PARA LA CORTINA DE AGUA DE INICIO ---
+# --- CSS DEFINITIVO CON CORRECCIÓN DE VISIBILIDAD ---
 st.markdown("""
 <style>
-    /* Oculta la barra lateral y el contenido principal de Streamlit por defecto */
-    /* para que la cortina de agua pueda cubrir toda la pantalla al inicio */
-    #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) { visibility: hidden; } /* Sidebar */
-    #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) { visibility: hidden; } /* Main Content */
+    /* 1. Oculta el marco de Streamlit por defecto */
+    #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(1), /* Sidebar */
+    #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(2)  /* Main Content Area */
+    {
+        visibility: hidden;
+        /* 2. Aplica la animación para REVERTIR la invisibilidad cuando la cortina termina */
+        animation: showStreamlitShell 0.01s linear 4.5s forwards;
+    }
+
+    /* 3. Keyframes para hacer visible el marco de la app */
+    @keyframes showStreamlitShell {
+        to {
+            visibility: visible;
+        }
+    }
 
     /* Estilos para el overlay de la animación de inicio */
     .water-curtain-overlay {
@@ -23,51 +33,39 @@ st.markdown("""
         left: 0;
         width: 100%;
         height: 100%;
-        /* Degradado de azul más suave con transparencia */
         background: linear-gradient(180deg, rgba(0, 102, 204, 0.95) 0%, rgba(0, 51, 102, 0.9) 100%);
         display: flex;
         justify-content: center;
         align-items: center;
         z-index: 9999;
-        animation: fadeOutCurtain 2s ease-out 2.5s forwards; /* Dura 2s, empieza después de 2.5s */
+        /* La animación dura 2s, empieza después de 2.5s de delay */
+        animation: fadeOutCurtain 2s ease-out 2.5s forwards;
     }
 
     /* Animación para el logo dentro de la cortina */
     .water-curtain-logo {
         opacity: 0;
-        transform: scale(0.6); /* Logo más chico */
-        border-radius: 20px; /* Bordes más redondeados */
-        animation: fadeInLogo 1.5s ease-out 0.5s forwards; /* Aparece después de 0.5s */
-        max-width: 250px; /* Tamaño máximo del logo */
+        transform: scale(0.6);
+        border-radius: 20px;
+        animation: fadeInLogo 1.5s ease-out 0.5s forwards;
+        max-width: 250px;
         height: auto;
-    }
-    
-    /* El contenido principal de la app se muestra DESPUÉS de la animación de la cortina */
-    .main-content {
-        visibility: hidden;
-        opacity: 0;
-        /* La animación para mostrarlo empieza después de 4.5s (2.5s delay + 2s curtain animation) */
-        animation: showMainContent 0.5s ease-in 4.5s forwards;
     }
 
     /* Keyframes para desvanecer la cortina */
     @keyframes fadeOutCurtain {
-        0% { opacity: 1; visibility: visible; }
-        100% { opacity: 0; visibility: hidden; } /* Oculta completamente la cortina al final */
+        to {
+            opacity: 0;
+            visibility: hidden;
+        }
     }
 
     /* Keyframes para aparecer el logo */
     @keyframes fadeInLogo {
-        0% { opacity: 0; transform: scale(0.6); }
-        100% { opacity: 1; transform: scale(1); }
+        from { opacity: 0; transform: scale(0.6); }
+        to   { opacity: 1; transform: scale(1); }
     }
 
-    /* Keyframes para mostrar el contenido principal */
-    @keyframes showMainContent {
-        0% { visibility: visible; opacity: 0; }
-        100% { visibility: visible; opacity: 1; }
-    }
-    
     /* --- ESTILOS GENERALES DE LA APP (TARJETAS, ETC. - SIN CAMBIOS) --- */
 
     @media (max-width: 768px) {
@@ -78,28 +76,28 @@ st.markdown("""
     }
 
     .card-container {
-        display: flex; 
-        gap: 20px; 
+        display: flex;
+        gap: 20px;
         margin-top: 40px;
-        flex-wrap: wrap; 
+        flex-wrap: wrap;
         justify-content: center;
     }
 
     .app-card {
-        flex: 1; 
-        min-width: 260px; 
-        max-width: 350px; 
+        flex: 1;
+        min-width: 260px;
+        max-width: 350px;
         padding: 20px;
-        border-radius: 12px; 
+        border-radius: 12px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease-in-out; 
-        text-align: center; 
+        transition: all 0.3s ease-in-out;
+        text-align: center;
         cursor: pointer;
-        text-decoration: none; 
-        color: #333; 
+        text-decoration: none;
+        color: #333;
         min-height: 180px;
-        display: flex; 
-        flex-direction: column; 
+        display: flex;
+        flex-direction: column;
         justify-content: space-between;
     }
 
@@ -113,22 +111,22 @@ st.markdown("""
     }
 
     .card-title {
-        font-size: 1.5em; 
-        font-weight: bold; 
-        color: #003366; 
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #003366;
         margin-bottom: 10px;
     }
 
     .access-icon {
-        font-size: 1.6em; 
-        color: #003366; 
+        font-size: 1.6em;
+        color: #003366;
         transition: transform 0.3s ease;
     }
 
     .app-card:hover .access-icon { transform: scale(1.2); }
-    
+
     a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
-        text-decoration: none !important; 
+        text-decoration: none !important;
         color: inherit;
     }
 </style>
@@ -140,13 +138,12 @@ st.markdown(
     <div class="water-curtain-overlay">
         <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="water-curtain-logo" alt="Logo ASSA">
     </div>
-    """, 
+    """,
     unsafe_allow_html=True
 )
 
-# --- CONTENIDO PRINCIPAL DE LA PÁGINA (VISIBLE DESPUÉS DE LA ANIMACIÓN) ---
-st.markdown('<div class="main-content">', unsafe_allow_html=True)
-
+# --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
+# Ya no necesita una clase especial, el CSS se encarga de todo el marco
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 
 with left_logo:
@@ -193,5 +190,3 @@ st.markdown("""
 st.markdown("---")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
-
-st.markdown('</div>', unsafe_allow_html=True) # Cierra el div del contenido principal
