@@ -6,75 +6,46 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CSS DEFINITIVO ---
+# --- CSS CON REGLA ESPECÍFICA ---
 st.markdown("""
 <style>
-    /* Estilos de las Tarjetas (Flexbox y Responsivo) */
+    /* Estilos de las Tarjetas (sin cambios) */
     .card-container {
-        display: flex;
-        gap: 20px;
-        margin-top: 40px;
-        flex-wrap: wrap;
-        justify-content: center;
+        display: flex; gap: 20px; margin-top: 40px; flex-wrap: wrap; justify-content: center;
     }
-
     .app-card {
-        flex: 1;
-        min-width: 260px;
-        max-width: 350px;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease-in-out;
-        text-align: center;
-        cursor: pointer;
-        text-decoration: none;
-        color: #333;
-        min-height: 180px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
+        flex: 1; min-width: 260px; max-width: 350px; padding: 20px; border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); transition: all 0.3s ease-in-out;
+        text-align: center; cursor: pointer; text-decoration: none; color: #333;
+        min-height: 180px; display: flex; flex-direction: column; justify-content: space-between;
     }
-
     .card-dotacion { background-color: #e0f7fa; }
     .card-horas { background-color: #fffde7; }
     .card-masa { background-color: #f1f8e9; }
-
     .app-card:hover {
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); transform: translateY(-5px);
     }
-
     .card-title {
-        font-size: 1.5em;
-        font-weight: bold;
-        color: #003366;
-        margin-bottom: 10px;
+        font-size: 1.5em; font-weight: bold; color: #003366; margin-bottom: 10px;
     }
-
     .access-icon {
-        font-size: 1.6em;
-        color: #003366;
-        transition: transform 0.3s ease;
+        font-size: 1.6em; color: #003366; transition: transform 0.3s ease;
     }
-
     .app-card:hover .access-icon { transform: scale(1.2); }
-    
     a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
-        text-decoration: none !important;
-        color: inherit;
+        text-decoration: none !important; color: inherit;
     }
 
-    /* Reglas para diseño responsivo en móviles */
+    /* Reglas para diseño responsivo */
     @media (max-width: 768px) {
         .card-container {
             flex-direction: column;
             align-items: center;
         }
 
-        /* --- REGLA DEFINITIVA PARA CENTRAR LOS LOGOS --- */
-        /* Selecciona las columnas y fuerza a que su contenido (la imagen) se centre */
-        div[data-testid="column"] {
+        /* --- NUEVA REGLA SEGURA Y AISLADA --- */
+        /* Esto aplica el centrado SOLO a las columnas dentro de nuestro contenedor "header-wrapper" */
+        .header-wrapper div[data-testid="column"] {
             display: flex;
             justify-content: center;
         }
@@ -82,15 +53,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- ENCABEZADO CON EFECTO Y CENTRADO CORRECTO ---
+# --- ENCABEZADO ENVUELTO EN UN CONTENEDOR PARA AISLAR ESTILOS ---
+# 1. Creamos un contenedor con una clase CSS única: "header-wrapper"
+st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
+
+# 2. Usamos st.columns y st.image como antes para mantener el efecto de agua
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
     st.image("assets/logo_assa.jpg", width=200)
-with center_text:    
-    st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True) 
+with center_text:
+    st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
 with right_logo:
     st.image("assets/logo_assa.jpg", width=200)
+
+# 3. Cerramos el contenedor
+st.markdown('</div>', unsafe_allow_html=True)
+
 
 st.markdown("---")
 
@@ -129,4 +108,3 @@ st.markdown("""
 st.markdown("---")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
-
