@@ -116,16 +116,18 @@ def format_percentage_es(num, decimals=1):
 
 # --- Funciones Auxiliares ---
 # --- Función mejorada: crea bordes redondeados con transparencia ---
-def create_rounded_image(im, radius):
+def create_rounded_image_with_matte(im, rad, background_color='#f0f2f6'):
+    """Redondea los bordes de una imagen con un color de fondo suave, 
+    manteniendo la compatibilidad con el comparador de mapas."""
     im = im.convert("RGBA")
-    w, h = im.size
-    # Crear máscara de esquinas redondeadas
-    mask = Image.new("L", (w, h), 0)
+    mask = Image.new('L', im.size, 0)
     draw = ImageDraw.Draw(mask)
-    draw.rounded_rectangle([(0, 0), (w, h)], radius=radius, fill=255)
-    # Aplicar la máscara
-    im.putalpha(mask)
-    return im
+    draw.rounded_rectangle([(0, 0), im.size], radius=rad, fill=255)
+    rounded = ImageOps.fit(im, im.size, centering=(0.5, 0.5))
+    rounded.putalpha(mask)
+    background = Image.new('RGBA', im.size, background_color)
+    background.paste(rounded, (0, 0), mask=rounded)
+    return background.convert("RGB")
     
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     st.markdown("##### Opciones de Descarga:")
@@ -681,6 +683,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
