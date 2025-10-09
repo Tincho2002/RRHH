@@ -80,14 +80,29 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- 3. JAVASCRIPT PARA RESTAURAR LA VISIBILIDAD DE LA APP ---
+# --- 3. JAVASCRIPT CORREGIDO PARA RESTAURAR LA VISIBILIDAD DE LA APP ---
 st.markdown("""
 <script>
+    // Espera a que la animación de la cortina termine (4.5 segundos)
     setTimeout(function() {
-        const sidebar = document.querySelector('[data-testid="stSidebar"]');
-        const header = document.querySelector('[data-testid="stHeader"]');
-        if (sidebar) { sidebar.style.visibility = 'visible'; }
-        if (header) { header.style.visibility = 'visible'; }
+        // Función para buscar y mostrar un componente de forma insistente
+        function showComponent(selector) {
+            const interval = setInterval(function() {
+                const element = document.querySelector(selector);
+                if (element) {
+                    element.style.visibility = 'visible';
+                    clearInterval(interval); // Detiene la búsqueda una vez encontrado
+                }
+            }, 100); // Intenta encontrarlo cada 100 milisegundos
+
+            // Por seguridad, deja de intentar después de 10 segundos
+            setTimeout(() => clearInterval(interval), 10000);
+        }
+
+        // Llama a la función para el menú y la barra superior
+        showComponent('[data-testid="stSidebar"]');
+        showComponent('[data-testid="stHeader"]');
+
     }, 4500);
 </script>
 """, unsafe_allow_html=True)
