@@ -8,7 +8,7 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------------------------------
-# --- CSS: PANTALLA DE CARGA Y ANIMACIÓN DE BARRA LATERAL ---
+# --- CSS: PANTALLA DE CARGA Y ANIMACIÓN DE UI COMPLETA ---
 # ----------------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -78,19 +78,21 @@ st.markdown("""
     to { opacity: 1; }
 }
 
-/* 👇 CORRECCIÓN: Animación para ocultar y luego mostrar la barra lateral */
-[data-testid="stSidebar"] {
-    opacity: 0; /* Inicia oculta */
-    transform: translateX(-100%); /* Inicia fuera de la pantalla a la izquierda */
-    animation: showSidebar 0.75s ease-out 3.5s forwards;
+/* 👇 CORRECCIÓN: Animación para la UI (Barra Lateral y Cabecera) */
+[data-testid="stSidebar"],
+[data-testid="stHeader"] {
+    opacity: 0; /* Inician ocultos */
+    transform: translateY(-20px); /* Un pequeño efecto de deslizamiento hacia abajo */
+    animation: showUI 0.75s ease-out 3.5s forwards;
 }
 
-@keyframes showSidebar {
+@keyframes showUI {
     to {
         opacity: 1;
-        transform: translateX(0);
+        transform: translateY(0);
     }
 }
+
 
 /* ---------- TARJETAS (CARDS) DE NAVEGACIÓN ---------- */
 .card-container {
@@ -206,7 +208,7 @@ st.markdown(
 # --- TARJETAS NAVEGABLES ---
 st.markdown("""
 <div class="card-container">
-    <a href="/Dotacion" target="_self" class="app-card card-dotacion">
+    <a href="/Dotación" target="_self" class="app-card card-dotacion">
         <div class="card-title">👥 Dotación</div>
         <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
         <div class="access-icon">🔗</div>
@@ -231,3 +233,4 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
