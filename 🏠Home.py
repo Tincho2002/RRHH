@@ -19,7 +19,6 @@ st.markdown("""
     left: 0;
     width: 100vw;
     height: 100vh;
-    /*background: linear-gradient(180deg, #005f73, #0a9396, #94d2bd);*/
     background: linear-gradient(180deg, #005A7A, #00A7C4);
     z-index: 1000;
     display: flex;
@@ -61,8 +60,7 @@ st.markdown("""
     bottom: 100%;
     width: 2px;
     height: 50px;
-    /*background: linear-gradient(to top, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1));*/
-    background: linear-gradient(to top, rgba(0, 167, 196, 0.7), rgba(0, 90, 122, 0.2));
+    background: linear-gradient(to top, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1));
     border-radius: 50%;
     animation: fall linear infinite;
 }
@@ -235,6 +233,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
 
 
