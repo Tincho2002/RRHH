@@ -63,6 +63,14 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
    overflow: hidden; /* CORRECCIÓN: Asegura que el contenido (imágenes) se recorte */
 }
 
+/* Regla #4: Estiliza las etiquetas del comparador de mapas */
+div[data-testid="stImageComparison"] > div > div[class*="label"] {
+    background-color: transparent !important;
+    color: white !important;
+    text-shadow: 1px 1px 2px black; /* Sombra para legibilidad */
+    font-weight: bold;
+}
+
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
 
@@ -674,6 +682,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
