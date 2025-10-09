@@ -11,7 +11,7 @@ import plotly.express as px
 import re
 # Importaciones necesarias para el comparador de mapas
 from streamlit_image_comparison import image_comparison
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 
 # --- Configuración de la página y Estilos CSS ---
@@ -674,3 +674,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
