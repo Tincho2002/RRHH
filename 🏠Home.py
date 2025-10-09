@@ -1,5 +1,5 @@
 import streamlit as st
-import time
+import streamlit.components.v1 as components
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -7,14 +7,14 @@ st.set_page_config(
     page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg",
     layout="wide"
 )
-# --- ESTADO 1: PANTALLA DE PRESENTACIÓN ---
+
+# --- ESTADO 1: PANTALLA DE PRESENTACIÓN CON TRIGGER DE JAVASCRIPT ---
 def show_splash_screen():
-    # CSS y HTML solo para la animación. No se mete con la app principal.
+    # CSS y HTML para la animación
     splash_screen_code = """
     <style>
-        /* Oculta la app de Streamlit mientras el splash está activo */
-        /* Apunta a los contenedores principales para asegurar que todo se oculte */
-        #root > div:nth-child(1) > div:nth-child(1) > div {
+        /* Ocultamos el botón que usaremos como trigger */
+        [data-testid="stButton"] > button {
             display: none;
         }
 
@@ -22,8 +22,6 @@ def show_splash_screen():
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: linear-gradient(180deg, rgba(0, 102, 204, 0.95) 0%, rgba(0, 51, 102, 0.9) 100%);
             display: flex; justify-content: center; align-items: center; z-index: 9999;
-            opacity: 1;
-            transition: opacity 2s ease-out;
         }
 
         .water-curtain-logo {
@@ -43,15 +41,32 @@ def show_splash_screen():
     """
     st.markdown(splash_screen_code, unsafe_allow_html=True)
 
-    # Pausa de Python para mantener la animación en pantalla
-    time.sleep(4)
+    # Botón oculto que cambia el estado de la sesión
+    if st.button("Continuar a la app", key="continue_button"):
+        st.session_state.splash_screen_done = True
+        st.rerun()
+    
+    # Script que hace clic en el botón oculto después de 4 segundos
+    components.html(
+        """
+        <script>
+            setTimeout(function() {
+                // Busca el botón por el texto que le pusimos
+                const buttons = Array.from(parent.document.querySelectorAll('button'));
+                const continueButton = buttons.find(btn => btn.innerText.includes('Continuar a la app'));
+                if (continueButton) {
+                    continueButton.click();
+                }
+            }, 4000); // 4 segundos
+        </script>
+        """,
+        height=0
+    )
 
-    # Cambiamos el estado y forzamos un re-run de la app
-    st.session_state.splash_screen_done = True
-    st.rerun()
+
 # --- ESTADO 2: APLICACIÓN PRINCIPAL ---
 def show_main_app():
-    # Estilos ÚNICAMENTE para el contenido de la app (tarjetas, etc.)
+    # Estilos para las tarjetas y el contenido de la app
     st.markdown("""
     <style>
         @media (max-width: 768px) { .card-container { flex-direction: column; align-items: center; } }
@@ -66,9 +81,7 @@ def show_main_app():
     </style>
     """, unsafe_allow_html=True)
 
-    # El menú y todo el contenido se dibujan de forma natural por Streamlit
     st.sidebar.success("Selecciona una aplicación arriba.")
-
     left_logo, center_text, right_logo = st.columns([1, 4, 1])
 
     with left_logo:
@@ -110,12 +123,11 @@ def show_main_app():
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
+
 # --- LÓGICA PRINCIPAL PARA CONTROLAR EL ESTADO ---
-# Inicializa la variable de estado si no existe
 if 'splash_screen_done' not in st.session_state:
     st.session_state.splash_screen_done = False
 
-# Muestra un estado u otro basado en la variable
 if not st.session_state.splash_screen_done:
     show_splash_screen()
 else:
