@@ -1,12 +1,13 @@
 import streamlit as st
 
+# --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
     page_title="Portal de RRHH",
     page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg",
     layout="wide" 
 )
 
-# --- CSS ÚNICO Y SEGURO PARA LA PÁGINA DE INICIO ---
+# --- CSS COMPLETO (TARJETAS + EFECTO DE ONDA) ---
 st.markdown("""
 <style>
     /* Corrección para que las tarjetas se apilen en móviles (pantallas angostas) */
@@ -16,6 +17,35 @@ st.markdown("""
             align-items: center;
         }
     }
+
+    /* --- ✨ Estilos para el efecto de onda en los logos --- */
+    .logo-container {
+        position: relative; /* Necesario para posicionar la onda */
+        display: inline-block; /* Ajusta el contenedor a la imagen */
+    }
+
+    .logo-container img:hover::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%; /* Forma circular */
+        transform: translate(-50%, -50%) scale(0);
+        background-color: rgba(0, 150, 255, 0.4); /* Color de la onda */
+        animation: ripple-effect 1s ease-out; /* Aplica la animación */
+    }
+
+    /* Definición de la animación de la onda */
+    @keyframes ripple-effect {
+        to {
+            transform: translate(-50%, -50%) scale(2.5);
+            opacity: 0;
+        }
+    }
+    /* --- Fin del efecto de onda --- */
+
 
     /* Estilos de las Tarjetas (Flexbox y Responsivo) */
     .card-container {
@@ -75,15 +105,26 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
+
+# --- CONTENIDO PRINCIPAL DE LA PÁGINA (CON LOGOS CORREGIDOS) ---
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
+
+# Usamos st.markdown para crear los contenedores con la clase para el efecto
+logo_html = """
+<div class="logo-container" style="text-align: center;">
+    <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" alt="Logo ASSA" width="200">
+</div>
+"""
+
 with left_logo:
-    st.image("assets/logo_assa.jpg", width=200)
+    st.markdown(logo_html, unsafe_allow_html=True)
+
 with center_text:
-    st.title("Bienvenido a la Aplicación de RRHH")
+    st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
+
 with right_logo:
-    st.image("assets/logo_assa.jpg", width=200)
+    st.markdown(logo_html, unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -98,6 +139,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# --- TARJETAS DE NAVEGACIÓN ---
 st.markdown("""
 <div class="card-container">
     <a href="/Dotación" target="_self" class="app-card card-dotacion">
@@ -121,4 +163,3 @@ st.markdown("""
 st.markdown("---")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
-
