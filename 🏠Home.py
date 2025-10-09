@@ -1,223 +1,92 @@
 import streamlit as st
 
-# Se agrega 'layout="wide"' a la configuración de la página.
 st.set_page_config(
     page_title="Portal de RRHH",
-    page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", # URL pública del logo
+    page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg",
     layout="wide" 
 )
 
-# ----------------------------------------------------------------------------------
-# --- CSS: PANTALLA DE CARGA Y ANIMACIÓN DE UI COMPLETA ---
-# ----------------------------------------------------------------------------------
+# --- CSS ÚNICO Y SEGURO PARA LA PÁGINA DE INICIO ---
 st.markdown("""
 <style>
-/* --- Pantalla de Carga (Splash Screen) --- */
-#splash-screen {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: linear-gradient(180deg, #005f73, #0a9396, #94d2bd);
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: white;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    animation: hideSplash 1.5s ease-out 3.5s forwards;
-}
-
-#splash-logo {
-    border-radius: 25px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-    animation: fadeInScale 1.5s 0.5s ease-out forwards;
-}
-
-#splash-title {
-    animation: fadeInSlide 1.5s 1s ease-out forwards;
-}
-
-@keyframes hideSplash {
-    from { opacity: 1; }
-    to { opacity: 0; visibility: hidden; }
-}
-
-@keyframes fadeInScale { 
-    from { opacity: 0; transform: scale(0.8); }
-    to { opacity: 1; transform: scale(1); }
-}
-@keyframes fadeInSlide { 
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* --- Animación de Gotas --- */
-.droplet {
-    position: absolute;
-    bottom: 100%;
-    width: 2px;
-    height: 50px;
-    background: linear-gradient(to top, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1));
-    border-radius: 50%;
-    animation: fall linear infinite;
-}
-
-@keyframes fall { to { transform: translateY(100vh); } }
-
-/* --- Estilos del Contenido Principal --- */
-#main-content {
-    opacity: 0; /* Inicia oculto */
-    animation: showContent 1.5s ease-in 3.5s forwards;
-}
-
-@keyframes showContent {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-[data-testid="stSidebar"],
-[data-testid="stHeader"] {
-    opacity: 0; 
-    transform: translateY(-20px);
-    animation: showUI 0.75s ease-out 3.5s forwards;
-}
-
-@keyframes showUI {
-    to {
-        opacity: 1;
-        transform: translateY(0);
+    /* Corrección para que las tarjetas se apilen en móviles (pantallas angostas) */
+    @media (max-width: 768px) {
+        .card-container {
+            flex-direction: column;
+            align-items: center;
+        }
     }
-}
 
-/* --- 👇 CORRECCIÓN DEFINITIVA PARA CENTRAR LOGOS --- */
-div[data-testid="column"]:first-child,
-div[data-testid="column"]:last-child {
-    text-align: center;
-}
-
-/* --- ESTILOS RESPONSIVE PARA MÓVILES --- */
-@media (max-width: 768px) {
-    h1 { font-size: 1.8rem !important; text-align: center;}
-    h2 { font-size: 1.5rem !important; }
-    .card-title { font-size: 1.4rem !important; }
-
-    /* Apila las columnas del encabezado verticalmente */
-    div[data-testid="stHorizontalBlock"] {
-        flex-direction: column !important;
+    /* Estilos de las Tarjetas (Flexbox y Responsivo) */
+    .card-container {
+        display: flex; 
+        gap: 20px; 
+        margin-top: 40px;
+        flex-wrap: wrap; 
+        justify-content: center;
     }
+
+    .app-card {
+        flex: 1; 
+        min-width: 260px; 
+        max-width: 350px; 
+        padding: 20px;
+        border-radius: 12px; 
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease-in-out; 
+        text-align: center; 
+        cursor: pointer;
+        text-decoration: none; 
+        color: #333; 
+        min-height: 180px;
+        display: flex; 
+        flex-direction: column; 
+        justify-content: space-between;
+    }
+
+    .card-dotacion { background-color: #e0f7fa; }
+    .card-horas { background-color: #fffde7; }
+    .card-masa { background-color: #f1f8e9; }
+
+    .app-card:hover {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        transform: translateY(-5px);
+    }
+
+    .card-title {
+        font-size: 1.5em; 
+        font-weight: bold; 
+        color: #003366; 
+        margin-bottom: 10px;
+    }
+
+    .access-icon {
+        font-size: 1.6em; 
+        color: #003366; 
+        transition: transform 0.3s ease;
+    }
+
+    .app-card:hover .access-icon { transform: scale(1.2); }
     
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-         margin-bottom: 1rem;
+    a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
+        text-decoration: none !important; 
+        color: inherit;
     }
-
-    /* Ajusta el tamaño de los logos en móviles */
-    div[data-testid="stImage"] img {
-        max-width: 150px !important;
-    }
-}
-
-/* ---------- TARJETAS (CARDS) DE NAVEGACIÓN ---------- */
-.card-container {
-    display: flex;
-    gap: 20px;
-    margin-top: 40px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-.app-card {
-    flex: 1;
-    min-width: 260px;
-    max-width: 350px;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease-in-out;
-    text-align: center;
-    cursor: pointer;
-    text-decoration: none;
-    color: #333;
-    min-height: 180px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-
-.card-dotacion { background-color: #e0f7fa; }
-.card-horas { background-color: #fffde7; }
-.card-masa { background-color: #f1f8e9; }
-
-.app-card:hover {
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-    transform: translateY(-5px);
-}
-
-.card-title {
-    font-size: 1.5em;
-    font-weight: bold;
-    color: #003366;
-    margin-bottom: 10px;
-}
-
-.access-icon {
-    font-size: 1.6em;
-    color: #003366;
-    transition: transform 0.3s ease;
-}
-.app-card:hover .access-icon {
-    transform: scale(1.2);
-}
-
-a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
-    text-decoration: none !important;
-    color: inherit;
-}
 </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------------------------------------------------
-# --- PANTALLA DE CARGA (SOLO HTML) ---
-# -----------------------------------------------------------------------
-st.html("""
-<div id="splash-screen">
-    <script>
-        const splash = document.getElementById('splash-screen');
-        for (let i = 0; i < 50; i++) {
-            const droplet = document.createElement('div');
-            droplet.className = 'droplet';
-            droplet.style.left = `${Math.random() * 100}vw`;
-            droplet.style.animationDuration = `${0.5 + Math.random() * 0.5}s`;
-            droplet.style.animationDelay = `${Math.random() * 4}s`;
-            splash.appendChild(droplet);
-        }
-    </script>
-    <img id="splash-logo" src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" width="250">
-    <h1 id="splash-title">Portal de Análisis de RRHH</h1>
-</div>
-""")
-
-# -----------------------------------------------------------------------
-# --- CONTENIDO PRINCIPAL COMPLETO DE LA APP ---
-# -----------------------------------------------------------------------
-
-st.markdown('<div id="main-content">', unsafe_allow_html=True)
-
-# --- ENCABEZADO CON LOGOS Y TÍTULO ---
+# --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
-    st.image("https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", width=200)
-with center_text:
-    st.title("Bienvenido a la Aplicación de RRHH")
+    st.image("assets/logo_assa.jpg", width=200)
+with center_text:    
+    st.title("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
 with right_logo:
-    st.image("https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", width=200)
+    st.image("assets/logo_assa.jpg", width=200)
 
 st.markdown("---")
 
-# --- TEXTO INTRODUCTORIO ---
 st.markdown(
     """
     <div style="text-align: center;">
@@ -229,7 +98,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- TARJETAS NAVEGABLES ---
 st.markdown("""
 <div class="card-container">
     <a href="/Dotación" target="_self" class="app-card card-dotacion">
@@ -252,6 +120,5 @@ st.markdown("""
 
 st.markdown("---")
 
-st.markdown('</div>', unsafe_allow_html=True)
-
 st.sidebar.success("Selecciona una aplicación arriba.")
+
