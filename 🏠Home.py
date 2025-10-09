@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -8,18 +7,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CÓDIGO HTML/CSS/JS DEFINITIVO ---
-# Este bloque ahora controla todo con una clase en el <body>
-final_splash_code = """
+# --- 1. CSS INYECTADO CORRECTAMENTE CON ST.MARKDOWN ---
+# Todos los estilos van aquí para que se apliquen a toda la página.
+st.markdown("""
 <style>
-    /* 1. MIENTRAS EL SPLASH ESTÁ ACTIVO, OCULTAMOS LA APP */
-    body.splash-active [data-testid="stSidebar"],
-    body.splash-active [data-testid="stHeader"],
-    body.splash-active .main-app-content {
+    /* Ocultamos el menú y la barra superior de Streamlit por defecto */
+    [data-testid="stSidebar"], [data-testid="stHeader"] {
         visibility: hidden;
     }
 
-    /* Estilos para el overlay de la animación de inicio (sin cambios) */
+    /* Estilos para el overlay de la animación de inicio */
     .water-curtain-overlay {
         position: fixed;
         top: 0;
@@ -34,6 +31,7 @@ final_splash_code = """
         animation: fadeOutCurtain 2s ease-out 2.5s forwards;
     }
 
+    /* Animación para el logo dentro de la cortina */
     .water-curtain-logo {
         opacity: 0;
         transform: scale(0.6);
@@ -43,11 +41,19 @@ final_splash_code = """
         height: auto;
     }
 
-    /* Keyframes (sin cambios) */
+    /* El contenido principal de la app empieza transparente */
+    .main-app-content {
+        opacity: 0;
+        animation: fadeInApp 1s ease-in 4.5s forwards;
+    }
+
+    /* Keyframes */
     @keyframes fadeOutCurtain { to { opacity: 0; visibility: hidden; } }
     @keyframes fadeInLogo { to { opacity: 1; transform: scale(1); } }
-    
-    /* --- ESTILOS GENERALES DE LA APP (sin cambios) --- */
+    @keyframes fadeInApp { to { opacity: 1; } }
+
+    /* --- ESTILOS GENERALES DE LA APP (TARJETAS, ETC.) --- */
+    /* Estos estilos ahora volverán a funcionar */
     @media (max-width: 768px) { .card-container { flex-direction: column; align-items: center; } }
     .card-container { display: flex; gap: 20px; margin-top: 40px; flex-wrap: wrap; justify-content: center; }
     .app-card { flex: 1; min-width: 260px; max-width: 350px; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); transition: all 0.3s ease-in-out; text-align: center; cursor: pointer; text-decoration: none; color: #333; min-height: 180px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -58,31 +64,49 @@ final_splash_code = """
     .app-card:hover .access-icon { transform: scale(1.2); }
     a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active { text-decoration: none !important; color: inherit; }
 </style>
+""", unsafe_allow_html=True)
 
-<div class="water-curtain-overlay">
-    <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="water-curtain-logo" alt="Logo ASSA">
-</div>
+# --- 2. HTML PARA LA ANIMACIÓN DE INICIO ---
+st.markdown(
+    f"""
+    <div class="water-curtain-overlay">
+        <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="water-curtain-logo" alt="Logo ASSA">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
+# --- 3. JAVASCRIPT ROBUSTO PARA RESTAURAR LA VISIBILIDAD ---
+st.markdown("""
 <script>
-    // Busca el <body> en el documento principal
-    const body = parent.document.body;
-    
-    // 2.1 Enciende el interruptor: añade la clase para ocultar la app
-    body.classList.add('splash-active');
-
-    // 2.2 Espera 4.5 segundos y apaga el interruptor
+    // Espera a que la animación de la cortina termine (4.5 segundos)
     setTimeout(function() {
-        body.classList.remove('splash-active');
+        // Función para buscar y mostrar un componente de forma insistente
+        function showComponent(selector) {
+            const interval = setInterval(function() {
+                const element = document.querySelector(selector);
+                if (element) {
+                    element.style.visibility = 'visible';
+                    clearInterval(interval); // Detiene la búsqueda una vez encontrado
+                }
+            }, 100); // Intenta encontrarlo cada 100 milisegundos
+
+            // Por seguridad, deja de intentar después de 10 segundos
+            setTimeout(() => clearInterval(interval), 10000);
+        }
+
+        // Llama a la función para el menú y la barra superior
+        showComponent('[data-testid="stSidebar"]');
+        showComponent('[data-testid="stHeader"]');
+
     }, 4500);
 </script>
-"""
-
-# Usamos st.components.v1.html para asegurar que el script se ejecute correctamente en el contexto de la página principal
-components.html(final_splash_code, height=0)
+""", unsafe_allow_html=True)
 
 
 # --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
-# El div wrapper ya no necesita una clase especial, el CSS se encarga de todo
+st.markdown('<div class="main-app-content">', unsafe_allow_html=True)
+
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 
 with left_logo:
@@ -97,7 +121,7 @@ st.markdown("---")
 
 st.markdown(
     """
-    <div style="text-align: center;" class="main-app-content">
+    <div style="text-align: center;">
         <h2>Análisis Estratégico de Capital Humano</h2>
         <p>Esta es la página de inicio del sistema unificado de gestión de <strong>Recursos Humanos</strong>.</p>
         <p>Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.</p>
@@ -129,3 +153,5 @@ st.markdown("""
 st.markdown("---")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
+
+st.markdown('</div>', unsafe_allow_html=True)
