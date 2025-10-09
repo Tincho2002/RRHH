@@ -115,27 +115,17 @@ def format_percentage_es(num, decimals=1):
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 # --- Funciones Auxiliares ---
-def create_rounded_image_with_matte(im, rad, background_color='#f0f2f6'):
-    # Creamos la máscara "a mano" para máxima compatibilidad
-    mask = Image.new('L', im.size, 0)
+# --- Función mejorada: crea bordes redondeados con transparencia ---
+def create_rounded_image(im, radius):
+    im = im.convert("RGBA")
+    w, h = im.size
+    # Crear máscara de esquinas redondeadas
+    mask = Image.new("L", (w, h), 0)
     draw = ImageDraw.Draw(mask)
-    
-    # Dibujamos las partes rectas de la máscara
-    draw.rectangle((rad, 0, im.size[0] - rad, im.size[1]), fill=255)
-    draw.rectangle((0, rad, im.size[0], im.size[1] - rad), fill=255)
-    
-    # Dibujamos las 4 esquinas circulares en la máscara
-    draw.pieslice((0, 0, rad * 2, rad * 2), 180, 270, fill=255)
-    draw.pieslice((im.size[0] - rad * 2, 0, im.size[0], rad * 2), 270, 360, fill=255)
-    draw.pieslice((0, im.size[1] - rad * 2, rad * 2, im.size[1]), 90, 180, fill=255)
-    draw.pieslice((im.size[0] - rad * 2, im.size[1] - rad * 2, im.size[0], im.size[1]), 0, 90, fill=255)
-
-    # Creamos el fondo
-    background = Image.new('RGB', im.size, background_color)
-    
-    # Pegamos la imagen original usando la máscara que acabamos de dibujar
-    background.paste(im.convert('RGB'), (0, 0), mask)
-    return background
+    draw.rounded_rectangle([(0, 0), (w, h)], radius=radius, fill=255)
+    # Aplicar la máscara
+    im.putalpha(mask)
+    return im
     
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     st.markdown("##### Opciones de Descarga:")
@@ -570,11 +560,11 @@ if uploaded_file is not None:
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
                                 
-                                    # --- Usamos la nueva función ---
-                                    radius = 30 
-                                    img1_final = create_rounded_image_with_matte(img1_pil, radius)
-                                    img2_final = create_rounded_image_with_matte(img2_pil, radius)
-                                    # -----------------------------
+                                    # --- NUEVA VERSIÓN: imágenes con transparencia real y bordes redondeados ---
+                                    radius = 40
+                                    img1_final = create_rounded_image(img1_pil, radius)
+                                    img2_final = create_rounded_image(img2_pil, radius)
+                                    # ----------------------------------------------------------
                                                                     
                                     image_comparison(
                                         img1=img1_final, # Usamos la nueva imagen final
@@ -691,6 +681,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
