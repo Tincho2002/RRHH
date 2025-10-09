@@ -579,8 +579,8 @@ if uploaded_file is not None:
                                     image_comparison(
                                         img1=img1_final, # Usamos la nueva imagen final
                                         img2=img2_final, # Usamos la nueva imagen final
-                                        label1=style1_name,
-                                        label2=style2_name,
+                                        #label1=style1_name,
+                                        #label2=style2_name,
                                     )
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
@@ -691,6 +691,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
