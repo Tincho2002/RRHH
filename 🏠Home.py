@@ -79,8 +79,8 @@ st.markdown("""
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
     st.image("assets/logo_assa.jpg", width=200)
-with center_text:    
-    st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True) 
+with center_text:
+    st.title("Bienvenido a la Aplicación de RRHH")
     st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
 with right_logo:
     st.image("assets/logo_assa.jpg", width=200)
