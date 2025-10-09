@@ -60,7 +60,7 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
 .img-comp-container {
    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
    border-radius: 0.8rem; /* Esto ayuda a que la sombra también se vea redondeada */
-   width:100%;
+   overflow: hidden;
 }
 
 /* --- FIN DE ESTILOS AGREGADOS --- */
@@ -680,4 +680,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
