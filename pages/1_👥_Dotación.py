@@ -59,7 +59,7 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
 /* Regla #3: Agrega una sombra y redondeo al contenedor del comparador */
 .img-comp-container {
    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-   border-radius: 2.8rem; /* Ayuda a que la sombra se vea redondeada */
+   border-radius: 0.8rem; /* Ayuda a que la sombra se vea redondeada */
    overflow: hidden; /* CORRECCIÓN: Asegura que el contenido (imágenes) se recorte */
 }
 
@@ -674,4 +674,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
