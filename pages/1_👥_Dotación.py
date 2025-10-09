@@ -112,27 +112,17 @@ def format_percentage_es(num, decimals=1):
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 # --- Funciones Auxiliares ---
-# ▼▼▼ INICIO DE LA CORRECCIÓN ▼▼▼
 def create_rounded_image_with_matte(im, rad):
     """
     Crea una imagen con esquinas redondeadas y fondo transparente.
-    Esta versión corregida genera un canal Alfa para la transparencia.
     """
-    # Crear una máscara alfa con esquinas redondeadas. Es un lienzo en blanco y negro.
     mask = Image.new('L', im.size, 0)
     draw = ImageDraw.Draw(mask)
     draw.rounded_rectangle((0, 0, im.size[0], im.size[1]), radius=rad, fill=255)
-
-    # Crear una imagen de salida con canal alfa (RGBA) y fondo completamente transparente.
     output = Image.new('RGBA', im.size, (0, 0, 0, 0))
-
-    # Pegar la imagen original (convertida a RGB por seguridad) en la imagen
-    # de salida, utilizando la máscara. La máscara asegura que solo el área
-    # del rectángulo redondeado sea visible.
     output.paste(im.convert("RGB"), (0, 0), mask)
-
     return output
-# ▲▲▲ FIN DE LA CORRECCIÓN ▲▲▲
+
 def make_color_transparent(img, color_to_transparent):
     """
     Toma una imagen PIL y un color (R, G, B), y hace que todos los
@@ -142,7 +132,6 @@ def make_color_transparent(img, color_to_transparent):
     datas = img.getdata()
     newData = []
     for item in datas:
-        # Si el píxel es del color a eliminar (RGB), lo hacemos transparente (A=0)
         if item[0] == color_to_transparent[0] and item[1] == color_to_transparent[1] and item[2] == color_to_transparent[2]:
             newData.append((255, 255, 255, 0))
         else:
@@ -562,7 +551,6 @@ if uploaded_file is not None:
                 fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 return fig
 
-            # ▼▼▼ INICIO DE LA CORRECCIÓN DE INDENTACIÓN ▼▼▼
             if show_map_comparison:
                 df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
                 
@@ -583,9 +571,9 @@ if uploaded_file is not None:
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
 
                                     background_colors = {
-                                        "Satélite con Calles": (0, 0, 0),
-                                        "Mapa de Calles": (255, 255, 255),
-                                        "Estilo Claro": (229, 227, 223)
+                                        "Satélite con Calles": (0, 0, 0),      # Negro
+                                        "Mapa de Calles": (255, 255, 255), # Blanco
+                                        "Estilo Claro": (229, 227, 223)  # Color casi blanco del estilo Positron
                                     }
                                     
                                     bg_color1 = background_colors.get(style1_name, (0, 0, 0))
@@ -619,20 +607,6 @@ if uploaded_file is not None:
                         total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
                         df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
                         st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=500, hide_index=True)
-            
-            else:
-                st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
-            # ▲▲▲ FIN DE LA CORRECCIÓN DE INDENTACIÓN ▲▲▲
-        
-                    with comp_col2:
-                            pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
-                            if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
-                            if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
-                            pivot_table['Total'] = pivot_table['Convenio'] + pivot_table['FC']
-                            pivot_table.sort_values(by='Total', ascending=False, inplace=True)
-                            total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
-                            df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
-                            st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=500, hide_index=True)
             
             else:
                 st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
@@ -726,10 +700,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
-
-
-
-
-
