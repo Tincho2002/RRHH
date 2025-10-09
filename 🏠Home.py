@@ -184,12 +184,12 @@ st.markdown('<div id="main-content">', unsafe_allow_html=True)
 # --- ENCABEZADO CON LOGOS Y TÍTULO ---
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
-    st.image("assets/logo_assa.jpg", width=500)
+    st.image("assets/logo_assa.jpg", width=300)
 with center_text:
     st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
 with right_logo:
-    st.image("assets/logo_assa.jpg", width=500)
+    st.image("assets/logo_assa.jpg", width=300)
 
 st.markdown("---")
 
@@ -233,6 +233,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
 
 
