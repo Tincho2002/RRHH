@@ -59,39 +59,16 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
 /* Regla #3: Agrega una sombra y redondeo al contenedor del comparador */
 .img-comp-container {
    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-   border-radius: 1.5rem; /* Ayuda a que la sombra se vea redondeada */
-   overflow: hidden; /* CORRECCIÓN: Asegura que el contenido (imágenes) se recorte */
+   border-radius: 1.5rem;
+   overflow: hidden;
 }
 
 /* Regla #4: Estiliza las etiquetas del comparador de mapas */
 div[data-testid="stImageComparison"] > div > div[class*="label"] {
     background-color: transparent !important;
     color: white !important;
-    text-shadow: 1px 1px 2px black; /* Sombra para legibilidad */
+    text-shadow: 1px 1px 2px black;
     font-weight: bold;
-}
-
-/* --- FIN DE ESTILOS AGREGADOS --- */
-
-
-/* --- REGLAS RESPONSIVE GENERALES --- */
-@media (max-width: 768px) {
-    h1 { font-size: 1.9rem; }
-    h2 { font-size: 1.5rem; }
-    h3 { font-size: 1.2rem; }
-
-    div[data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
-    }
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        flex: 1 1 100% !important;
-        min-width: 100% !important;
-        margin-bottom: 1rem;
-    }
-    
-    .stTabs {
-        overflow-x: auto;
-    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -113,9 +90,6 @@ def format_percentage_es(num, decimals=1):
 
 # --- Funciones Auxiliares ---
 def create_rounded_image_with_matte(im, rad):
-    """
-    Crea una imagen con esquinas redondeadas y fondo transparente.
-    """
     mask = Image.new('L', im.size, 0)
     draw = ImageDraw.Draw(mask)
     draw.rounded_rectangle((0, 0, im.size[0], im.size[1]), radius=rad, fill=255)
@@ -123,21 +97,28 @@ def create_rounded_image_with_matte(im, rad):
     output.paste(im.convert("RGB"), (0, 0), mask)
     return output
 
-def flood_fill_transparent(img, tolerance=30):
+def remove_background_chroma_key(img, tolerance=30):
     """
-    Usa el método de relleno por inundación (flood fill) para hacer 
-    transparente el fondo de una imagen, manejando el anti-aliasing.
+    Solución definitiva. Pinta el fondo con un color clave (magenta) y luego
+    hace transparente solo ese color.
     """
-    img = img.convert("RGBA")
-    seed_point = (0, 0)
-    fill_color = (255, 255, 255, 0)
-    
-    if img.getpixel(seed_point)[3] == 0:
-        return img
-        
-    ImageDraw.floodfill(img, seed_point, fill_color, thresh=tolerance)
-    return img
-    
+    # 1. Pintar el fondo de un color clave (magenta)
+    img_filled = img.convert("RGB")
+    key_color = (255, 0, 255)
+    ImageDraw.floodfill(img_filled, (0, 0), key_color, thresh=tolerance)
+
+    # 2. Hacer transparente el color clave
+    final_img = img_filled.convert("RGBA")
+    datas = final_img.getdata()
+    newData = []
+    for item in datas:
+        if item[0] == key_color[0] and item[1] == key_color[1] and item[2] == key_color[2]:
+            newData.append((255, 255, 255, 0))  # Pixel transparente
+        else:
+            newData.append(item)
+    final_img.putdata(newData)
+    return final_img
+
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     st.markdown("##### Opciones de Descarga:")
     col_dl1, col_dl2 = st.columns(2)
@@ -154,7 +135,7 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
 def apply_all_filters(df, selections):
     _df = df.copy()
     for col, values in selections.items():
-        if values and col in _df.columns: 
+        if values and col in _df.columns:
             _df = _df[_df[col].isin(values)]
     return _df
 
@@ -177,11 +158,11 @@ def get_sorted_unique_options(dataframe, column_name):
             return sorted(unique_values, key=lambda x: month_order.get(x, 99))
         return sorted(unique_values)
     return []
-    
+
 def get_available_options(df, selections, target_column):
     _df = df.copy()
     for col, values in selections.items():
-        if col != target_column and values and col in _df.columns: 
+        if col != target_column and values and col in _df.columns:
             _df = _df[_df[col].isin(values)]
     return get_sorted_unique_options(_df, target_column)
 
@@ -204,12 +185,12 @@ def load_and_clean_data(uploaded_file):
         return pd.DataFrame()
     if df_excel.empty: return pd.DataFrame()
     if 'LEGAJO' in df_excel.columns: df_excel['LEGAJO'] = pd.to_numeric(df_excel['LEGAJO'], errors='coerce')
-    
+
     excel_col_fecha_ingreso_raw = 'Fecha ing.'
     excel_col_fecha_nacimiento_raw = 'Fecha Nac.'
     excel_col_rango_antiguedad_raw = 'Rango (Antigüedad)'
     excel_col_rango_edad_raw = 'Rango (Edad)'
-    
+
     if excel_col_rango_antiguedad_raw in df_excel.columns and df_excel[excel_col_rango_antiguedad_raw].notna().sum() > 0:
         df_excel['Rango Antiguedad'] = df_excel[excel_col_rango_antiguedad_raw].astype(str).str.strip().str.lower()
     else:
@@ -222,7 +203,7 @@ def load_and_clean_data(uploaded_file):
                 df_excel['Rango Antiguedad'] = pd.cut(df_excel['Antiguedad (años)'], bins=bins_antiguedad, labels=labels_antiguedad, right=False, include_lowest=True).astype(str).str.strip().str.lower()
             else: df_excel['Rango Antiguedad'] = 'no disponible'
         else: df_excel['Rango Antiguedad'] = 'no disponible'
-    
+
     if excel_col_rango_edad_raw in df_excel.columns and df_excel[excel_col_rango_edad_raw].notna().sum() > 0:
         df_excel['Rango Edad'] = df_excel[excel_col_rango_edad_raw].astype(str).str.strip().str.lower()
     else:
@@ -235,7 +216,7 @@ def load_and_clean_data(uploaded_file):
                 df_excel['Rango Edad'] = pd.cut(df_excel['Edad (años)'], bins=bins_edad, labels=labels_edad, right=False, include_lowest=True).astype(str).str.strip().str.lower()
             else: df_excel['Rango Edad'] = 'no disponible'
         else: df_excel['Rango Edad'] = 'no disponible'
-    
+
     if 'Periodo' in df_excel.columns:
         try:
             temp_periodo = pd.to_datetime(df_excel['Periodo'], errors='coerce')
@@ -256,9 +237,9 @@ def load_and_clean_data(uploaded_file):
         df_excel[col] = df_excel[col].astype(str).replace(['None', 'nan', ''], 'no disponible').str.strip()
         if col in ['Rango Antiguedad', 'Rango Edad']: df_excel[col] = df_excel[col].str.lower()
         elif col == 'Periodo': df_excel[col] = df_excel[col].str.capitalize()
-    
+
     return df_excel
-    
+
 # --- INICIO DE LA APLICACIÓN ---
 st.title("👥 Dotación 2025")
 st.write("Estructura y distribución geográfica y por gerencia de personal")
@@ -279,7 +260,7 @@ if uploaded_file is not None:
     st.markdown("---")
 
     st.sidebar.header('Filtros del Dashboard')
-    
+
     filter_cols_config = {
         'Periodo': 'Periodo', 'Gerencia': 'Gerencia', 'Relación': 'Relación', 'Función': 'Función',
         'Distrito': 'Distrito', 'Ministerio': 'Ministerio', 'Rango Antiguedad': 'Antigüedad',
@@ -320,14 +301,14 @@ if uploaded_file is not None:
         st.rerun()
 
     filtered_df = apply_all_filters(df, st.session_state.selections)
-    
+
     st.write(f"Después de aplicar los filtros, se muestran **{format_integer_es(len(filtered_df))}** registros.")
     st.markdown("---")
-    
+
     period_to_display = None
     all_periodos = get_sorted_unique_options(df, 'Periodo')
     selected_periodos = st.session_state.selections.get('Periodo', [])
-    
+
     if selected_periodos:
         sorted_selected_periods = [p for p in all_periodos if p in selected_periodos]
         if sorted_selected_periods:
@@ -421,10 +402,10 @@ if uploaded_file is not None:
     if not df_coords.empty:
         tab_names.insert(1, "🗺️ Mapa Geográfico")
         tab_names.insert(1, "🗺️ Comparador de Mapas")
-    
+
     tabs = st.tabs(tab_names)
     tab_map_comparador, tab_map_individual = (None, None)
-    
+
     tab_resumen = tabs[0]
     tab_index = 1
     if not df_coords.empty:
@@ -541,9 +522,9 @@ if uploaded_file is not None:
                     size="Dotacion_Total", color="Dotacion_Total",
                     hover_name="Distrito",
                     hover_data={"Latitud": False, "Longitud": False, "Dotacion_Total": True},
-                    color_continuous_scale=px.colors.sequential.Plasma, 
+                    color_continuous_scale=px.colors.sequential.Plasma,
                     size_max=50,
-                    mapbox_style=mapbox_style, 
+                    mapbox_style=mapbox_style,
                     zoom=6, center={"lat": -32.5, "lon": -61.5}
                 )
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
@@ -556,7 +537,7 @@ if uploaded_file is not None:
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
                     st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
                 else:
-                    comp_col1, comp_col2 = st.columns([3, 2]) 
+                    comp_col1, comp_col2 = st.columns([3, 2])
                     with comp_col1:
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
                             try:
@@ -568,10 +549,10 @@ if uploaded_file is not None:
                                     
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
-
-                                    img1_pil = flood_fill_transparent(img1_pil, tolerance=40)
-                                    img2_pil = flood_fill_transparent(img2_pil, tolerance=40)
-
+                                    
+                                    img1_pil = remove_background_chroma_key(img1_pil, tolerance=40)
+                                    img2_pil = remove_background_chroma_key(img2_pil, tolerance=40)
+                                    
                                     radius = 50
                                     img1_final = create_rounded_image_with_matte(img1_pil, radius)
                                     img2_final = create_rounded_image_with_matte(img2_pil, radius)
