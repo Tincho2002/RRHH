@@ -1,5 +1,4 @@
 import streamlit as st
-import time
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -8,7 +7,7 @@ st.set_page_config(
     layout="wide" 
 )
 
-# --- CSS ÚNICO Y SEGURO PARA LA PÁGINA DE INICIO Y EFECTO DE CORTINA DE AGUA ---
+# --- CSS CORREGIDO PARA LA ANIMACIÓN Y LA APP ---
 st.markdown("""
 <style>
     /* Estilos para el overlay de la animación de inicio */
@@ -18,31 +17,39 @@ st.markdown("""
         left: 0;
         width: 100%;
         height: 100%;
-        background: linear-gradient(135deg, rgba(0, 150, 255, 0.8) 0%, rgba(0, 51, 102, 0.8) 100%); /* Efecto de agua/azul oscuro */
+        background: linear-gradient(135deg, rgba(0, 150, 255, 0.9) 0%, rgba(0, 51, 102, 0.95) 100%);
         display: flex;
-        flex-direction: column;
         justify-content: center;
         align-items: center;
-        z-index: 9999; /* Asegura que esté por encima de todo */
-        opacity: 1;
-        animation: fadeOutCurtain 2s ease-out 2s forwards; /* Duración de la animación + delay */
-        /* forwards mantiene el estado final de la animación */
+        z-index: 9999;
+        /* La animación dura 1.5s, empieza después de un delay de 2s, y se mantiene en su estado final (oculto) */
+        animation: fadeOutCurtain 1.5s ease-out 2s forwards;
     }
 
     /* Animación para el logo dentro de la cortina */
     .water-curtain-logo {
         opacity: 0;
-        transform: translateY(20px);
-        animation: fadeInLogo 1.5s ease-out 0.5s forwards; /* Aparece después de 0.5s */
-        max-width: 300px; /* Ajusta el tamaño del logo */
+        transform: scale(0.8);
+        /* La animación dura 1.5s y empieza después de 0.5s */
+        animation: fadeInLogo 1.5s ease-out 0.5s forwards;
+        max-width: 300px;
         height: auto;
+    }
+    
+    /* El contenido principal de la app */
+    .main-content {
+        /* Empieza invisible */
+        visibility: hidden;
+        opacity: 0;
+        /* La animación para mostrarlo empieza después de 3.5s, justo cuando la cortina se va */
+        animation: showContent 0.5s ease-in 3.5s forwards;
     }
 
     /* Keyframes para desvanecer la cortina */
     @keyframes fadeOutCurtain {
         to {
             opacity: 0;
-            visibility: hidden; /* Oculta completamente una vez desvanecido */
+            visibility: hidden; /* Oculta completamente la cortina al final */
         }
     }
 
@@ -50,11 +57,26 @@ st.markdown("""
     @keyframes fadeInLogo {
         to {
             opacity: 1;
-            transform: translateY(0);
+            transform: scale(1);
         }
     }
 
-    /* Corrección para que las tarjetas se apilen en móviles (pantallas angostas) */
+    /* Keyframes para mostrar el contenido principal */
+    @keyframes showContent {
+        /* En el primer instante de la animación, se hace visible */
+        0% {
+            visibility: visible;
+            opacity: 0;
+        }
+        /* Al final, es totalmente opaco */
+        100% {
+            visibility: visible;
+            opacity: 1;
+        }
+    }
+    
+    /* --- ESTILOS GENERALES DE LA APP (SIN CAMBIOS) --- */
+
     @media (max-width: 768px) {
         .card-container {
             flex-direction: column;
@@ -62,7 +84,6 @@ st.markdown("""
         }
     }
 
-    /* Estilos de las Tarjetas (Flexbox y Responsivo) */
     .card-container {
         display: flex; 
         gap: 20px; 
@@ -117,31 +138,10 @@ st.markdown("""
         text-decoration: none !important; 
         color: inherit;
     }
-
-    /* Para asegurar que el resto del contenido no sea visible hasta que la animación termine */
-    .content-hidden-until-animation {
-        opacity: 0;
-        animation: showContent 0.1s ease-out 4s forwards; /* Aparece después que la cortina haya terminado */
-    }
-
-    @keyframes showContent {
-        to {
-            opacity: 1;
-        }
-    }
-
-    /* Ocultar elementos de Streamlit que podrían aparecer antes del efecto */
-    #root > div:nth-child(1) > div > div > div > div {
-        visibility: hidden;
-    }
-    .water-curtain-overlay ~ div {
-        visibility: hidden;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- ANIMACIÓN DE INICIO: CORTINA DE AGUA Y LOGO ---
-# Muestra la cortina con el logo. El CSS se encarga de la animación.
 st.markdown(
     f"""
     <div class="water-curtain-overlay">
@@ -151,17 +151,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Un pequeño delay para permitir que la animación CSS se complete antes de que el resto del contenido se cargue
-# Esto es más para la sensación, el CSS ya maneja la visibilidad.
-time.sleep(3.5) # Ajusta este tiempo si la animación es más larga o corta
-
 # --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
-# Envuelve todo el contenido principal en un div que se hará visible después de la animación
-st.markdown('<div class="content-hidden-until-animation">', unsafe_allow_html=True)
+# Se envuelve todo en un div con la clase 'main-content' para que la animación de entrada funcione
+st.markdown('<div class="main-content">', unsafe_allow_html=True)
 
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 
-# Ahora los logos "normales" de la cabecera, sin el efecto de onda inicial
 with left_logo:
     st.image("https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", width=200)
 with center_text:
@@ -183,7 +178,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- TARJETAS DE NAVEGACIÓN ---
 st.markdown("""
 <div class="card-container">
     <a href="/Dotación" target="_self" class="app-card card-dotacion">
