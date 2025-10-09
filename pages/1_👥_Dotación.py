@@ -60,20 +60,13 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
 .img-comp-container {
    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
    border-radius: 0.8rem; /* Esto ayuda a que la sombra también se vea redondeada */
-   overflow: hidden;
-   padding: 3.75rem;
 }
-/* ÚLTIMO RECURSO: Apuntar al primer div dentro del bloque horizontal de columnas */
-/*div[data-testid="stHorizontalBlock"] > div:first-child {*/
-    /*border-radius: 0.8rem;*/
-    /*overflow: hidden;*/
-    /*box-shadow: 0 4px 8px rgba(0,0,0,0.1);*/
-    /*width:100%;*/
+/* Regla #4: Aplica borde redondeado real al comparador de mapas */
+[data-testid="stImageComparison"] {
+   border-radius: 0.8rem !important;
+   overflow: hidden !important;
+   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
-/* Y aquí aplicamos el margen negativo para eliminar el zócalo */
-/*div[data-testid="stHorizontalBlock"] > div:first-child > div[data-testid="stVerticalBlock"] {*/
-    /*margin-bottom: 0px !important;*/
-
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
 
@@ -115,17 +108,15 @@ def format_percentage_es(num, decimals=1):
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 # --- Funciones Auxiliares ---
-# --- Función mejorada: crea bordes redondeados con transparencia ---
 def create_rounded_image_with_matte(im, rad, background_color='#f0f2f6'):
-    """Redondea los bordes de una imagen con un color de fondo suave, 
-    manteniendo la compatibilidad con el comparador de mapas."""
+    """Crea una imagen con bordes redondeados y fondo suave compatible con streamlit-image-comparison."""
     im = im.convert("RGBA")
-    mask = Image.new('L', im.size, 0)
+    mask = Image.new("L", im.size, 0)
     draw = ImageDraw.Draw(mask)
     draw.rounded_rectangle([(0, 0), im.size], radius=rad, fill=255)
     rounded = ImageOps.fit(im, im.size, centering=(0.5, 0.5))
     rounded.putalpha(mask)
-    background = Image.new('RGBA', im.size, background_color)
+    background = Image.new("RGBA", im.size, background_color)
     background.paste(rounded, (0, 0), mask=rounded)
     return background.convert("RGB")
     
@@ -562,17 +553,17 @@ if uploaded_file is not None:
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
                                 
-                                    # --- NUEVA VERSIÓN: imágenes con transparencia real y bordes redondeados ---
-                                    radius = 40
-                                    img1_final = create_rounded_image(img1_pil, radius)
-                                    img2_final = create_rounded_image(img2_pil, radius)
-                                    # ----------------------------------------------------------
+                                    # --- Usamos la nueva función ---
+                                    radius = 30 
+                                    img1_final = create_rounded_image_with_matte(img1_pil, radius)
+                                    img2_final = create_rounded_image_with_matte(img2_pil, radius)
+                                    # -----------------------------
                                                                     
                                     image_comparison(
                                         img1=img1_final, # Usamos la nueva imagen final
                                         img2=img2_final, # Usamos la nueva imagen final
-                                        #label1=style1_name,
-                                        #label2=style2_name,
+                                        label1=style1_name,
+                                        label2=style2_name,
                                     )
                                 else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
@@ -683,19 +674,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
