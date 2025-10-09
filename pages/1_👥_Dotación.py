@@ -133,6 +133,22 @@ def create_rounded_image_with_matte(im, rad):
 
     return output
 # ▲▲▲ FIN DE LA CORRECCIÓN ▲▲▲
+def make_color_transparent(img, color_to_transparent):
+    """
+    Toma una imagen PIL y un color (R, G, B), y hace que todos los
+    píxeles de ese color se vuelvan transparentes.
+    """
+    img = img.convert("RGBA")
+    datas = img.getdata()
+    newData = []
+    for item in datas:
+        # Si el píxel es del color a eliminar (RGB), lo hacemos transparente (A=0)
+        if item[0] == color_to_transparent[0] and item[1] == color_to_transparent[1] and item[2] == color_to_transparent[2]:
+            newData.append((255, 255, 255, 0))
+        else:
+            newData.append(item)
+    img.putdata(newData)
+    return img
     
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     st.markdown("##### Opciones de Descarga:")
@@ -548,40 +564,60 @@ if uploaded_file is not None:
                 return fig
 
             if show_map_comparison:
-                df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
-                
-                if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
-                    st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
-                else:
-                    comp_col1, comp_col2 = st.columns([3, 2]) 
-                    with comp_col1:
-                        with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
-                            try:
-                                fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
-                                fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
-                                if fig1 and fig2:
-                                    img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
-                                    img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
-                                    
-                                    img1_pil = Image.open(io.BytesIO(img1_bytes))
-                                    img2_pil = Image.open(io.BytesIO(img2_bytes))
-                                
-                                    radius = 50 
-                                    # Usamos la función corregida para crear imágenes con fondo transparente
-                                    img1_final = create_rounded_image_with_matte(img1_pil, radius)
-                                    img2_final = create_rounded_image_with_matte(img2_pil, radius)
-                                                                    
-                                    image_comparison(
-                                        img1=img1_final,
-                                        img2=img2_final,
-                                        label1=style1_name,
-                                        label2=style2_name,
-                                    )
-                                else:
-                                    st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
-                            except Exception as e:
-                                st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
-                                st.info("Intente recargar la página o seleccionar un período con menos datos.")
+    df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
+    
+    if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
+        st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
+    else:
+        comp_col1, comp_col2 = st.columns([3, 2]) 
+        with comp_col1:
+            with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
+                try:
+                    fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
+                    fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
+                    if fig1 and fig2:
+                        img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
+                        img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
+                        
+                        img1_pil = Image.open(io.BytesIO(img1_bytes))
+                        img2_pil = Image.open(io.BytesIO(img2_bytes))
+
+                        # ▼▼▼ INICIO DE LA CORRECCIÓN CLAVE ▼▼▼
+
+                        # 1. Definimos los colores de fondo de cada estilo de mapa
+                        background_colors = {
+                            "Satélite con Calles": (0, 0, 0),      # Negro
+                            "Mapa de Calles": (255, 255, 255), # Blanco
+                            "Estilo Claro": (229, 227, 223)  # Color casi blanco del estilo Positron
+                        }
+                        
+                        # 2. Obtenemos el color de fondo para cada mapa seleccionado
+                        bg_color1 = background_colors.get(style1_name, (0, 0, 0))
+                        bg_color2 = background_colors.get(style2_name, (255, 255, 255))
+
+                        # 3. Usamos la nueva función para eliminar el fondo de cada imagen
+                        img1_pil = make_color_transparent(img1_pil, bg_color1)
+                        img2_pil = make_color_transparent(img2_pil, bg_color2)
+
+                        # ▲▲▲ FIN DE LA CORRECCIÓN CLAVE ▲▲▲
+
+                        # Ahora, procedemos a redondear la imagen que ya no tiene fondo
+                        radius = 50
+                        img1_final = create_rounded_image_with_matte(img1_pil, radius)
+                        img2_final = create_rounded_image_with_matte(img2_pil, radius)
+                                                        
+                        image_comparison(
+                            img1=img1_final,
+                            img2=img2_final,
+                            label1=style1_name,
+                            label2=style2_name,
+                        )
+                    else:
+                        st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
+                except Exception as e:
+                    st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
+                    st.info("Intente recargar la página o seleccionar un período con menos datos.")
+        
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
@@ -684,6 +720,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
