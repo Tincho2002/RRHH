@@ -559,64 +559,70 @@ if uploaded_file is not None:
                     zoom=6, center={"lat": -32.5, "lon": -61.5}
                 )
                 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-                # ▼▼▼ LÍNEA AÑADIDA PARA FONDO TRANSPARENTE ▼▼▼
                 fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 return fig
 
+            # ▼▼▼ INICIO DE LA CORRECCIÓN DE INDENTACIÓN ▼▼▼
             if show_map_comparison:
-    df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
-    
-    if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
-        st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
-    else:
-        comp_col1, comp_col2 = st.columns([3, 2]) 
-        with comp_col1:
-            with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
-                try:
-                    fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
-                    fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
-                    if fig1 and fig2:
-                        img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
-                        img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
-                        
-                        img1_pil = Image.open(io.BytesIO(img1_bytes))
-                        img2_pil = Image.open(io.BytesIO(img2_bytes))
+                df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
+                
+                if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
+                    st.warning("La columna 'Distrito' no se encuentra en los datos o en el archivo de coordenadas.")
+                else:
+                    comp_col1, comp_col2 = st.columns([3, 2]) 
+                    with comp_col1:
+                        with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
+                            try:
+                                fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
+                                fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
+                                if fig1 and fig2:
+                                    img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
+                                    img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
+                                    
+                                    img1_pil = Image.open(io.BytesIO(img1_bytes))
+                                    img2_pil = Image.open(io.BytesIO(img2_bytes))
 
-                        # ▼▼▼ INICIO DE LA CORRECCIÓN CLAVE ▼▼▼
+                                    background_colors = {
+                                        "Satélite con Calles": (0, 0, 0),
+                                        "Mapa de Calles": (255, 255, 255),
+                                        "Estilo Claro": (229, 227, 223)
+                                    }
+                                    
+                                    bg_color1 = background_colors.get(style1_name, (0, 0, 0))
+                                    bg_color2 = background_colors.get(style2_name, (255, 255, 255))
 
-                        # 1. Definimos los colores de fondo de cada estilo de mapa
-                        background_colors = {
-                            "Satélite con Calles": (0, 0, 0),      # Negro
-                            "Mapa de Calles": (255, 255, 255), # Blanco
-                            "Estilo Claro": (229, 227, 223)  # Color casi blanco del estilo Positron
-                        }
-                        
-                        # 2. Obtenemos el color de fondo para cada mapa seleccionado
-                        bg_color1 = background_colors.get(style1_name, (0, 0, 0))
-                        bg_color2 = background_colors.get(style2_name, (255, 255, 255))
+                                    img1_pil = make_color_transparent(img1_pil, bg_color1)
+                                    img2_pil = make_color_transparent(img2_pil, bg_color2)
 
-                        # 3. Usamos la nueva función para eliminar el fondo de cada imagen
-                        img1_pil = make_color_transparent(img1_pil, bg_color1)
-                        img2_pil = make_color_transparent(img2_pil, bg_color2)
-
-                        # ▲▲▲ FIN DE LA CORRECCIÓN CLAVE ▲▲▲
-
-                        # Ahora, procedemos a redondear la imagen que ya no tiene fondo
-                        radius = 50
-                        img1_final = create_rounded_image_with_matte(img1_pil, radius)
-                        img2_final = create_rounded_image_with_matte(img2_pil, radius)
-                                                        
-                        image_comparison(
-                            img1=img1_final,
-                            img2=img2_final,
-                            label1=style1_name,
-                            label2=style2_name,
-                        )
-                    else:
-                        st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
-                except Exception as e:
-                    st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
-                    st.info("Intente recargar la página o seleccionar un período con menos datos.")
+                                    radius = 50
+                                    img1_final = create_rounded_image_with_matte(img1_pil, radius)
+                                    img2_final = create_rounded_image_with_matte(img2_pil, radius)
+                                                                    
+                                    image_comparison(
+                                        img1=img1_final,
+                                        img2=img2_final,
+                                        label1=style1_name,
+                                        label2=style2_name,
+                                    )
+                                else:
+                                    st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
+                            except Exception as e:
+                                st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
+                                st.info("Intente recargar la página o seleccionar un período con menos datos.")
+                    
+                    with comp_col2:
+                        pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
+                        if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
+                        if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
+                        pivot_table['Total'] = pivot_table['Convenio'] + pivot_table['FC']
+                        pivot_table.sort_values(by='Total', ascending=False, inplace=True)
+                        total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
+                        df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
+                        st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=500, hide_index=True)
+            
+            else:
+                st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
+            # ▲▲▲ FIN DE LA CORRECCIÓN DE INDENTACIÓN ▲▲▲
         
                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
@@ -720,6 +726,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
