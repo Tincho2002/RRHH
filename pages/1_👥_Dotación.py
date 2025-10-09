@@ -56,12 +56,6 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
     gap: 0;
 }
 
-/* Regla #3: Agrega una sombra al contenedor del comparador para consistencia visual */
-/*.img-comp-container {*/
-   /*box-shadow: 0 4px 8px rgba(0,0,0,0.1);*/
-   /*border-radius: 0.8rem; /* Esto ayuda a que la sombra también se vea redondeada */
-/*}*/
-/* Regla #4: Aplica borde redondeado real al comparador de mapas */
 [data-testid="stImageComparison"] {
    border-radius: 0.8rem !important;
    overflow: hidden !important;
@@ -674,5 +668,6 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
