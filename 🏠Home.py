@@ -7,78 +7,52 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- ESTADO 1: PANTALLA DE PRESENTACIÓN CON BOTÓN DE INGRESO ---
+# --- ESTADO 1: PANTALLA DE PRESENTACIÓN ---
 def show_splash_screen():
-    # CSS para la pantalla de presentación y para centrar el botón
-    splash_screen_css = """
+    # Contiene todo: CSS para ocultar la app, HTML para la animación, y JS para la transición
+    splash_page_content = """
     <style>
-        /* Oculta completamente la app de Streamlit detrás */
-        #root > div:nth-child(1) > div:nth-child(1) > div {
+        /* Oculta la app de Streamlit completamente mientras el splash está activo */
+        [data-testid="stSidebar"],
+        [data-t'estid="stHeader"],
+        #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) {
             display: none;
         }
-        
-        .water-curtain-overlay {
+
+        /* Estilos para el overlay de la animación */
+        .splash-container {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: linear-gradient(180deg, rgba(0, 102, 204, 0.95) 0%, rgba(0, 51, 102, 0.9) 100%);
-            display: flex;
-            flex-direction: column; /* Para apilar el logo y el botón */
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
+            display: flex; justify-content: center; align-items: center; z-index: 9999;
         }
 
-        .water-curtain-logo {
-            opacity: 0;
-            transform: scale(0.6);
-            border-radius: 20px;
+        .splash-logo {
+            opacity: 0; transform: scale(0.6); border-radius: 20px;
             animation: fadeInLogo 1.5s ease-out 0.5s forwards;
-            max-width: 250px;
-            height: auto;
-            margin-bottom: 30px; /* Espacio entre el logo y el botón */
+            max-width: 250px; height: auto;
         }
 
-        @keyframes fadeInLogo {
-            to { opacity: 1; transform: scale(1); }
-        }
-        
-        /* Contenedor para el botón de Streamlit para poder centrarlo */
-        div[data-testid="stButton"] {
-            display: flex;
-            justify-content: center;
-        }
-        
-        /* Estilo del botón */
-        div[data-testid="stButton"] > button {
-            background-color: #ffffff;
-            color: #003366;
-            border: 2px solid #003366;
-            padding: 10px 24px;
-            border-radius: 8px;
-            font-weight: bold;
-            opacity: 0;
-            animation: fadeInLogo 1s ease-in 1.5s forwards; /* Aparece después del logo */
-        }
+        @keyframes fadeInLogo { to { opacity: 1; transform: scale(1); } }
     </style>
-    """
-    st.markdown(splash_screen_css, unsafe_allow_html=True)
 
-    # HTML solo para el fondo y el logo
-    st.markdown("""
-    <div class="water-curtain-overlay">
-        <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="water-curtain-logo" alt="Logo ASSA">
+    <div class="splash-container">
+        <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="splash-logo" alt="Logo ASSA">
     </div>
-    """, unsafe_allow_html=True)
-    
-    # Botón de Streamlit que se mostrará sobre el fondo
-    if st.button("Ingresar", key="enter_button"):
-        st.session_state.splash_screen_done = True
-        st.rerun()
+
+    <script>
+        setTimeout(function() {
+            // Navega a la misma URL pero añadiendo un parámetro para señalar que la animación terminó
+            window.location.href = window.location.pathname + "?splash=done";
+        }, 4000); // 4 segundos
+    </script>
+    """
+    st.markdown(splash_page_content, unsafe_allow_html=True)
 
 # --- ESTADO 2: APLICACIÓN PRINCIPAL ---
 def show_main_app():
-    # Estilos para las tarjetas y el contenido de la app
     st.markdown("""
     <style>
+        /* Estilos para las tarjetas y el contenido de la app */
         @media (max-width: 768px) { .card-container { flex-direction: column; align-items: center; } }
         .card-container { display: flex; gap: 20px; margin-top: 40px; flex-wrap: wrap; justify-content: center; }
         .app-card { flex: 1; min-width: 260px; max-width: 350px; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); transition: all 0.3s ease-in-out; text-align: center; cursor: pointer; text-decoration: none; color: #333; min-height: 180px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -135,11 +109,10 @@ def show_main_app():
     st.markdown("---")
 
 
-# --- LÓGICA PRINCIPAL PARA CONTROLAR EL ESTADO ---
-if 'splash_screen_done' not in st.session_state:
-    st.session_state.splash_screen_done = False
-
-if not st.session_state.splash_screen_done:
-    show_splash_screen()
-else:
+# --- LÓGICA PRINCIPAL ---
+# La decisión se toma mirando la URL. Si 'splash=done' está en la URL, muestra la app.
+# Si no, muestra la presentación.
+if "splash" in st.query_params:
     show_main_app()
+else:
+    show_splash_screen()
