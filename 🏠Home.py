@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -8,11 +7,10 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CÓDIGO HTML, CSS Y JAVASCRIPT PARA LA PRESENTACIÓN ---
-# Este bloque contiene todo lo necesario para la animación y para controlar la visibilidad
-animation_and_control_code = """
+# --- 1. CSS PARA OCULTAR LA APP Y MOSTRAR LA ANIMACIÓN ---
+st.markdown("""
 <style>
-    /* 1. Ocultamos el menú y la barra superior de Streamlit por defecto */
+    /* Ocultamos el menú y la barra superior de Streamlit por defecto */
     [data-testid="stSidebar"], [data-testid="stHeader"] {
         visibility: hidden;
     }
@@ -22,8 +20,8 @@ animation_and_control_code = """
         position: fixed;
         top: 0;
         left: 0;
-        width: 100vw; /* Ocupa todo el ancho de la ventana */
-        height: 100vh; /* Ocupa todo el alto de la ventana */
+        width: 100vw;
+        height: 100vh;
         background: linear-gradient(180deg, rgba(0, 102, 204, 0.95) 0%, rgba(0, 51, 102, 0.9) 100%);
         display: flex;
         justify-content: center;
@@ -70,34 +68,32 @@ animation_and_control_code = """
     .app-card:hover .access-icon { transform: scale(1.2); }
     a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active { text-decoration: none !important; color: inherit; }
 </style>
+""", unsafe_allow_html=True)
 
-<div class="water-curtain-overlay">
-    <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="water-curtain-logo" alt="Logo ASSA">
-</div>
+# --- 2. HTML PARA LA ANIMACIÓN DE INICIO ---
+st.markdown(
+    f"""
+    <div class="water-curtain-overlay">
+        <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="water-curtain-logo" alt="Logo ASSA">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
+# --- 3. JAVASCRIPT PARA RESTAURAR LA VISIBILIDAD DE LA APP ---
+st.markdown("""
 <script>
-    // Espera 4.5 segundos (tiempo total de la animación)
     setTimeout(function() {
-        // Busca el menú lateral y la barra superior en el documento principal
-        const sidebar = parent.document.querySelector('[data-testid="stSidebar"]');
-        const header = parent.document.querySelector('[data-testid="stHeader"]');
-
-        // Si los encuentra, cambia su estilo para hacerlos visibles
-        if (sidebar) {
-            sidebar.style.visibility = 'visible';
-        }
-        if (header) {
-            header.style.visibility = 'visible';
-        }
-    }, 4500); // 4500 milisegundos = 4.5 segundos
+        const sidebar = document.querySelector('[data-testid="stSidebar"]');
+        const header = document.querySelector('[data-testid="stHeader"]');
+        if (sidebar) { sidebar.style.visibility = 'visible'; }
+        if (header) { header.style.visibility = 'visible'; }
+    }, 4500);
 </script>
-"""
+""", unsafe_allow_html=True)
 
-# Usamos st.components.v1.html para asegurar que el script se ejecute correctamente
-components.html(animation_and_control_code, height=0)
 
 # --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
-# Envolvemos toda la app en un div para controlar su aparición
 st.markdown('<div class="main-app-content">', unsafe_allow_html=True)
 
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
@@ -147,4 +143,4 @@ st.markdown("---")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
 
-st.markdown('</div>', unsafe_allow_html=True) # Cierre del div principal
+st.markdown('</div>', unsafe_allow_html=True)
