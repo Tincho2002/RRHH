@@ -7,28 +7,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CSS DEFINITIVO CON CORRECCIÓN DE VISIBILIDAD ---
+# --- CSS DEFINITIVO Y SIMPLIFICADO ---
 st.markdown("""
 <style>
-    /* 1. Oculta el marco de Streamlit por defecto */
-    #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(1), /* Sidebar */
-    #root > div:nth-child(1) > div:nth-child(1) > div:nth-child(2)  /* Main Content Area */
-    {
-        visibility: hidden;
-        /* 2. Aplica la animación para REVERTIR la invisibilidad cuando la cortina termina */
-        animation: showStreamlitShell 0.01s linear 4.5s forwards;
-    }
-
-    /* 3. Keyframes para hacer visible el marco de la app */
-    @keyframes showStreamlitShell {
-        to {
-            visibility: visible;
-        }
-    }
-
     /* Estilos para el overlay de la animación de inicio */
     .water-curtain-overlay {
-        position: fixed;
+        position: fixed; /* Se superpone a todo */
         top: 0;
         left: 0;
         width: 100%;
@@ -37,7 +21,7 @@ st.markdown("""
         display: flex;
         justify-content: center;
         align-items: center;
-        z-index: 9999;
+        z-index: 9999; /* Asegura que esté por encima de todo */
         /* La animación dura 2s, empieza después de 2.5s de delay */
         animation: fadeOutCurtain 2s ease-out 2.5s forwards;
     }
@@ -52,87 +36,53 @@ st.markdown("""
         height: auto;
     }
 
+    /* El contenido principal de la app empieza transparente */
+    .main-app-content {
+        opacity: 0;
+        /* Se hace visible con una animación que empieza cuando la cortina se va */
+        animation: fadeInApp 1s ease-in 4.5s forwards;
+    }
+
     /* Keyframes para desvanecer la cortina */
     @keyframes fadeOutCurtain {
         to {
             opacity: 0;
-            visibility: hidden;
+            visibility: hidden; /* Se oculta para no interferir */
         }
     }
 
     /* Keyframes para aparecer el logo */
     @keyframes fadeInLogo {
-        from { opacity: 0; transform: scale(0.6); }
-        to   { opacity: 1; transform: scale(1); }
-    }
-
-    /* --- ESTILOS GENERALES DE LA APP (TARJETAS, ETC. - SIN CAMBIOS) --- */
-
-    @media (max-width: 768px) {
-        .card-container {
-            flex-direction: column;
-            align-items: center;
+        to {
+            opacity: 1;
+            transform: scale(1);
         }
     }
 
-    .card-container {
-        display: flex;
-        gap: 20px;
-        margin-top: 40px;
-        flex-wrap: wrap;
-        justify-content: center;
+    /* Keyframes para que la app aparezca suavemente */
+    @keyframes fadeInApp {
+        to {
+            opacity: 1;
+        }
     }
 
-    .app-card {
-        flex: 1;
-        min-width: 260px;
-        max-width: 350px;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease-in-out;
-        text-align: center;
-        cursor: pointer;
-        text-decoration: none;
-        color: #333;
-        min-height: 180px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-    }
+    /* --- ESTILOS GENERALES DE LA APP (TARJETAS, ETC.) --- */
 
+    @media (max-width: 768px) { .card-container { flex-direction: column; align-items: center; } }
+    .card-container { display: flex; gap: 20px; margin-top: 40px; flex-wrap: wrap; justify-content: center; }
+    .app-card { flex: 1; min-width: 260px; max-width: 350px; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); transition: all 0.3s ease-in-out; text-align: center; cursor: pointer; text-decoration: none; color: #333; min-height: 180px; display: flex; flex-direction: column; justify-content: space-between; }
     .card-dotacion { background-color: #e0f7fa; }
     .card-horas { background-color: #fffde7; }
     .card-masa { background-color: #f1f8e9; }
-
-    .app-card:hover {
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-        transform: translateY(-5px);
-    }
-
-    .card-title {
-        font-size: 1.5em;
-        font-weight: bold;
-        color: #003366;
-        margin-bottom: 10px;
-    }
-
-    .access-icon {
-        font-size: 1.6em;
-        color: #003366;
-        transition: transform 0.3s ease;
-    }
-
+    .app-card:hover { box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); transform: translateY(-5px); }
+    .card-title { font-size: 1.5em; font-weight: bold; color: #003366; margin-bottom: 10px; }
+    .access-icon { font-size: 1.6em; color: #003366; transition: transform 0.3s ease; }
     .app-card:hover .access-icon { transform: scale(1.2); }
-
-    a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
-        text-decoration: none !important;
-        color: inherit;
-    }
+    a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active { text-decoration: none !important; color: inherit; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- ANIMACIÓN DE INICIO: CORTINA DE AGUA Y LOGO ---
+# --- HTML para la animación de inicio ---
 st.markdown(
     f"""
     <div class="water-curtain-overlay">
@@ -143,7 +93,9 @@ st.markdown(
 )
 
 # --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
-# Ya no necesita una clase especial, el CSS se encarga de todo el marco
+# Envolvemos toda la app en un div para controlar su aparición
+st.markdown('<div class="main-app-content">', unsafe_allow_html=True)
+
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 
 with left_logo:
@@ -190,3 +142,5 @@ st.markdown("""
 st.markdown("---")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
+
+st.markdown('</div>', unsafe_allow_html=True) # Cierre del div principal
