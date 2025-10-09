@@ -59,7 +59,7 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
 /* Regla #3: Agrega una sombra y redondeo al contenedor del comparador */
 .img-comp-container {
    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-   border-radius: 0.8rem; /* Ayuda a que la sombra se vea redondeada */
+   border-radius: 1.5rem; /* Ayuda a que la sombra se vea redondeada */
    overflow: hidden; /* CORRECCIÓN: Asegura que el contenido (imágenes) se recorte */
 }
 
@@ -556,7 +556,7 @@ if uploaded_file is not None:
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
                                 
-                                    radius = 30 
+                                    radius = 50 
                                     # Usamos la función corregida para crear imágenes con fondo transparente
                                     img1_final = create_rounded_image_with_matte(img1_pil, radius)
                                     img2_final = create_rounded_image_with_matte(img2_pil, radius)
@@ -674,5 +674,6 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
