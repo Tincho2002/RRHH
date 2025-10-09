@@ -129,16 +129,12 @@ def flood_fill_transparent(img, tolerance=30):
     transparente el fondo de una imagen, manejando el anti-aliasing.
     """
     img = img.convert("RGBA")
-    # El punto de partida es la esquina superior izquierda
     seed_point = (0, 0)
-    # El color a reemplazar será el de la esquina
-    fill_color = (255, 255, 255, 0) # Rellenar con transparente
+    fill_color = (255, 255, 255, 0)
     
-    # Si la esquina ya es transparente, no hay nada que hacer
     if img.getpixel(seed_point)[3] == 0:
         return img
         
-    # Realiza el relleno por inundación
     ImageDraw.floodfill(img, seed_point, fill_color, thresh=tolerance)
     return img
     
@@ -564,36 +560,33 @@ if uploaded_file is not None:
                     with comp_col1:
                         with st.spinner(f"Generando mapas ({style1_name} vs {style2_name})..."):
                             try:
-                            fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
-                            fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
-                            if fig1 and fig2:
-                                img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
-                                img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
-                                
-                                img1_pil = Image.open(io.BytesIO(img1_bytes))
-                                img2_pil = Image.open(io.BytesIO(img2_bytes))
+                                fig1 = generate_map_figure(df_mapa_display, map_style_options[style1_name])
+                                fig2 = generate_map_figure(df_mapa_display, map_style_options[style2_name])
+                                if fig1 and fig2:
+                                    img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
+                                    img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
+                                    
+                                    img1_pil = Image.open(io.BytesIO(img1_bytes))
+                                    img2_pil = Image.open(io.BytesIO(img2_bytes))
 
-                                # ▼▼▼ USAMOS LA NUEVA Y MEJORADA FUNCIÓN ▼▼▼
-                                img1_pil = flood_fill_transparent(img1_pil, tolerance=40)
-                                img2_pil = flood_fill_transparent(img2_pil, tolerance=40)
-                                # ▲▲▲ FIN DE LA CORRECCIÓN ▲▲▲
+                                    img1_pil = flood_fill_transparent(img1_pil, tolerance=40)
+                                    img2_pil = flood_fill_transparent(img2_pil, tolerance=40)
 
-                                # Ahora, procedemos a redondear la imagen que ya no tiene fondo
-                                radius = 50
-                                img1_final = create_rounded_image_with_matte(img1_pil, radius)
-                                img2_final = create_rounded_image_with_matte(img2_pil, radius)
-                                                                
-                                image_comparison(
-                                    img1=img1_final,
-                                    img2=img2_final,
-                                    label1=style1_name,
-                                    label2=style2_name,
-                                )
-                            else:
-                                st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
-                        except Exception as e:
-                            st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
-                            st.info("Intente recargar la página o seleccionar un período con menos datos.")
+                                    radius = 50
+                                    img1_final = create_rounded_image_with_matte(img1_pil, radius)
+                                    img2_final = create_rounded_image_with_matte(img2_pil, radius)
+                                                                    
+                                    image_comparison(
+                                        img1=img1_final,
+                                        img2=img2_final,
+                                        label1=style1_name,
+                                        label2=style2_name,
+                                    )
+                                else:
+                                    st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
+                            except Exception as e:
+                                st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
+                                st.info("Intente recargar la página o seleccionar un período con menos datos.")
                     
                     with comp_col2:
                         pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
@@ -697,4 +690,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
