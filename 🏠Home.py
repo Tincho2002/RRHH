@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -7,9 +8,52 @@ st.set_page_config(
     layout="wide" 
 )
 
-# --- CSS COMPLETO (TARJETAS + EFECTO DE ONDA) ---
+# --- CSS ÚNICO Y SEGURO PARA LA PÁGINA DE INICIO Y EFECTO DE CORTINA DE AGUA ---
 st.markdown("""
 <style>
+    /* Estilos para el overlay de la animación de inicio */
+    .water-curtain-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(0, 150, 255, 0.8) 0%, rgba(0, 51, 102, 0.8) 100%); /* Efecto de agua/azul oscuro */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999; /* Asegura que esté por encima de todo */
+        opacity: 1;
+        animation: fadeOutCurtain 2s ease-out 2s forwards; /* Duración de la animación + delay */
+        /* forwards mantiene el estado final de la animación */
+    }
+
+    /* Animación para el logo dentro de la cortina */
+    .water-curtain-logo {
+        opacity: 0;
+        transform: translateY(20px);
+        animation: fadeInLogo 1.5s ease-out 0.5s forwards; /* Aparece después de 0.5s */
+        max-width: 300px; /* Ajusta el tamaño del logo */
+        height: auto;
+    }
+
+    /* Keyframes para desvanecer la cortina */
+    @keyframes fadeOutCurtain {
+        to {
+            opacity: 0;
+            visibility: hidden; /* Oculta completamente una vez desvanecido */
+        }
+    }
+
+    /* Keyframes para aparecer el logo */
+    @keyframes fadeInLogo {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
     /* Corrección para que las tarjetas se apilen en móviles (pantallas angostas) */
     @media (max-width: 768px) {
         .card-container {
@@ -17,35 +61,6 @@ st.markdown("""
             align-items: center;
         }
     }
-
-    /* --- ✨ Estilos para el efecto de onda en los logos --- */
-    .logo-container {
-        position: relative; /* Necesario para posicionar la onda */
-        display: inline-block; /* Ajusta el contenedor a la imagen */
-    }
-
-    .logo-container img:hover::after {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 100%;
-        height: 100%;
-        border-radius: 50%; /* Forma circular */
-        transform: translate(-50%, -50%) scale(0);
-        background-color: rgba(0, 150, 255, 0.4); /* Color de la onda */
-        animation: ripple-effect 1s ease-out; /* Aplica la animación */
-    }
-
-    /* Definición de la animación de la onda */
-    @keyframes ripple-effect {
-        to {
-            transform: translate(-50%, -50%) scale(2.5);
-            opacity: 0;
-        }
-    }
-    /* --- Fin del efecto de onda --- */
-
 
     /* Estilos de las Tarjetas (Flexbox y Responsivo) */
     .card-container {
@@ -102,29 +117,58 @@ st.markdown("""
         text-decoration: none !important; 
         color: inherit;
     }
+
+    /* Para asegurar que el resto del contenido no sea visible hasta que la animación termine */
+    .content-hidden-until-animation {
+        opacity: 0;
+        animation: showContent 0.1s ease-out 4s forwards; /* Aparece después que la cortina haya terminado */
+    }
+
+    @keyframes showContent {
+        to {
+            opacity: 1;
+        }
+    }
+
+    /* Ocultar elementos de Streamlit que podrían aparecer antes del efecto */
+    #root > div:nth-child(1) > div > div > div > div {
+        visibility: hidden;
+    }
+    .water-curtain-overlay ~ div {
+        visibility: hidden;
+    }
 </style>
 """, unsafe_allow_html=True)
 
+# --- ANIMACIÓN DE INICIO: CORTINA DE AGUA Y LOGO ---
+# Muestra la cortina con el logo. El CSS se encarga de la animación.
+st.markdown(
+    f"""
+    <div class="water-curtain-overlay">
+        <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" class="water-curtain-logo" alt="Logo ASSA">
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
 
-# --- CONTENIDO PRINCIPAL DE LA PÁGINA (CON LOGOS CORREGIDOS) ---
+# Un pequeño delay para permitir que la animación CSS se complete antes de que el resto del contenido se cargue
+# Esto es más para la sensación, el CSS ya maneja la visibilidad.
+time.sleep(3.5) # Ajusta este tiempo si la animación es más larga o corta
+
+# --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
+# Envuelve todo el contenido principal en un div que se hará visible después de la animación
+st.markdown('<div class="content-hidden-until-animation">', unsafe_allow_html=True)
+
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 
-# Usamos st.markdown para crear los contenedores con la clase para el efecto
-logo_html = """
-<div class="logo-container" style="text-align: center;">
-    <img src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" alt="Logo ASSA" width="200">
-</div>
-"""
-
+# Ahora los logos "normales" de la cabecera, sin el efecto de onda inicial
 with left_logo:
-    st.markdown(logo_html, unsafe_allow_html=True)
-
+    st.image("https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", width=200)
 with center_text:
-    st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True)
+    st.title("Bienvenido a la Aplicación de RRHH")
     st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
-
 with right_logo:
-    st.markdown(logo_html, unsafe_allow_html=True)
+    st.image("https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", width=200)
 
 st.markdown("---")
 
@@ -163,3 +207,6 @@ st.markdown("""
 st.markdown("---")
 
 st.sidebar.success("Selecciona una aplicación arriba.")
+
+# Cierra el div que envuelve el contenido principal
+st.markdown('</div>', unsafe_allow_html=True)
