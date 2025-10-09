@@ -19,7 +19,8 @@ st.markdown("""
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: linear-gradient(180deg, #005f73, #0a9396, #94d2bd);
+    /*background: linear-gradient(180deg, #005f73, #0a9396, #94d2bd);*/
+    background: linear-gradient(180deg, #005A7A, #00A7C4);
     z-index: 1000;
     display: flex;
     flex-direction: column;
@@ -234,6 +235,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
 
 
