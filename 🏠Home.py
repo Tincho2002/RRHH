@@ -6,7 +6,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CSS ÚNICO Y SEGURO PARA LA PÁGINA DE INICIO ---
+# --- CSS DEFINITIVO ---
 st.markdown("""
 <style>
     /* Estilos de las Tarjetas (Flexbox y Responsivo) */
@@ -72,8 +72,8 @@ st.markdown("""
             align-items: center;
         }
 
-        /* --- AQUÍ ESTÁ LA MAGIA --- */
-        /* Esta regla selecciona las columnas de Streamlit y centra su contenido en móviles */
+        /* --- REGLA DEFINITIVA PARA CENTRAR LOS LOGOS --- */
+        /* Selecciona las columnas y fuerza a que su contenido (la imagen) se centre */
         div[data-testid="column"] {
             display: flex;
             justify-content: center;
@@ -82,8 +82,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CONTENIDO PRINCIPAL DE LA PÁGINA ---
-# Volvemos a usar st.columns y st.image para mantener el efecto original
+# --- ENCABEZADO CON EFECTO Y CENTRADO CORRECTO ---
 left_logo, center_text, right_logo = st.columns([1, 4, 1])
 with left_logo:
     st.image("assets/logo_assa.jpg", width=200)
@@ -95,6 +94,7 @@ with right_logo:
 
 st.markdown("---")
 
+# --- RESTO DEL CONTENIDO (SIN CAMBIOS) ---
 st.markdown(
     """
     <div style="text-align: center;">
