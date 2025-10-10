@@ -181,62 +181,57 @@ st.html("""
 # Envolvemos todo el contenido en un div para poder controlar su aparición
 st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
-# --- ENCABEZADO CON LOGOS Y TÍTULO (VERSIÓN RESPONSIVE CON FLEXBOX) ---
-# Se utiliza la URL pública del logo para que sea visible dentro del bloque HTML
-logo_url = "https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg"
+# --- INICIO DE LA SECCIÓN CORREGIDA ---
 
-st.markdown(f"""
+# PASO 1: Inyectar solo el CSS para el encabezado responsive.
+st.markdown("""
 <style>
 /* Contenedor principal del encabezado */
-.header-container {{
-    display: flex; /* Activa Flexbox */
-    justify-content: space-between; /* Distribuye el espacio entre los elementos */
-    align-items: center; /* Centra verticalmente los elementos */
-    flex-wrap: wrap; /* Permite que los elementos se muevan a la siguiente línea si no caben */
-    gap: 20px; /* Espacio entre elementos */
-}}
-
-/* Estilos para el texto central */
-.header-text {{
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+.header-text {
     text-align: center;
-    flex-grow: 1; /* Permite que el texto ocupe el espacio disponible */
-}}
-
-/* Estilo para los logos */
-.header-logo {{
-    max-width: 250px; /* Ancho máximo en pantallas grandes */
+    flex-grow: 1;
+}
+.header-logo {
+    max-width: 250px;
     height: auto;
-}}
-
-/* --- MEDIA QUERY PARA DISPOSITIVOS MÓVILES --- */
-/* Estas reglas se aplican solo cuando el ancho de la pantalla es 768px o menos */
-@media (max-width: 768px) {{
-    .header-container {{
-        flex-direction: column; /* Apila los elementos verticalmente */
-        justify-content: center; /* Centra los elementos en el contenedor */
-    }}
-    .header-logo {{
-        max-width: 200px; /* Un tamaño más adecuado para móviles */
-    }}
-    /* Ocultar el segundo logo en móvil para un look más limpio */
-    .logo-right {{
-        display: none;
-    }}
-}}
+}
+/* Media Query para dispositivos móviles */
+@media (max-width: 768px) {
+    .header-container {
+        flex-direction: column;
+        justify-content: center;
+    }
+    .header-logo {
+        max-width: 200px;
+    }
+    .logo-right {
+        display: none; /* Oculta el segundo logo en móviles */
+    }
+}
 </style>
+""", unsafe_allow_html=True)
 
+# PASO 2: Renderizar la estructura HTML del encabezado.
+logo_url = "https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg"
+st.markdown(f"""
 <div class="header-container">
     <img src="{logo_url}" class="header-logo logo-left">
-
     <div class="header-text">
         <h1 style='color:#555;'>Bienvenido a la Aplicación de RRHH</h1>
         <h3 style='color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>
     </div>
-
     <img src="{logo_url}" class="header-logo logo-right">
 </div>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True) # <-- Este es el parámetro clave que faltaba interpretar.
 
+# --- FIN DE LA SECCIÓN CORREGIDA ---
 
 st.markdown("---")
 
