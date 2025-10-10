@@ -4,7 +4,7 @@ import streamlit as st
 st.set_page_config(
     page_title="Portal de RRHH",
     page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", # URL pública del logo
-    layout="wide" 
+    layout="wide"
 )
 
 # ----------------------------------------------------------------------------------
@@ -45,11 +45,11 @@ st.markdown("""
     to { opacity: 0; visibility: hidden; }
 }
 
-@keyframes fadeInScale { 
+@keyframes fadeInScale {
     from { opacity: 0; transform: scale(0.8); }
     to { opacity: 1; transform: scale(1); }
 }
-@keyframes fadeInSlide { 
+@keyframes fadeInSlide {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
 }
@@ -181,15 +181,62 @@ st.html("""
 # Envolvemos todo el contenido en un div para poder controlar su aparición
 st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
-# --- ENCABEZADO CON LOGOS Y TÍTULO ---
-left_logo, center_text, right_logo = st.columns([1, 4, 1])
-with left_logo:
-    st.image("assets/logo_assa.jpg", width=300)
-with center_text:
-    st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
-with right_logo:
-    st.image("assets/logo_assa.jpg", width=300)
+# --- ENCABEZADO CON LOGOS Y TÍTULO (VERSIÓN RESPONSIVE CON FLEXBOX) ---
+# Se utiliza la URL pública del logo para que sea visible dentro del bloque HTML
+logo_url = "https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg"
+
+st.markdown(f"""
+<style>
+/* Contenedor principal del encabezado */
+.header-container {{
+    display: flex; /* Activa Flexbox */
+    justify-content: space-between; /* Distribuye el espacio entre los elementos */
+    align-items: center; /* Centra verticalmente los elementos */
+    flex-wrap: wrap; /* Permite que los elementos se muevan a la siguiente línea si no caben */
+    gap: 20px; /* Espacio entre elementos */
+}}
+
+/* Estilos para el texto central */
+.header-text {{
+    text-align: center;
+    flex-grow: 1; /* Permite que el texto ocupe el espacio disponible */
+}}
+
+/* Estilo para los logos */
+.header-logo {{
+    max-width: 250px; /* Ancho máximo en pantallas grandes */
+    height: auto;
+}}
+
+/* --- MEDIA QUERY PARA DISPOSITIVOS MÓVILES --- */
+/* Estas reglas se aplican solo cuando el ancho de la pantalla es 768px o menos */
+@media (max-width: 768px) {{
+    .header-container {{
+        flex-direction: column; /* Apila los elementos verticalmente */
+        justify-content: center; /* Centra los elementos en el contenedor */
+    }}
+    .header-logo {{
+        max-width: 200px; /* Un tamaño más adecuado para móviles */
+    }}
+    /* Ocultar el segundo logo en móvil para un look más limpio */
+    .logo-right {{
+        display: none;
+    }}
+}}
+</style>
+
+<div class="header-container">
+    <img src="{logo_url}" class="header-logo logo-left">
+
+    <div class="header-text">
+        <h1 style='color:#555;'>Bienvenido a la Aplicación de RRHH</h1>
+        <h3 style='color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>
+    </div>
+
+    <img src="{logo_url}" class="header-logo logo-right">
+</div>
+""", unsafe_allow_html=True)
+
 
 st.markdown("---")
 
@@ -233,15 +280,3 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
-
-
-
-
-
-
-
-
-
-
-
-
