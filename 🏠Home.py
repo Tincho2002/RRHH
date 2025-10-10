@@ -191,30 +191,33 @@ st.markdown("""
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 20px; /* Espacio entre elementos */
-    /* Se elimina 'flex-wrap: wrap;' para mantener todo en una línea en desktop */
+    gap: 20px;
 }
 .header-text {
     text-align: center;
-    flex-grow: 1; /* Permite que el texto ocupe el espacio sobrante */
+    flex-grow: 1;
 }
+/* ----- ÚNICO CAMBIO REALIZADO ----- */
 .header-logo {
-    max-width: 250px;
+    width: 200px; /* Ancho fijo para controlar el tamaño */
+    flex-shrink: 0; /* Evita que el logo se encoja si el texto es largo */
     height: auto;
-    border-radius: 15px; /* <-- BORDE REDONDEADO AÑADIDO */
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Sombra sutil para consistencia */
+    border-radius: 15px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
+/* ---------------------------------- */
+
 /* Media Query para dispositivos móviles */
 @media (max-width: 768px) {
     .header-container {
-        flex-direction: column; /* Apila los elementos verticalmente */
-        justify-content: center; /* Centra el contenido */
+        flex-direction: column;
+        justify-content: center;
     }
     .header-logo {
-        max-width: 200px;
+        width: 180px; /* Un poco más pequeño para móviles */
     }
     .logo-right {
-        display: none; /* Oculta el segundo logo en móviles para un diseño más limpio */
+        display: none;
     }
 }
 </style>
