@@ -197,15 +197,13 @@ st.markdown("""
     text-align: center;
     flex-grow: 1;
 }
-/* ----- ÚNICO CAMBIO REALIZADO ----- */
 .header-logo {
-    width: 200px; /* Ancho fijo para controlar el tamaño */
-    flex-shrink: 0; /* Evita que el logo se encoja si el texto es largo */
+    width: 200px;
+    flex-shrink: 0;
     height: auto;
     border-radius: 15px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
-/* ---------------------------------- */
 
 /* Media Query para dispositivos móviles */
 @media (max-width: 768px) {
@@ -214,11 +212,9 @@ st.markdown("""
         justify-content: center;
     }
     .header-logo {
-        width: 180px; /* Un poco más pequeño para móviles */
+        width: 180px;
     }
-    .logo-right {
-        display: none;
-    }
+    /* La regla que ocultaba '.logo-right' ha sido eliminada */
 }
 </style>
 """, unsafe_allow_html=True)
