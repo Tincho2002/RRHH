@@ -1,17 +1,130 @@
 import streamlit as st
+from streamlit_option_menu import option_menu
 
-# Se agrega 'layout="wide"' a la configuración de la página.
+# ----------------------------------------------------------------------------------
+# --- CONFIGURACIÓN DE PÁGINA ---
+# ----------------------------------------------------------------------------------
 st.set_page_config(
     page_title="Portal de RRHH",
-    page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", # URL pública del logo
-    layout="wide" 
+    page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg",
+    layout="wide"
 )
 
 # ----------------------------------------------------------------------------------
-# --- CSS: PANTALLA DE CARGA Y ANIMACIÓN DE UI COMPLETA ---
+# --- DEFINICIÓN DE LAS PÁGINAS COMO FUNCIONES ---
 # ----------------------------------------------------------------------------------
+
+def render_home_page():
+    """Renderiza el contenido de la página de inicio."""
+    # --- ENCABEZADO CON LOGOS Y TÍTULO ---
+    left_logo, center_text, right_logo = st.columns([1, 4, 1])
+    with left_logo:
+        st.image("assets/logo_assa.jpg", width=300)
+    with center_text:
+        st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
+    with right_logo:
+        st.image("assets/logo_assa.jpg", width=300)
+
+    st.markdown("---")
+
+    # --- TEXTO INTRODUCTORIO ---
+    st.markdown(
+        """
+        <div style="text-align: center;">
+            <h2>Análisis Estratégico de Capital Humano</h2>
+            <p>Esta es la página de inicio del sistema unificado de gestión de <strong>Recursos Humanos</strong>.</p>
+            <p>Para acceder a cada módulo, usa la barra lateral de navegación.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # --- TARJETAS (AHORA SIN LINKS, SON SOLO INFORMATIVAS) ---
+    st.markdown("""
+    <div class="card-container">
+        <div class="app-card card-dotacion">
+            <div class="card-title">👥 Dotación</div>
+            <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
+        </div>
+        <div class="app-card card-horas">
+            <div class="card-title">⏰ Horas Extras</div>
+            <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
+        </div>
+        <div class="app-card card-masa">
+            <div class="card-title">💵 Masa Salarial</div>
+            <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_dotacion_page(sub_selection):
+    """
+    Renderiza la página de Dotación según la sub-sección elegida.
+    
+    ❗️ IMPORTANTE: Pega aquí todo el código de tu anterior archivo 'Dotacion.py',
+    y organízalo dentro de los if/elif según la variable 'sub_selection'.
+    """
+    st.title(f"👥 Dotación: {sub_selection}")
+
+    if sub_selection == "Resumen de Dotación":
+        st.header("Resumen General de la Dotación")
+        st.info("Aquí va el contenido de tu pestaña 'Resumen de Dotación'.")
+        # Pega aquí el código correspondiente: gráficos, KPIs, etc.
+        # Ejemplo: st.metric("Total de Empleados", "11.625")
+
+    elif sub_selection == "Comparador de Mapas":
+        st.header("Comparador de Mapas")
+        st.info("Aquí va el contenido de tu pestaña 'Comparador de Mapas'.")
+        # Pega aquí el código correspondiente
+
+    elif sub_selection == "Mapa Geográfico":
+        st.header("Mapa Geográfico")
+        st.info("Aquí va el contenido de tu pestaña 'Mapa Geográfico'.")
+        # Pega aquí el código correspondiente
+
+    elif sub_selection == "Edad y Antigüedad":
+        st.header("Análisis por Edad y Antigüedad")
+        st.info("Aquí va el contenido de tu pestaña 'Edad y Antigüedad'.")
+        # Pega aquí el código correspondiente
+
+    elif sub_selection == "Desglose por Categoría":
+        st.header("Desglose por Categoría")
+        st.info("Aquí va el contenido de tu pestaña 'Desglose por Categoría'.")
+        # Pega aquí el código correspondiente
+
+    elif sub_selection == "Datos Brutos":
+        st.header("Datos Brutos")
+        st.info("Aquí va el contenido de tu pestaña 'Datos Brutos'.")
+        # Pega aquí el código correspondiente a la tabla de datos.
+
+def render_horas_extras_page():
+    """
+    Renderiza la página de Horas Extras.
+    
+    ❗️ IMPORTANTE: Pega aquí todo el código de tu anterior archivo 'Horas_Extras.py'.
+    """
+    st.title("⏰ Horas Extras")
+    st.info("Aquí va el contenido completo de tu aplicación de Horas Extras.")
+    # Pega tu código aquí
+
+def render_masa_salarial_page():
+    """
+    Renderiza la página de Masa Salarial.
+    
+    ❗️ IMPORTANTE: Pega aquí todo el código de tu anterior archivo 'Masa_Salarial.py'.
+    """
+    st.title("💵 Masa Salarial")
+    st.info("Aquí va el contenido completo de tu aplicación de Masa Salarial.")
+    # Pega tu código aquí
+
+# ----------------------------------------------------------------------------------
+# --- CSS (SE MANTIENE IGUAL) ---
+# ----------------------------------------------------------------------------------
+# (Omitido por brevedad, es el mismo CSS que ya tenías para el splash screen y las tarjetas)
 st.markdown("""
 <style>
+/* ... TU CSS VA AQUÍ ... */
 /* --- Pantalla de Carga (Splash Screen) --- */
 #splash-screen {
     position: fixed;
@@ -112,7 +225,7 @@ st.markdown("""
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease-in-out;
     text-align: center;
-    cursor: pointer;
+    /* cursor: pointer; */ /* Se quita el cursor de link */
     text-decoration: none;
     color: #333;
     min-height: 180px;
@@ -136,25 +249,11 @@ st.markdown("""
     color: #003366;
     margin-bottom: 10px;
 }
-
-.access-icon {
-    font-size: 1.6em;
-    color: #003366;
-    transition: transform 0.3s ease;
-}
-.app-card:hover .access-icon {
-    transform: scale(1.2);
-}
-
-a.app-card, a.app-card:visited, a.app-card:hover, a.app-card:active {
-    text-decoration: none !important;
-    color: inherit;
-}
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------
-# --- PANTALLA DE CARGA (SOLO HTML) ---
+# --- PANTALLA DE CARGA (SE MANTIENE IGUAL) ---
 # -----------------------------------------------------------------------
 st.html("""
 <div id="splash-screen">
@@ -175,73 +274,42 @@ st.html("""
 """)
 
 # -----------------------------------------------------------------------
-# --- CONTENIDO PRINCIPAL COMPLETO DE LA APP ---
+# --- BARRA LATERAL Y LÓGICA DE NAVEGACIÓN ---
 # -----------------------------------------------------------------------
+with st.sidebar:
+    selected = option_menu(
+        menu_title="Menú Principal",
+        options=["Home", "Dotación", "Horas Extras", "Masa Salarial"],
+        icons=["house-door-fill", "people-fill", "alarm-fill", "cash-coin"],
+        menu_icon="cast",
+        default_index=0,
+        # AÑADIMOS EL SUBMENÚ BASADO EN TU CAPTURA DE PANTALLA
+        submenu={
+            "Dotación": [
+                "Resumen de Dotación", 
+                "Comparador de Mapas", 
+                "Mapa Geográfico", 
+                "Edad y Antigüedad", 
+                "Desglose por Categoría", 
+                "Datos Brutos"
+            ]
+        }
+    )
 
-# Envolvemos todo el contenido en un div para poder controlar su aparición
+# -----------------------------------------------------------------------
+# --- CONTENIDO PRINCIPAL (CONTROLADO POR LA SELECCIÓN DEL MENÚ) ---
+# -----------------------------------------------------------------------
 st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
-# --- ENCABEZADO CON LOGOS Y TÍTULO ---
-left_logo, center_text, right_logo = st.columns([1, 4, 1])
-with left_logo:
-    st.image("assets/logo_assa.jpg", width=300)
-with center_text:
-    st.markdown("<h1 style='text-align:center; color:#555;'>Bienvenido a la Aplicación de RRHH</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align:center; color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>", unsafe_allow_html=True)
-with right_logo:
-    st.image("assets/logo_assa.jpg", width=300)
+if selected == "Home":
+    render_home_page()
+elif selected == "Dotación":
+    # Obtenemos la sub-selección del estado de la sesión
+    sub_selection = st.session_state.get("submenu_Dotación")
+    render_dotacion_page(sub_selection)
+elif selected == "Horas Extras":
+    render_horas_extras_page()
+elif selected == "Masa Salarial":
+    render_masa_salarial_page()
 
-st.markdown("---")
-
-# --- TEXTO INTRODUCTORIO ---
-st.markdown(
-    """
-    <div style="text-align: center;">
-        <h2>Análisis Estratégico de Capital Humano</h2>
-        <p>Esta es la página de inicio del sistema unificado de gestión de <strong>Recursos Humanos</strong>.</p>
-        <p>Para acceder a cada módulo, haz clic directamente en la tarjeta de interés o usa la barra lateral.</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# --- TARJETAS NAVEGABLES ---
-st.markdown("""
-<div class="card-container">
-    <a href="/Dotación" target="_self" class="app-card card-dotacion">
-        <div class="card-title">👥 Dotación</div>
-        <p>Consulta la estructura y distribución geográfica y por gerencia de personal.</p>
-        <div class="access-icon">🔗</div>
-    </a>
-    <a href="/Horas_Extras" target="_self" class="app-card card-horas">
-        <div class="card-title">⏰ Horas Extras</div>
-        <p>Analiza el impacto de horas adicionales al 50% y al 100%.</p>
-        <div class="access-icon">🔗</div>
-    </a>
-    <a href="/Masa_Salarial" target="_self" class="app-card card-masa">
-        <div class="card-title">💵 Masa Salarial</div>
-        <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
-        <div class="access-icon">🔗</div>
-    </a>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("---")
-
-# Cerramos el div del contenido principal
 st.markdown('</div>', unsafe_allow_html=True)
-
-# Mensaje lateral
-st.sidebar.success("Selecciona una aplicación arriba.")
-
-
-
-
-
-
-
-
-
-
-
-
