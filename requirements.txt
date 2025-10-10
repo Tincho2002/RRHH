@@ -12,6 +12,8 @@ streamlit-lottie
 streamlit-card
 st-pages
 Pillow
+streamlit_option_menu
+
 
 
 
