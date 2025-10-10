@@ -191,28 +191,30 @@ st.markdown("""
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 20px;
+    gap: 20px; /* Espacio entre elementos */
+    /* Se elimina 'flex-wrap: wrap;' para mantener todo en una línea en desktop */
 }
 .header-text {
     text-align: center;
-    flex-grow: 1;
+    flex-grow: 1; /* Permite que el texto ocupe el espacio sobrante */
 }
 .header-logo {
     max-width: 250px;
     height: auto;
+    border-radius: 15px; /* <-- BORDE REDONDEADO AÑADIDO */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Sombra sutil para consistencia */
 }
 /* Media Query para dispositivos móviles */
 @media (max-width: 768px) {
     .header-container {
-        flex-direction: column;
-        justify-content: center;
+        flex-direction: column; /* Apila los elementos verticalmente */
+        justify-content: center; /* Centra el contenido */
     }
     .header-logo {
         max-width: 200px;
     }
     .logo-right {
-        display: none; /* Oculta el segundo logo en móviles */
+        display: none; /* Oculta el segundo logo en móviles para un diseño más limpio */
     }
 }
 </style>
@@ -229,7 +231,7 @@ st.markdown(f"""
     </div>
     <img src="{logo_url}" class="header-logo logo-right">
 </div>
-""", unsafe_allow_html=True) # <-- Este es el parámetro clave que faltaba interpretar.
+""", unsafe_allow_html=True)
 
 # --- FIN DE LA SECCIÓN CORREGIDA ---
 
