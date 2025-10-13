@@ -619,7 +619,7 @@ if uploaded_file is not None:
                 pivot_table.sort_values(by='Total', ascending=False, inplace=True)
                 total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
                 df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
-                st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=460, hide_index=True)
+                st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=455, hide_index=True)
 
     with tab_edad_antiguedad:
         st.header('Análisis de Edad y Antigüedad por Periodo')
@@ -679,6 +679,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
 
 
