@@ -4,6 +4,7 @@ import altair as alt
 from pandas.tseries.offsets import MonthEnd
 from datetime import datetime
 import numpy as np
+import plotly.express as px
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(layout="wide", page_title="Dashboard RH", page_icon="🏢")
@@ -238,7 +239,7 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
 
 # --- INICIO DE LA APLICACIÓN ---
 st.title('🏢 Planta de Cargos 2025 -Ingresos & Egresos-')
-uploaded_file = st.file_uploader("Cargue aquí su archivo de personal", type=["xlsx", "csv"]) 
+uploaded_file = st.file_uploader("Cargue aquí su archivo de personal", type=["xlsx", "csv"])
 
 if uploaded_file:
     df_original = load_data(uploaded_file)
@@ -295,62 +296,54 @@ if uploaded_file:
                     st.dataframe(resumen, use_container_width=True, hide_index=True)
                     st.metric("Total Dotación Activa (Según Filtros)", int(df_filtered_for_options.shape[0]))
                 with col2:
-                    #st.subheader("Distribución por Relación")
-                    #pie = alt.Chart(resumen).mark_arc(innerRadius=60).encode(theta='Cantidad:Q', color='Relación:N', tooltip=['Relación', 'Cantidad'])
-                    #st.altair_chart(pie, use_container_width=True)
-                    #st.subheader("Distribución por Relación")
-                    #base = alt.Chart(resumen).encode(
-                        #theta=alt.Theta(field="Cantidad", type="quantitative", stack=True),
-                        #color=alt.Color(field="Relación", type="nominal", legend=alt.Legend(title="Relación", orient='right')),
-                        #tooltip=['Relación', 'Cantidad']
-                    #)
-                    #pie = base.mark_arc(innerRadius=60, outerRadius=110)
-                    #text = base.mark_text(radius=135, fontSize=12, color='black').encode(
-                        #text=alt.Text("Cantidad:Q", format=".0f")
-                    #)
-                    #st.altair_chart(pie + text, use_container_width=True)
-                    #st.subheader("Distribución por Relación")
-
-                    #base = alt.Chart(resumen).encode(
-                        #theta=alt.Theta(field="Cantidad", type="quantitative", stack=True),
-                        #color=alt.Color(field="Relación", type="nominal",
-                                        #legend=alt.Legend(title="Relación", orient='right')),  # ✅ activa la leyenda
-                        #tooltip=['Relación', 'Cantidad']
-                    #)
-
-                    #pie = base.mark_arc(innerRadius=60, outerRadius=110)
-                    #text = base.mark_text(radius=135, fontSize=12, color='black').encode(
-                        #text=alt.Text("Cantidad:Q", format=".0f")
-                    #)
-
-                    #st.altair_chart(pie + text, use_container_width=True)
                     st.subheader("Distribución por Relación")
 
-                    # Paleta de colores fija para consistencia visual
-                    color_scale = alt.Scale(
-                        domain=['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'Pasantes universitarios (Pasante)'],
-                        range=['#1f77b4', '#ff7f0e', '#2ca02c']  # azul, naranja, verde
+                    # Calcular porcentaje y etiquetas (solo cantidad + porcentaje, sin repetir)
+                    resumen['Porcentaje'] = (resumen['Cantidad'] / resumen['Cantidad'].sum() * 100).round(1)
+                    resumen['Etiqueta'] = resumen.apply(lambda row: f"{row['Cantidad']} ({row['Porcentaje']}%)", axis=1)
+
+                    # Paleta de colores fija
+                    colores = ['#1f77b4', '#ff7f0e', '#2ca02c']  # azul, naranja, verde
+
+                    # Crear gráfico tipo pie (donut)
+                    fig = px.pie(
+                        resumen,
+                        names='Relación',
+                        values='Cantidad',
+                        color='Relación',
+                        color_discrete_sequence=colores,
+                        hole=0.4,                 # anillo interno
+                        hover_data=['Cantidad', 'Porcentaje'],  # <-- CORRECTO
                     )
 
-                    # Base del gráfico
-                    base = alt.Chart(resumen).encode(
-                        theta=alt.Theta(field="Cantidad", type="quantitative", stack=True),
-                        color=alt.Color(field="Relación", type="nominal", scale=color_scale,
-                                        legend=alt.Legend(title="Tipo de Relación")),
-                        tooltip=['Relación', 'Cantidad']
+                    # Mostrar etiquetas solo con cantidad + porcentaje, en exterior con efecto abanico
+                    fig.update_traces(
+                        text=resumen['Etiqueta'],
+                        textinfo='text',           # solo mostrar el texto definido en 'text'
+                        textposition='outside',
+                        textfont=dict(size=12),    # tamaño de la fuente
+                        insidetextorientation='radial',
+                        pull=[0.05, 0.05, 0.05],
+                        automargin=True  
                     )
 
-                    # Gráfico de torta
-                    pie = base.mark_arc(innerRadius=60, outerRadius=110)
-
-                    # Etiquetas externas
-                    text = base.mark_text(radius=140, fontSize=14, color='black').encode(
-                        text=alt.Text("Cantidad:Q", format=".0f")
+                    # Ajustar layout y leyenda
+                    fig.update_layout(
+                        showlegend=True,
+                        legend_title_text='Relación',
+                        legend=dict(
+                            orientation='h',
+                            yanchor='bottom',
+                            y=-0.25,       # se baja un poco para que no se corte
+                            xanchor='center',
+                            x=0.5
+                        ),
+                        margin=dict(t=80, b=80, l=50, r=50)
                     )
 
-                    # Mostrar el gráfico en Streamlit
-                    st.altair_chart((pie + text).interactive(), use_container_width=True)
-
+                    # Mostrar gráfico en Streamlit
+                    st.plotly_chart(fig, use_container_width=True)
+                    
                 breakdown_columns = {'Gerencia': 'Composición por Gerencia', 'Nivel': 'Composición por Nivel', 'Ministerio': 'Composición por Ministerio', 'Función': 'Composición por Función', 'Distrito': 'Composición por Distrito', 'Sexo': 'Composición por Sexo'}
                 st.markdown("---")
                 st.subheader("Seleccionar Vistas de Composición")
