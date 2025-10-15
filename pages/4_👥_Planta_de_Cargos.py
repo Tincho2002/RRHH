@@ -6,7 +6,7 @@ from datetime import datetime
 import numpy as np
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
-st.set_page_config(layout="wide", page_title="Dashboard RH", page_icon="👥")
+st.set_page_config(layout="wide", page_title="Dashboard RH", page_icon="🏢")
 
 # 2. FUNCIÓN DE CARGA Y PROCESAMIENTO DE DATOS
 @st.cache_data
@@ -35,13 +35,16 @@ def load_data(uploaded_file):
             df.rename(columns={'Convenio': 'Relación'}, inplace=True)
         if 'Relación' not in df.columns:
             df['Relación'] = "No especificado"
+
         def map_relacion(rel):
             rel_lower = str(rel).strip().lower()
             if 'cct' in rel_lower: return 'CCT 885/07 (Convenio)'
             elif 'fuera' in rel_lower: return 'Fuera de Convenio (FC)'
             elif 'pasant' in rel_lower: return 'Pasantes universitarios (Pasante)'
             else: return 'No especificado'
+
         df['Relación'] = df['Relación'].apply(map_relacion)
+
         cols_to_clean = ['Gerencia', 'Sexo', 'Ministerio', 'Nivel', 'Distrito', 'Función', 'Motivo de Egreso', 'I. Activo']
         for col in cols_to_clean:
             if col in df.columns:
@@ -52,6 +55,7 @@ def load_data(uploaded_file):
     except Exception as e:
         st.error(f"Ocurrió un error al cargar el archivo: {e}")
         return None
+
 
 def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns and not dataframe.empty:
@@ -99,6 +103,7 @@ def create_dotacion_breakdown(df, breakdown_column, title, selected_gerencias):
             y=alt.Y(f'{breakdown_column}:N', sort=sort_order, title=breakdown_column),
             color=alt.Color(f'{stacking_column}:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title=stacking_column)),
             tooltip=[breakdown_column, stacking_column, 'Cantidad'])
+        # etiquetas de total al final de cada fila / barra
         text_labels = alt.Chart(table_df).mark_text(align='left', baseline='middle', dx=5, fontSize=12).encode(
             y=alt.Y(f'{breakdown_column}:N', sort=sort_order), x=alt.X('Total:Q'),
             text=alt.Text('Total:Q', format='.0f'), color=alt.value('black'))
@@ -106,6 +111,7 @@ def create_dotacion_breakdown(df, breakdown_column, title, selected_gerencias):
         st.altair_chart(final_chart, use_container_width=True)
     with col_table:
         st.dataframe(display_df, use_container_width=True, hide_index=True)
+
 
 def create_event_category_breakdown(df, breakdown_column, title):
     st.subheader(title)
@@ -134,6 +140,7 @@ def create_event_category_breakdown(df, breakdown_column, title):
             y=alt.Y(f'{breakdown_column}:N', sort=sort_order, title=breakdown_column),
             color=alt.Color('Relación:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title='Relación')),
             tooltip=[breakdown_column, 'Relación', 'Cantidad'])
+        # etiquetas de total
         text_labels = alt.Chart(table_df).mark_text(align='left', baseline='middle', dx=5, fontSize=12).encode(
             y=alt.Y(f'{breakdown_column}:N', sort=sort_order), x=alt.X('Total:Q'),
             text=alt.Text('Total:Q', format='.0f'), color=alt.value('black'))
@@ -142,29 +149,75 @@ def create_event_category_breakdown(df, breakdown_column, title):
     with col_table:
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
+
 def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
+    """Muestra 1) evolución por mes/año (barras por mes con color por año) y
+       2) gráfico de variaciones mensuales (variación absoluta y porcentual) + tabla."""
     st.subheader(title)
     if df.empty:
         st.warning(f"No hay datos de {title.lower()} para mostrar con los filtros actuales.")
         return
+
+    # Preparar dataframe para orden por meses
+    df_plot = df.copy()
+    # Map month to number for sorting
+    month_order_map = {m: i for i, m in enumerate(all_months_list)}
+    if month_col not in df_plot.columns:
+        st.warning("No existe la columna de mes en los datos.")
+        return
+    df_plot = df_plot[df_plot[month_col].notna()]
+
     col_chart, col_table = st.columns([1.5, 1])
     with col_chart:
-        chart = alt.Chart(df).mark_bar().encode(
+        # Evolución por mes (barras por mes con color por año)
+        base = alt.Chart(df_plot).mark_bar().encode(
             x=alt.X(f'{month_col}:N', sort=all_months_list, title='Mes'),
             y=alt.Y('count():Q', title='Cantidad'),
             color=alt.Color(f'{year_col}:N', title='Año'),
             tooltip=[f'{year_col}:N', f'{month_col}:N', 'count():Q']
         )
-        st.altair_chart(chart, use_container_width=True)
+        # Etiqueta de datos: cantidad por barra
+        text = alt.Chart(df_plot).mark_text(dy=-8, fontSize=11).encode(
+            x=alt.X(f'{month_col}:N', sort=all_months_list),
+            y=alt.Y('count():Q'),
+            text=alt.Text('count():Q')
+        )
+        st.altair_chart((base + text).properties(height=350), use_container_width=True)
+
+        # Gráfico de variaciones mensuales (agregado por mes sumando todos los años filtrados)
+        st.markdown("---")
+        st.subheader("Variación mensual (Total por Mes)")
+        # Agregar totals por mes (sumando años seleccionados)
+        totals = df_plot.groupby(month_col).size().reindex(all_months_list, fill_value=0).rename('Total').reset_index().rename(columns={'index': month_col})
+        totals[month_col] = totals[month_col].fillna('')
+        # Asegurar la columna Month está en el orden correcto
+        totals['month_num'] = totals[month_col].map(month_order_map)
+        totals = totals.sort_values('month_num').drop(columns=['month_num'])
+        totals['Delta'] = totals['Total'].diff().fillna(0)
+        # Evitar división por cero: calcular pct change respecto al mes anterior
+        totals['PctChange'] = totals['Total'].pct_change().fillna(0) * 100
+
+        line = alt.Chart(totals).mark_line(point=True).encode(
+            x=alt.X(f'{month_col}:N', sort=all_months_list, title='Mes'),
+            y=alt.Y('Delta:Q', title='Cambio absoluto (nuevos - prev)'),
+            tooltip=[f'{month_col}:N', 'Total:Q', 'Delta:Q', alt.Tooltip('PctChange:Q', format='.2f')]
+        )
+        text_var = alt.Chart(totals).mark_text(dy=-10, fontSize=11).encode(
+            x=alt.X(f'{month_col}:N', sort=all_months_list),
+            y=alt.Y('Delta:Q'),
+            text=alt.Text('Delta:Q')
+        )
+        st.altair_chart((line + text_var).properties(height=300), use_container_width=True)
+
     with col_table:
+        # Tabla para la vista mensual: desglose por año/mes por relación
         rel_cols = ['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'Pasantes universitarios (Pasante)']
-        table_data = pd.pivot_table(df, index=[year_col, month_col], columns='Relación', aggfunc='size', fill_value=0)
+        table_data = pd.pivot_table(df_plot, index=[year_col, month_col], columns='Relación', aggfunc='size', fill_value=0)
         for col in rel_cols:
             if col not in table_data.columns: table_data[col] = 0
         table_data = table_data.reset_index()
         table_data.rename(columns={year_col: 'Año', month_col: 'Mes'}, inplace=True)
         table_data['Año'] = table_data['Año'].astype(int)
-        month_order_map = {month: i for i, month in enumerate(all_months_list)}
         table_data['month_num'] = table_data['Mes'].map(month_order_map)
         table_data = table_data.sort_values(by=['Año', 'month_num']).drop(columns=['month_num'])
         table_data['Total'] = table_data[rel_cols].sum(axis=1)
@@ -175,9 +228,17 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
         display_df = pd.concat([table_data, total_row], ignore_index=True)
         st.dataframe(display_df, hide_index=True, use_container_width=True)
 
+        # También mostrar la tabla de variaciones mensuales
+        st.markdown("---")
+        st.subheader("Tabla: Totales y variaciones mensuales")
+        # Preparar tabla 'totals' con index
+        totals_display = totals.copy()
+        totals_display['PctChange'] = totals_display['PctChange'].round(2)
+        st.dataframe(totals_display.reset_index(drop=True), use_container_width=True, hide_index=True)
+
 # --- INICIO DE LA APLICACIÓN ---
-st.title('Planta de Cargos -Ingresos y Egresos')
-uploaded_file = st.file_uploader("Cargue aquí su archivo de personal", type=["xlsx", "csv"])
+st.title('🏢 Planta de Cargos 2025 -Ingresos & Egresos-')
+uploaded_file = st.file_uploader("Cargue aquí su archivo de personal", type=["xlsx", "csv"]) 
 
 if uploaded_file:
     df_original = load_data(uploaded_file)
@@ -234,9 +295,62 @@ if uploaded_file:
                     st.dataframe(resumen, use_container_width=True, hide_index=True)
                     st.metric("Total Dotación Activa (Según Filtros)", int(df_filtered_for_options.shape[0]))
                 with col2:
+                    #st.subheader("Distribución por Relación")
+                    #pie = alt.Chart(resumen).mark_arc(innerRadius=60).encode(theta='Cantidad:Q', color='Relación:N', tooltip=['Relación', 'Cantidad'])
+                    #st.altair_chart(pie, use_container_width=True)
+                    #st.subheader("Distribución por Relación")
+                    #base = alt.Chart(resumen).encode(
+                        #theta=alt.Theta(field="Cantidad", type="quantitative", stack=True),
+                        #color=alt.Color(field="Relación", type="nominal", legend=alt.Legend(title="Relación", orient='right')),
+                        #tooltip=['Relación', 'Cantidad']
+                    #)
+                    #pie = base.mark_arc(innerRadius=60, outerRadius=110)
+                    #text = base.mark_text(radius=135, fontSize=12, color='black').encode(
+                        #text=alt.Text("Cantidad:Q", format=".0f")
+                    #)
+                    #st.altair_chart(pie + text, use_container_width=True)
+                    #st.subheader("Distribución por Relación")
+
+                    #base = alt.Chart(resumen).encode(
+                        #theta=alt.Theta(field="Cantidad", type="quantitative", stack=True),
+                        #color=alt.Color(field="Relación", type="nominal",
+                                        #legend=alt.Legend(title="Relación", orient='right')),  # ✅ activa la leyenda
+                        #tooltip=['Relación', 'Cantidad']
+                    #)
+
+                    #pie = base.mark_arc(innerRadius=60, outerRadius=110)
+                    #text = base.mark_text(radius=135, fontSize=12, color='black').encode(
+                        #text=alt.Text("Cantidad:Q", format=".0f")
+                    #)
+
+                    #st.altair_chart(pie + text, use_container_width=True)
                     st.subheader("Distribución por Relación")
-                    pie = alt.Chart(resumen).mark_arc(innerRadius=60).encode(theta='Cantidad:Q', color='Relación:N', tooltip=['Relación', 'Cantidad'])
-                    st.altair_chart(pie, use_container_width=True)
+
+                    # Paleta de colores fija para consistencia visual
+                    color_scale = alt.Scale(
+                        domain=['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'Pasantes universitarios (Pasante)'],
+                        range=['#1f77b4', '#ff7f0e', '#2ca02c']  # azul, naranja, verde
+                    )
+
+                    # Base del gráfico
+                    base = alt.Chart(resumen).encode(
+                        theta=alt.Theta(field="Cantidad", type="quantitative", stack=True),
+                        color=alt.Color(field="Relación", type="nominal", scale=color_scale,
+                                        legend=alt.Legend(title="Tipo de Relación")),
+                        tooltip=['Relación', 'Cantidad']
+                    )
+
+                    # Gráfico de torta
+                    pie = base.mark_arc(innerRadius=60, outerRadius=110)
+
+                    # Etiquetas externas
+                    text = base.mark_text(radius=140, fontSize=14, color='black').encode(
+                        text=alt.Text("Cantidad:Q", format=".0f")
+                    )
+
+                    # Mostrar el gráfico en Streamlit
+                    st.altair_chart((pie + text).interactive(), use_container_width=True)
+
                 breakdown_columns = {'Gerencia': 'Composición por Gerencia', 'Nivel': 'Composición por Nivel', 'Ministerio': 'Composición por Ministerio', 'Función': 'Composición por Función', 'Distrito': 'Composición por Distrito', 'Sexo': 'Composición por Sexo'}
                 st.markdown("---")
                 st.subheader("Seleccionar Vistas de Composición")
@@ -246,7 +360,7 @@ if uploaded_file:
                 if selected_breakdowns:
                     for breakdown_key in selected_breakdowns:
                         create_dotacion_breakdown(df_filtered_for_options, breakdown_key, breakdown_columns[breakdown_key], selected_gerencias)
-                with st.expander("Ver detalle completo de la dotación filtrada"): 
+                with st.expander("Ver detalle completo de la dotación filtrada"):
                     st.dataframe(df_filtered_for_options)
 
         else: # 'Ingresos y Egresos'
@@ -304,11 +418,12 @@ if uploaded_file:
             col_ing_m, col_eg_m = st.columns(2)
             col_ing_m.metric("✅ Ingresos (Según Filtros)", len(df_ingresos))
             col_eg_m.metric("❌ Egresos (Según Filtros)", len(df_egresos))
-            
+
             st.markdown("---")
             st.subheader("Seleccionar Vistas de Análisis de Eventos")
             st.info("ℹ️ Elija una o más aperturas para analizar la composición de los Ingresos y Egresos.")
-            event_breakdowns = {'Mes/Año': 'Análisis por Mes/Año', 'Gerencia': 'Análisis por Gerencia', 'Nivel': 'Análisis por Nivel', 'Ministerio': 'Análisis por Ministerio', 'Función': 'Análisis por Función', 'Distrito': 'Análisis por Distrito', 'Sexo': 'Análisis por Sexo'}
+            # Agregado 'Motivo de Egreso' como opción de análisis
+            event_breakdowns = {'Mes/Año': 'Análisis por Mes/Año', 'Gerencia': 'Análisis por Gerencia', 'Nivel': 'Análisis por Nivel', 'Ministerio': 'Análisis por Ministerio', 'Función': 'Análisis por Función', 'Distrito': 'Análisis por Distrito', 'Sexo': 'Análisis por Sexo', 'Motivo de Egreso': 'Motivo de Egreso'}
             selected_event_breakdowns = st.multiselect("Elija las aperturas que desea visualizar:", options=list(event_breakdowns.keys()))
 
             if selected_event_breakdowns:
@@ -319,12 +434,17 @@ if uploaded_file:
                         create_monthly_event_view(df_ingresos, 'Mes Ingreso', 'Año Ingreso', "Ingresos por Mes", all_months)
                         st.markdown("---")
                         create_monthly_event_view(df_egresos, 'Mes Egreso', 'Año Egreso', "Egresos por Mes", all_months)
+                    elif breakdown_key == 'Motivo de Egreso':
+                        # Mostrar solo composición de egresos por motivo
+                        if df_egresos.empty:
+                            st.warning("No hay egresos para mostrar el Motivo de Egreso con los filtros actuales.")
+                        else:
+                            create_event_category_breakdown(df_egresos, 'Motivo de Egreso', "Composición de Egresos por Motivo de Egreso")
                     else:
                         create_event_category_breakdown(df_ingresos, breakdown_key, f"Composición de Ingresos por {breakdown_key}")
                         st.markdown("---")
                         create_event_category_breakdown(df_egresos, breakdown_key, f"Composición de Egresos por {breakdown_key}")
 
-            # <--- MODIFICACIÓN: Expanders de detalle restaurados --->
             st.markdown("---")
             with st.expander("Ver detalle de Ingresos"):
                 st.dataframe(df_ingresos)
