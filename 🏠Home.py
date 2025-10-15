@@ -269,7 +269,7 @@ st.markdown("""
         <div class="access-icon">🔗</div>
     </a>
     <a href="/Planta_de_Cargos" target="_self" class="app-card card-planta">
-        <div class="card-title">📊 Planta de Cargos</div>
+        <div class="card-title">🏢 Planta de Cargos</div>
         <p>Analiza la dinámica de ingresos y egresos, y la composición detallada de la dotación.</p>
         <div class="access-icon">🔗</div>
     </a>
