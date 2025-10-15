@@ -124,6 +124,8 @@ st.markdown("""
 .card-dotacion { background-color: #e0f7fa; }
 .card-horas { background-color: #fffde7; }
 .card-masa { background-color: #f1f8e9; }
+.card-planta { background-color: #f3e5f5; } /* <-- MODIFICACIÓN: Nuevo estilo para la tarjeta */
+
 
 .app-card:hover {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
@@ -264,6 +266,11 @@ st.markdown("""
     <a href="/Masa_Salarial" target="_self" class="app-card card-masa">
         <div class="card-title">💵 Masa Salarial</div>
         <p>Visualiza la composición, evolución y proyecciones de costos salariales.</p>
+        <div class="access-icon">🔗</div>
+    </a>
+    <a href="/Planta_de_Cargos" target="_self" class="app-card card-planta">
+        <div class="card-title">📊 Planta de Cargos</div>
+        <p>Analiza la dinámica de ingresos y egresos, y la composición detallada de la dotación.</p>
         <div class="access-icon">🔗</div>
     </a>
 </div>
