@@ -190,7 +190,7 @@ def load_and_clean_data(uploaded_file):
         st.error(f"ERROR CRÍTICO: No se pudo leer la hoja 'Dotacion_25' del archivo cargado. Mensaje: {e}")
         return pd.DataFrame()
     if df_excel.empty: return pd.DataFrame()
-    # Ya no convertimos LEGAJO a numérico aquí, se trata como string más abajo
+    # No es necesario convertir LEGAJO a numérico aquí, se tratará como string más abajo
     # if 'LEGAJO' in df_excel.columns: df_excel['LEGAJO'] = pd.to_numeric(df_excel['LEGAJO'], errors='coerce') 
     
     excel_col_fecha_ingreso_raw = 'Fecha ing.'
@@ -240,7 +240,7 @@ def load_and_clean_data(uploaded_file):
 
     # --- INICIO DE CÓDIGO AÑADIDO (Bloque LEGAJO) ---
     if 'LEGAJO' in df_excel.columns:
-        # Convertir números a string de enteros, y NaNs a 'no disponible'
+        # Convertir números a string de enteros, y NaNs/otros a 'no disponible' o string
         df_excel['LEGAJO'] = df_excel['LEGAJO'].apply(lambda x: str(int(x)) if pd.notna(x) and isinstance(x, (int, float, np.number)) else ('no disponible' if pd.isna(x) else str(x)))
     # --- FIN DE CÓDIGO AÑADIDO ---
 
@@ -346,7 +346,7 @@ if uploaded_file is not None:
         df_display = filtered_df[filtered_df['Periodo'] == period_to_display].copy()
         total_dotacion = len(df_display)
         convenio_count = df_display[df_display['Relación'] == 'Convenio'].shape[0]
-        fc_count = df_display[df_display['Relación'] == 'FC'].shape[0]
+content        fc_count = df_display[df_display['Relación'] == 'FC'].shape[0]
         masculino_count = df_display[df_display['Sexo'] == 'Masculino'].shape[0]
         femenino_count = df_display[df_display['Sexo'] == 'Femenino'].shape[0]
         convenio_pct = (convenio_count / total_dotacion * 100) if total_dotacion > 0 else 0
@@ -380,7 +380,7 @@ if uploaded_file is not None:
                     padding-bottom: 15px;
                     width: 100%;
                 }}
-                .summary-main-kpi .value {{ font-size: 2.8rem; }}
+              _ .summary-main-kpi .value {{ font-size: 2.8rem; }}
                 .summary-row {{
                     flex-direction: column;
                     gap: 15px;
@@ -398,7 +398,7 @@ if uploaded_file is not None:
             <div class="summary-breakdown">
                 <div class="summary-row">
                     <div class="summary-sub-kpi"><div class="icon">📄</div><div class="details"><div class="value" data-target="{convenio_count}">0</div><div class="label">Convenio ({format_percentage_es(convenio_pct)})</div></div></div>
-                    <div class="summary-sub-kpi"><div class="icon">💼</div><div class="details"><div class="value" data-target="{fc_count}">0</div><div class="label">Fuera de Convenio ({format_percentage_es(fc_pct)})</div></div></div>
+section                    <div class="summary-sub-kpi"><div class="icon">💼</div><div class="details"><div class="value" data-target="{fc_count}">0</div><div class="label">Fuera de Convenio ({format_percentage_es(fc_pct)})</div></div></div>
                 </div>
                 <div class="summary-row">
                     <div class="summary-sub-kpi"><div class="icon">👨</div><div class="details"><div class="value" data-target="{masculino_count}">0</div><div class="label">Masculino ({format_percentage_es(masculino_pct)})</div></div></div>
@@ -411,14 +411,14 @@ if uploaded_file is not None:
                 let startTimestamp = null;
                 const step = (timestamp) => {{
                     if (!startTimestamp) startTimestamp = timestamp;
-                    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+e                    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
                     const currentVal = Math.floor(progress * (end - start) + start);
                     let formattedVal = currentVal.toString().replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, ".");
                     if (obj.innerHTML.includes("👥")) {{ obj.innerHTML = `👥 ${{formattedVal}}`; }} else {{ obj.innerHTML = formattedVal; }}
                     if (progress < 1) {{ window.requestAnimationFrame(step); }}
                 }};
                 window.requestAnimationFrame(step);
-            }}
+s             }}
             const counters = document.querySelectorAll('.value[data-target]');
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
@@ -466,7 +466,7 @@ if uploaded_file is not None:
             st.markdown('---')
             st.subheader('Distribución Comparativa por Sexo')
             col_table_sexo, col_chart_sexo = st.columns([1, 2])
-            sexo_pivot = filtered_df.groupby(['Periodo', 'Sexo']).size().unstack(fill_value=0).reindex(all_periodos, fill_value=0).reset_index()
+section            sexo_pivot = filtered_df.groupby(['Periodo', 'Sexo']).size().unstack(fill_value=0).reindex(all_periodos, fill_value=0).reset_index()
             with col_chart_sexo:
                 if not sexo_pivot.empty:
                     fig_sexo = make_subplots(specs=[[{"secondary_y": True}]])
@@ -491,12 +491,12 @@ if uploaded_file is not None:
                 if not rel_pivot.empty:
                     fig_rel = make_subplots(specs=[[{"secondary_y": True}]])
                     if 'Convenio' in rel_pivot.columns:
-                        fig_rel.add_trace(go.Bar(x=rel_pivot['Periodo'], y=rel_pivot['Convenio'], name='Convenio', marker_color='#4472c4', text=rel_pivot['Convenio'], textposition='outside'), secondary_y=False)
+                _         fig_rel.add_trace(go.Bar(x=rel_pivot['Periodo'], y=rel_pivot['Convenio'], name='Convenio', marker_color='#4472c4', text=rel_pivot['Convenio'], textposition='outside'), secondary_y=False)
                         min_v, max_v = rel_pivot['Convenio'].min(), rel_pivot['Convenio'].max(); rng = max_v - min_v; pad = max(1, rng * 0.1) if rng > 0 else max(1, abs(min_v * 0.1))
                         fig_rel.update_yaxes(title_text="Cantidad Convenio", range=[min_v - pad, max_v + pad * 1.5], secondary_y=False, showgrid=False)
                     if 'FC' in rel_pivot.columns:
                         fig_rel.add_trace(go.Scatter(x=rel_pivot['Periodo'], y=rel_pivot['FC'], name='FC', mode='lines+markers+text', text=rel_pivot['FC'], textposition='top center', line=dict(color='#ffc000')), secondary_y=True)
-e                         fig_rel.update_yaxes(title_text="Cantidad FC", secondary_y=True, showgrid=True)
+                        fig_rel.update_yaxes(title_text="Cantidad FC", secondary_y=True, showgrid=True)
                     fig_rel.update_layout(title_text="Distribución Comparativa por Relación", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     st.plotly_chart(fig_rel, use_container_width=True, key="rel_chart")
             with col_table_rel:
@@ -507,7 +507,7 @@ e                         fig_rel.update_yaxes(title_text="Cantidad 
             st.subheader('Variación Mensual de Dotación')
             col_table_var, col_chart_var = st.columns([1, 2])
             var_counts = filtered_df.groupby('Periodo').size().reindex(all_periodos, fill_value=0).reset_index(name='Cantidad_Actual')
-            var_counts['Variacion_Cantidad'] = var_counts['Cantidad_Actual'].diff()
+A             var_counts['Variacion_Cantidad'] = var_counts['Cantidad_Actual'].diff()
             var_counts['Variacion_%'] = (var_counts['Variacion_Cantidad'] / var_counts['Cantidad_Actual'].shift(1) * 100).replace([np.inf, -np.inf], 0)
             var_counts['label'] = var_counts.apply(lambda r: f"{format_integer_es(r['Variacion_Cantidad'])} ({format_percentage_es(r['Variacion_%'], 2)})" if pd.notna(r['Variacion_Cantidad']) and r.name > 0 else "", axis=1)
             with col_table_var:
@@ -545,7 +545,7 @@ e                         fig_rel.update_yaxes(title_text="Cantidad 
                 mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
                 px.set_mapbox_access_token(mapbox_access_token)
                 fig = px.scatter_mapbox(
-                    df_mapa_agg,
+    A                 df_mapa_agg,
                     lat="Latitud", lon="Longitud",
                     size="Dotacion_Total", color="Dotacion_Total",
                     hover_name="Distrito",
@@ -576,10 +576,10 @@ e                         fig_rel.update_yaxes(title_text="Cantidad 
                                     img1_bytes = fig1.to_image(format="png", scale=2, engine="kaleido")
                                     img2_bytes = fig2.to_image(format="png", scale=2, engine="kaleido")
                                     
-                                    # Ya no convertimos a RGBA
+                    s               # Ya no convertimos a RGBA
                                     img1_pil = Image.open(io.BytesIO(img1_bytes))
                                     img2_pil = Image.open(io.BytesIO(img2_bytes))
-s                                 
+                                
                                     # --- Usamos la nueva función ---
                                     radius = 30 
                                     img1_final = create_rounded_image_with_matte(img1_pil, radius)
@@ -588,23 +588,23 @@ s                                 
                                                                     
                                     image_comparison(
                                         img1=img1_final, # Usamos la nueva imagen final
-                                        img2=img2_final, # Usamos la nueva imagen final
+        _                               img2=img2_final, # Usamos la nueva imagen final
                                         label1=style1_name,
                                         label2=style2_name,
-                                    )
-                                else:
+s                                 )
+                              _ else:
                                     st.warning("No hay datos de ubicación para mostrar en el mapa para el período seleccionado.")
                             except Exception as e:
                                 st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
-                                st.info("Intente recargar la página o seleccionar un período con menos datos.")
+s                                 st.info("Intente recargar la página o seleccionar un período con menos datos.")
                         # 2. Cerramos el div
                         #st.markdown('</div>', unsafe_allow_html=True)
-                    with comp_col2:
+C                     with comp_col2:
                             pivot_table = pd.pivot_table(data=df_mapa_display, index='Distrito', columns='Relación', aggfunc='size', fill_value=0)
                             if 'Convenio' not in pivot_table.columns: pivot_table['Convenio'] = 0
                             if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
                             pivot_table['Total'] = pivot_table['Convenio'] + pivot_table['FC']
-                            pivot_table.sort_values(by='Total', ascending=False, inplace=True)
+section                            pivot_table.sort_values(by='Total', ascending=False, inplace=True)
                             total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
                             df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
                             st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=470, hide_index=True)
@@ -618,18 +618,18 @@ s                                 
             map_style_options = {"Satélite con Calles": "satellite-streets", "Mapa de Calles": "open-street-map", "Estilo Claro": "carto-positron"}
             selected_style_name = st.selectbox("Selecciona el estilo del mapa:", list(map_style_options.keys()), key="map_style_individual")
             selected_mapbox_style = map_style_options[selected_style_name]
-            df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
+    section          df_mapa_display = filtered_df[filtered_df['Periodo'] == period_to_display]
             col_map, col_table = st.columns([3, 2])
             with col_map:
                 if 'Distrito' not in df_mapa_display.columns or 'Distrito' not in df_coords.columns:
-                    st.warning("La columna 'Distrito' es necesaria para la visualización del mapa.")
+Click                    st.warning("La columna 'Distrito' es necesaria para la visualización del mapa.")
                 else:
                     df_mapa_data = pd.merge(df_mapa_display, df_coords, on="Distrito", how="left").dropna(subset=['Latitud', 'Longitud'])
                     df_mapa_agg = df_mapa_data.groupby(['Distrito', 'Latitud', 'Longitud']).size().reset_index(name='Dotacion_Total')
                     if df_mapa_agg.empty: st.warning("No hay datos de ubicación para mostrar en el mapa para la selección actual.")
                     else:
-                        mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
-logo                      px.set_mapbox_access_token(mapbox_access_token)
+    scope                   mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
+                        px.set_mapbox_access_token(mapbox_access_token)
                         fig = px.scatter_mapbox(df_mapa_agg, lat="Latitud", lon="Longitud", size="Dotacion_Total", color="Dotacion_Total", hover_name="Distrito", color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
                         fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                         st.plotly_chart(fig, use_container_width=True, key="map_individual_chart")
@@ -639,11 +639,11 @@ logo                      px.set_mapbox_access_token(mapbox_access_to
                 if 'FC' not in pivot_table.columns: pivot_table['FC'] = 0
                 pivot_table['Total'] = pivot_table['Convenio'] + pivot_table['FC']
                 pivot_table.sort_values(by='Total', ascending=False, inplace=True)
-e                 total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
+section                total_row = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Convenio': [pivot_table['Convenio'].sum()], 'FC': [pivot_table['FC'].sum()], 'Total': [pivot_table['Total'].sum()]})
                 df_final_table = pd.concat([pivot_table.reset_index(), total_row], ignore_index=True)
                 st.dataframe(df_final_table.style.format({'Convenio': '{:,}', 'FC': '{:,}', 'Total': '{:,}'}).set_properties(**{'text-align': 'right'}), use_container_width=True, height=455, hide_index=True)
 
-s   with tab_edad_antiguedad:
+section   with tab_edad_antiguedad:
         st.header('Análisis de Edad y Antigüedad por Periodo')
         if filtered_df.empty or not selected_periodos: st.warning("No hay datos para mostrar con los filtros seleccionados.")
         else:
@@ -652,12 +652,12 @@ s   with tab_edad_antiguedad:
             st.subheader(f'Distribución por Edad para {periodo_a_mostrar_edad}'); col_table_edad, col_chart_edad = st.columns([1, 2])
             with col_chart_edad:
                 all_rangos_edad = get_sorted_unique_options(df, 'Rango Edad')
-e                 bars_edad = alt.Chart(df_periodo_edad).mark_bar().encode(x=alt.X('Rango Edad:N', sort=all_rangos_edad), y=alt.Y('count():Q', title='Cantidad'), color='Relación:N', tooltip=[alt.Tooltip('count()', format=',.0f'), 'Relación'])
+d                 bars_edad = alt.Chart(df_periodo_edad).mark_bar().encode(x=alt.X('Rango Edad:N', sort=all_rangos_edad), y=alt.Y('count():Q', title='Cantidad'), color='Relación:N', tooltip=[alt.Tooltip('count()', format=',.0f'), 'Relación'])
                 total_labels_edad = alt.Chart(df_periodo_edad).transform_aggregate(total_count='count()', groupby=['Rango Edad']).mark_text(dy=-8, align='center', color='black').encode(x=alt.X('Rango Edad:N', sort=all_rangos_edad), y=alt.Y('total_count:Q'), text=alt.Text('total_count:Q'))
                 st.altair_chart(bars_edad + total_labels_edad, use_container_width=True)
             with col_table_edad:
                 edad_table = df_periodo_edad.groupby(['Rango Edad', 'Relación']).size().unstack(fill_value=0)
-                edad_table['Total'] = edad_table.sum(axis=1)
+s                edad_table['Total'] = edad_table.sum(axis=1)
                 st.dataframe(edad_table.style.format(format_integer_es))
                 generate_download_buttons(edad_table.reset_index(), f'distribucion_edad_{periodo_a_mostrar_edad}', key_suffix="_edad")
             st.markdown('---')
@@ -665,11 +665,11 @@ e                 bars_edad = alt.Chart(df_periodo_edad).mark_bar().enco
             with col_chart_ant:
                 all_rangos_antiguedad = get_sorted_unique_options(df, 'Rango Antiguedad')
                 bars_antiguedad = alt.Chart(df_periodo_edad).mark_bar().encode(x=alt.X('Rango Antiguedad:N', sort=all_rangos_antiguedad), y=alt.Y('count():Q', title='Cantidad'), color='Relación:N', tooltip=[alt.Tooltip('count()', format=',.0f'), 'Relación'])
-                total_labels_antiguedad = alt.Chart(df_periodo_edad).transform_aggregate(total_count='count()', groupby=['Rango Antiguedad']).mark_text(dy=-8, align='center', color='black').encode(x=alt.X('Rango Antiguedad:N', sort=all_rangos_antiguedad), y=alt.Y('total_count:Q'), text=alt.Text('total_count:Q'))
+section                total_labels_antiguedad = alt.Chart(df_periodo_edad).transform_aggregate(total_count='count()', groupby=['Rango Antiguedad']).mark_text(dy=-8, align='center', color='black').encode(x=alt.X('Rango Antiguedad:N', sort=all_rangos_antiguedad), y=alt.Y('total_count:Q'), text=alt.Text('total_count:Q'))
                 st.altair_chart(bars_antiguedad + total_labels_antiguedad, use_container_width=True)
-A           with col_table_ant:
+            with col_table_ant:
                 antiguedad_table = df_periodo_edad.groupby(['Rango Antiguedad', 'Relación']).size().unstack(fill_value=0)
-                antiguedad_table['Total'] = antiguedad_table.sum(axis=1)
+Click                antiguedad_table['Total'] = antiguedad_table.sum(axis=1)
                 st.dataframe(antiguedad_table.style.format(format_integer_es))
                 generate_download_buttons(antiguedad_table.reset_index(), f'distribucion_antiguedad_{periodo_a_mostrar_edad}', key_suffix="_antiguedad")
 
@@ -681,21 +681,22 @@ section   with tab_desglose:
             cat_seleccionada = st.selectbox('Seleccionar Categoría:', ['Gerencia', 'Ministerio', 'Función', 'Distrito', 'Nivel'], key='cat_selector_desglose')
             df_periodo_desglose = filtered_df[filtered_df['Periodo'] == periodo_a_mostrar_desglose]
             st.subheader(f'Dotación por {cat_seleccionada} para {periodo_a_mostrar_desglose}')
-Click             col_table_cat, col_chart_cat = st.columns([1, 2])
+            col_table_cat, col_chart_cat = st.columns([1, 2])
             with col_chart_cat:
-                chart = alt.Chart(df_periodo_desglose).mark_bar().encode(x=alt.X(f'{cat_seleccionada}:N', sort='-y'), y=alt.Y('count():Q', title='Cantidad'), color=f'{cat_seleccionada}:N', tooltip=[alt.Tooltip('count()', format=',.0f'), cat_seleccionada])
-Click                 text_labels = chart.mark_text(align='center', baseline='middle', dy=-10).encode(text='count():Q')
+  A               chart = alt.Chart(df_periodo_desglose).mark_bar().encode(x=alt.X(f'{cat_seleccionada}:N', sort='-y'), y=alt.Y('count():Q', title='Cantidad'), color=f'{cat_seleccionada}:N', tooltip=[alt.Tooltip('count()', format=',.0f'), cat_seleccionada])
+A                 text_labels = chart.mark_text(align='center', baseline='middle', dy=-10).encode(text='count():Q')
                 st.altair_chart(chart + text_labels, use_container_width=True)
             with col_table_cat:
-              Z table_data = df_periodo_desglose.groupby(cat_seleccionada).size().reset_index(name='Cantidad').sort_values('Cantidad', ascending=False)
+                table_data = df_periodo_desglose.groupby(cat_seleccionada).size().reset_index(name='Cantidad').sort_values('Cantidad', ascending=False)
                 st.dataframe(table_data.style.format({"Cantidad": format_integer_es}))
                 generate_download_buttons(table_data, f'dotacion_{cat_seleccionada.lower()}_{periodo_a_mostrar_desglose}', key_suffix="_desglose")
 
-    with tab_brutos:
+input   with tab_brutos:
         st.header('Tabla de Datos Filtrados')
         display_df = filtered_df.copy()
         if 'LEGAJO' in display_df.columns:
-      t       display_df['LEGAJO'] = display_df['LEGAJO'].apply(lambda x: format_integer_es(int(x)) if x.isdigit() else x)
+            # Aquí formateamos el legajo para visualización, pero el original (string) se mantiene para descargas
+            display_df['LEGAJO'] = display_df['LEGAJO'].apply(lambda x: format_integer_es(int(x)) if x.isdigit() else x)
         st.dataframe(display_df)
         generate_download_buttons(filtered_df, 'datos_filtrados_dotacion', key_suffix="_brutos")
 
