@@ -198,12 +198,28 @@ def format_currency_es(num):
     if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
     return f"${format_number_es(num, 2)}"
 
+# =============================================================================
+# --- MODIFICACIÓN 1: create_format_dict ---
+# Se ajusta la lógica para:
+# 1. Formatear 'Nivel' o 'Subnivel' con 0 decimales.
+# 2. Formatear Cantidades ('Cant', 'Q', etc.) con 2 decimales.
+# 3. Mantener otros enteros con 0 decimales.
+# 4. Dejar el resto (costos) con 2 decimales.
+# =============================================================================
 def create_format_dict(df):
     numeric_cols = df.select_dtypes(include=np.number).columns
     formatters = {}
     for col in numeric_cols:
-        if any(keyword in col for keyword in ['Cant', 'Q', 'Total_Cantidades', 'Cantidad Total']) or ('int' in str(df[col].dtype)):
+        # 1. Nivel/Subnivel (y CECO por si acaso) sin decimales
+        if 'Nivel' in col or 'Subnivel' in col or 'CECO' in col:
             formatters[col] = lambda x: format_number_es(x, 0)
+        # 2. Cantidades con dos decimales
+        elif any(keyword in col for keyword in ['Cant', 'Q', 'Total_Cantidades', 'Cantidad Total']):
+            formatters[col] = lambda x: format_number_es(x, 2)
+        # 3. Mantener otros enteros (como Legajo si fuera numérico) sin decimales
+        elif 'int' in str(df[col].dtype):
+            formatters[col] = lambda x: format_number_es(x, 0)
+        # 4. El resto (costos, etc.) con dos decimales
         else:
             formatters[col] = lambda x: format_number_es(x, 2)
     return formatters
@@ -484,7 +500,10 @@ if uploaded_file is not None:
                 meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
                 month_name = f"{meses_espanol.get(month_dt.month, '')} {month_dt.year}"
 
-                # --- CONSTRUCCIÓN DEL HTML DE LA TARJETA ---
+                # =============================================================================
+                # --- MODIFICACIÓN 2: card_html ---
+                # Se cambia data-decimals="0" a data-decimals="2" para todas las cantidades.
+                # =============================================================================
                 card_html = f"""
                 <style>
                     .summary-card{{background-color:#f8f7fc;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,0.05);padding:1.5rem;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif !important}}
@@ -518,14 +537,14 @@ if uploaded_file is not None:
                     <div class="summary-header">RESUMEN MENSUAL: {month_name}</div>
                     <div class="summary-totals">
                         <div class="summary-main-kpi"><div class="value" data-target="{total_costo_mes}" data-type="currency" data-decimals="2"></div><div class="label">Costo Total</div></div>
-                        <div class="summary-main-kpi"><div class="value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="0"></div><div class="label">Cantidad Total</div></div>
+                        <div class="summary-main-kpi"><div class="value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="2"></div><div class="label">Cantidad Total</div></div>
                     </div>
                     <div class="summary-breakdown">
                         {avg_kpi_html}
-                        <div class="summary-sub-kpi"><div class="type">Total HE 50%</div><div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
-                        <div class="summary-sub-kpi"><div class="type">Total HE 50% Sábados</div><div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
-                        <div class="summary-sub-kpi"><div class="type">Total HE 100%</div><div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
-                        <div class="summary-sub-kpi"><div class="type">Total HE FC</div><div class="value-cost" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="0"></div></div>
+                        <div class="summary-sub-kpi"><div class="type">Total HE 50%</div><div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="2"></div></div>
+                        <div class="summary-sub-kpi"><div class="type">Total HE 50% Sábados</div><div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="2"></div></div>
+                        <div class="summary-sub-kpi"><div class="type">Total HE 100%</div><div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="2"></div></div>
+                        <div class="summary-sub-kpi"><div class="type">Total HE FC</div><div class="value-cost" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="2"></div></div>
                     </div>
                 </div>
                 <script>
@@ -570,13 +589,17 @@ if uploaded_file is not None:
                         else: st.info("No hay datos de costos para mostrar para la selección actual.")
                     with col2:
                         if monthly_trends_agg['Total_Cantidades'].sum() > 0:
+                            # =============================================================================
+                            # --- MODIFICACIÓN 3: Gráfico Tendencias Cantidad ---
+                            # Se cambia format=',.0f' a format=',.2f' para tooltips y texto.
+                            # =============================================================================
                             chart_data, max_quant = monthly_trends_agg, monthly_trends_agg['Total_Cantidades'].max()
                             y_scale_quant = alt.Scale(domain=[0, max_quant * 1.25]) if max_quant > 0 else alt.Scale()
                             quantity_bars_vars = [quantity_columns_options[k] for k in st.session_state.he_quantity_types if k in quantity_columns_options]
                             monthly_trends_cantidades_melted_bars = chart_data.melt('Mes', value_vars=quantity_bars_vars, var_name='Tipo de Cantidad HE', value_name='Cantidad')
-                            bars_cantidades = alt.Chart(monthly_trends_cantidades_melted_bars).mark_bar().encode(x='Mes', y=alt.Y('Cantidad:Q', stack='zero', scale=y_scale_quant, axis=alt.Axis(format=',.0f')), color=alt.Color('Tipo de Cantidad HE', legend=alt.Legend(orient='bottom', title=None, columns=2, labelLimit=300), scale=alt.Scale(domain=quantity_color_domain, range=color_range)))
-                            line_cantidades = alt.Chart(chart_data).mark_line(color='black', point=alt.OverlayMarkDef(filled=False, fill='white', color='black'), strokeWidth=2).encode(x='Mes', y=alt.Y('Total_Cantidades:Q', title='Cantidad', scale=y_scale_quant, axis=alt.Axis(format=',.0f')), tooltip=[alt.Tooltip('Mes'), alt.Tooltip('Total_Cantidades', title='Total', format=',.0f')])
-                            text_cantidades = line_cantidades.mark_text(align='center', baseline='bottom', dy=-10, color='black').encode(text=alt.Text('Total_Cantidades:Q', format=',.0f'))
+                            bars_cantidades = alt.Chart(monthly_trends_cantidades_melted_bars).mark_bar().encode(x='Mes', y=alt.Y('Cantidad:Q', stack='zero', scale=y_scale_quant, axis=alt.Axis(format=',.2f')), color=alt.Color('Tipo de Cantidad HE', legend=alt.Legend(orient='bottom', title=None, columns=2, labelLimit=300), scale=alt.Scale(domain=quantity_color_domain, range=color_range)))
+                            line_cantidades = alt.Chart(chart_data).mark_line(color='black', point=alt.OverlayMarkDef(filled=False, fill='white', color='black'), strokeWidth=2).encode(x='Mes', y=alt.Y('Total_Cantidades:Q', title='Cantidad', scale=y_scale_quant, axis=alt.Axis(format=',.2f')), tooltip=[alt.Tooltip('Mes'), alt.Tooltip('Total_Cantidades', title='Total', format=',.2f')])
+                            text_cantidades = line_cantidades.mark_text(align='center', baseline='bottom', dy=-10, color='black').encode(text=alt.Text('Total_Cantidades:Q', format=',.2f'))
                             st.altair_chart(alt.layer(bars_cantidades, line_cantidades, text_cantidades).resolve_scale(y='shared').properties(title=alt.TitleParams('Cantidades Mensuales', anchor='middle')).interactive(), use_container_width=True)
                         else: st.info("No hay datos de cantidades para mostrar para la selección actual.")
                     st.subheader('Tabla de Tendencias Mensuales')
@@ -601,14 +624,18 @@ if uploaded_file is not None:
                         text_neg_costos = bars_var_costos.mark_text(align='center', baseline='top', dy=4, color='#333').encode(text=alt.Text('Variacion_Costos_Abs:Q', format='$,.0f')).transform_filter(alt.datum.Variacion_Costos_Abs < 0)
                         st.altair_chart((bars_var_costos + text_pos_costos + text_neg_costos).interactive(), use_container_width=True)
                     with col2:
+                        # =============================================================================
+                        # --- MODIFICACIÓN 4: Gráfico Variación Cantidad ---
+                        # Se cambia format=',.0f' a format=',.2f' para eje Y y texto.
+                        # =============================================================================
                         min_var_quant, max_var_quant = monthly_trends_for_var['Variacion_Cantidades_Abs'].min(), monthly_trends_for_var['Variacion_Cantidades_Abs'].max()
                         padding_quant = (max_var_quant - min_var_quant) * 0.15
                         domain_quant = [min_var_quant - padding_quant, max_var_quant + padding_quant]
                         scale_var_quant = alt.Scale(domain=domain_quant)
                         base_var_cant = alt.Chart(monthly_trends_for_var).properties(title=alt.TitleParams('Variación Mensual de Cantidades', anchor='middle'))
-                        bars_var_cant = base_var_cant.mark_bar().encode(x=alt.X('Mes'), y=alt.Y('Variacion_Cantidades_Abs', title='Variación de Cantidades', axis=alt.Axis(format=',.0f'), scale=scale_var_quant), color=alt.condition(alt.datum.Variacion_Cantidades_Abs > 0, alt.value('#2ca02c'), alt.value('#d62728')))
-                        text_pos_cant = bars_var_cant.mark_text(align='center', baseline='bottom', dy=-4, color='#333').encode(text=alt.Text('Variacion_Cantidades_Abs:Q', format=',.0f')).transform_filter(alt.datum.Variacion_Cantidades_Abs >= 0)
-                        text_neg_cant = bars_var_cant.mark_text(align='center', baseline='top', dy=4, color='#333').encode(text=alt.Text('Variacion_Cantidades_Abs:Q', format=',.0f')).transform_filter(alt.datum.Variacion_Cantidades_Abs < 0)
+                        bars_var_cant = base_var_cant.mark_bar().encode(x=alt.X('Mes'), y=alt.Y('Variacion_Cantidades_Abs', title='Variación de Cantidades', axis=alt.Axis(format=',.2f'), scale=scale_var_quant), color=alt.condition(alt.datum.Variacion_Cantidades_Abs > 0, alt.value('#2ca02c'), alt.value('#d62728')))
+                        text_pos_cant = bars_var_cant.mark_text(align='center', baseline='bottom', dy=-4, color='#333').encode(text=alt.Text('Variacion_Cantidades_Abs:Q', format=',.2f')).transform_filter(alt.datum.Variacion_Cantidades_Abs >= 0)
+                        text_neg_cant = bars_var_cant.mark_text(align='center', baseline='top', dy=4, color='#333').encode(text=alt.Text('Variacion_Cantidades_Abs:Q', format=',.2f')).transform_filter(alt.datum.Variacion_Cantidades_Abs < 0)
                         st.altair_chart((bars_var_cant + text_pos_cant + text_neg_cant).interactive(), use_container_width=True)
                     st.subheader('Tabla de Variaciones Mensuales')
                     df_variaciones = monthly_trends_for_var[['Mes', 'Total_Costos', 'Variacion_Costos_Abs', 'Variacion_Costos_Pct', 'Total_Cantidades', 'Variacion_Cantidades_Abs', 'Variacion_Cantidades_Pct']]
@@ -651,7 +678,11 @@ if uploaded_file is not None:
                 st.markdown("<br>", unsafe_allow_html=True)
                 kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
                 kpi_col1.metric("💰 Costo Total (Período)", format_currency_es(total_costo_mapa))
-                kpi_col2.metric("⏱️ Cantidad Total (Período)", f"{format_number_es(total_cantidad_mapa, 0)} hs")
+                # =============================================================================
+                # --- MODIFICACIÓN 5: KPI Mapa ---
+                # Se cambia format_number_es(..., 0) a format_number_es(..., 2)
+                # =============================================================================
+                kpi_col2.metric("⏱️ Cantidad Total (Período)", f"{format_number_es(total_cantidad_mapa, 2)} hs")
                 kpi_col3.metric("📍 Ubicaciones Activas", format_number_es(ubicaciones_unicas, 0))
                 st.markdown("---")
             st.subheader(f"Comparador de Mapas para el Período: {month_name_map}")
@@ -669,7 +700,11 @@ if uploaded_file is not None:
                         if df_plot_data.empty: return None
                         mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
                         px.set_mapbox_access_token(mapbox_access_token)
-                        fig = px.scatter_mapbox(df_plot_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':.0f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
+                        # =============================================================================
+                        # --- MODIFICACIÓN 6: Mapa Plotly (Comparador) ---
+                        # Se cambia hover_data "Cantidad_Total": ':.0f' a ':,.2f'
+                        # =============================================================================
+                        fig = px.scatter_mapbox(df_plot_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':,.2f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
                         fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                         return fig
                     if show_map_comparison:
@@ -688,7 +723,11 @@ if uploaded_file is not None:
                     table_data_comp.sort_values(by='Costo Total', ascending=False, inplace=True)
                     total_row_comp = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_comp['Costo Total'].sum()], 'Cantidad Total': [table_data_comp['Cantidad Total'].sum()]})
                     df_final_table_comp = pd.concat([table_data_comp, total_row_comp], ignore_index=True)
-                    st.dataframe(df_final_table_comp.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 0)}), use_container_width=True, height=600, hide_index=True)
+                    # =============================================================================
+                    # --- MODIFICACIÓN 7: Tabla Mapa (Comparador) ---
+                    # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
+                    # =============================================================================
+                    st.dataframe(df_final_table_comp.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
             st.markdown("---")
             st.subheader(f"Mapa Interactivo Individual para el Período: {month_name_map}")
             if not df_mapa_data.empty:
@@ -696,7 +735,11 @@ if uploaded_file is not None:
                 selected_mapbox_style_single = map_style_options[selected_style_single_name]
                 single_map_col, single_table_col = st.columns([3, 2])
                 with single_map_col:
-                    fig_single = px.scatter_mapbox(df_mapa_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':.0f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style_single, zoom=6, center={"lat": -32.5, "lon": -61.5})
+                    # =============================================================================
+                    # --- MODIFICACIÓN 8: Mapa Plotly (Individual) ---
+                    # Se cambia hover_data "Cantidad_Total": ':.0f' a ':,.2f'
+                    # =============================================================================
+                    fig_single = px.scatter_mapbox(df_mapa_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':,.2f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style_single, zoom=6, center={"lat": -32.5, "lon": -61.5})
                     fig_single.update_layout(margin={"r":0, "t":0, "l":0, "b":0}, height=600)
                     st.plotly_chart(fig_single, use_container_width=True)
                 with single_table_col:
@@ -704,7 +747,11 @@ if uploaded_file is not None:
                     table_data_single.sort_values(by='Costo Total', ascending=False, inplace=True)
                     total_row_single = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_single['Costo Total'].sum()], 'Cantidad Total': [table_data_single['Cantidad Total'].sum()]})
                     df_final_table_single = pd.concat([table_data_single, total_row_single], ignore_index=True)
-                    st.dataframe(df_final_table_single.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 0)}), use_container_width=True, height=600, hide_index=True)
+                    # =============================================================================
+                    # --- MODIFICACIÓN 9: Tabla Mapa (Individual) ---
+                    # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
+                    # =============================================================================
+                    st.dataframe(df_final_table_single.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
     with tab_desglose_org:
         st.header('Desglose Organizacional Detallado')
         dimension_options = {'Gerencia y Ministerio': ['Gerencia', 'Ministerio'], 'Gerencia y Sexo': ['Gerencia', 'Sexo'], 'Ministerio y Sexo': ['Ministerio', 'Sexo'], 'Nivel y Sexo': ['Nivel', 'Sexo'], 'Función y Sexo': ['Función', 'Sexo']}
@@ -734,10 +781,14 @@ if uploaded_file is not None:
                             total_labels = alt.Chart(df_grouped_chart).transform_aggregate(total='sum(Total_Costos)', groupby=[primary_col]).mark_text(align='left', baseline='middle', dx=3).encode(x='total:Q', y=y_axis, text=alt.Text('total:Q', format='$,.0f'))
                             st.altair_chart(alt.layer(bars, total_labels).properties(title='Costos').interactive(), use_container_width=True)
                         with col2:
+                            # =============================================================================
+                            # --- MODIFICACIÓN 10: Gráfico Desglose Cantidad ---
+                            # Se cambia format=',.0f' a format=',.2f' para eje X, tooltip y texto.
+                            # =============================================================================
                             sort_order = df_grouped_chart.groupby(primary_col)['Total_Cantidades'].sum().sort_values(ascending=False).index.tolist()
                             y_axis = alt.Y(f'{primary_col}:N', sort=sort_order, title=primary_col)
-                            bars = alt.Chart(df_grouped_chart).mark_bar().encode(x=alt.X('sum(Total_Cantidades):Q', title="Total Cantidades", axis=alt.Axis(format=',.0f')), y=y_axis, color=alt.Color(f'{secondary_col}:N', legend=alt.Legend(orient="bottom", title=secondary_col, columns=4, labelLimit=0), scale=color_scale), tooltip=[primary_col, secondary_col, alt.Tooltip('sum(Total_Cantidades):Q', format=',.0f', title='Cantidad')])
-                            total_labels = alt.Chart(df_grouped_chart).transform_aggregate(total='sum(Total_Cantidades)', groupby=[primary_col]).mark_text(align='left', baseline='middle', dx=3).encode(x='total:Q', y=y_axis, text=alt.Text('total:Q', format=',.0f'))
+                            bars = alt.Chart(df_grouped_chart).mark_bar().encode(x=alt.X('sum(Total_Cantidades):Q', title="Total Cantidades", axis=alt.Axis(format=',.2f')), y=y_axis, color=alt.Color(f'{secondary_col}:N', legend=alt.Legend(orient="bottom", title=secondary_col, columns=4, labelLimit=0), scale=color_scale), tooltip=[primary_col, secondary_col, alt.Tooltip('sum(Total_Cantidades):Q', format=',.2f', title='Cantidad')])
+                            total_labels = alt.Chart(df_grouped_chart).transform_aggregate(total='sum(Total_Cantidades)', groupby=[primary_col]).mark_text(align='left', baseline='middle', dx=3).encode(x='total:Q', y=y_axis, text=alt.Text('total:Q', format=',.2f'))
                             st.altair_chart(alt.layer(bars, total_labels).properties(title='Cantidades').interactive(), use_container_width=True)
                         st.subheader('Tabla de Distribución')
                         st.dataframe(df_grouped_with_total.style.format(create_format_dict(df_grouped_with_total)), use_container_width=True)
@@ -760,9 +811,13 @@ if uploaded_file is not None:
                     with col2:
                         st.subheader('Top por Cantidad')
                         if not top_cantidad_empleados.empty:
-                            base = alt.Chart(top_cantidad_empleados).encode(y=alt.Y('Apellido y nombre:N', sort='-x', title='Empleado'), x=alt.X('Total_Cantidades:Q', title="Total Cantidades", axis=alt.Axis(format=',.0f')), tooltip=[alt.Tooltip('Total_Cantidades:Q', format=',.0f')])
+                            # =============================================================================
+                            # --- MODIFICACIÓN 11: Gráfico Top Empleados Cantidad ---
+                            # Se cambia format=',.0f' a format=',.2f' para eje X, tooltip y texto.
+                            # =============================================================================
+                            base = alt.Chart(top_cantidad_empleados).encode(y=alt.Y('Apellido y nombre:N', sort='-x', title='Empleado'), x=alt.X('Total_Cantidades:Q', title="Total Cantidades", axis=alt.Axis(format=',.2f')), tooltip=[alt.Tooltip('Total_Cantidades:Q', format=',.2f')])
                             bars = base.mark_bar(color='#6C5CE7')
-                            text = base.mark_text(align='right', baseline='middle', dx=-5, color='white').encode(text=alt.Text('Total_Cantidades:Q', format=',.0f'))
+                            text = base.mark_text(align='right', baseline='middle', dx=-5, color='white').encode(text=alt.Text('Total_Cantidades:Q', format=',.2f'))
                             st.altair_chart((bars + text).properties(title=f'Top {top_n_employees} por Cantidad').interactive(), use_container_width=True)
                     st.subheader('Tabla de Top Empleados por Costo')
                     st.dataframe(top_costo_empleados.style.format(create_format_dict(top_costo_empleados)), use_container_width=True)
@@ -783,7 +838,11 @@ if uploaded_file is not None:
                         avg_cost_data.append({"Tipo de Hora Extra": cost_col.replace("Horas extras al", "HE").replace("Importe ", ""), "Costo Total": total_cost, "Cantidad Total (hs)": total_quant, "Costo Promedio por Hora": avg_cost})
                 if avg_cost_data:
                     df_avg_costs = pd.DataFrame(avg_cost_data)
-                    st.dataframe(df_avg_costs.style.format({"Costo Total": format_currency_es, "Cantidad Total (hs)": lambda x: format_number_es(x, 0), "Costo Promedio por Hora": format_currency_es}), use_container_width=True)
+                    # =============================================================================
+                    # --- MODIFICACIÓN 12: Tabla Costo Promedio ---
+                    # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
+                    # =============================================================================
+                    st.dataframe(df_avg_costs.style.format({"Costo Total": format_currency_es, "Cantidad Total (hs)": lambda x: format_number_es(x, 2), "Costo Promedio por Hora": format_currency_es}), use_container_width=True)
                 else: st.info("No se encontraron datos para calcular los costos promedio por tipo de hora.")
             st.markdown("---")
             st.header('Valores Promedio por Hora por Dimensión')
