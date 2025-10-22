@@ -190,8 +190,27 @@ def load_and_clean_data(uploaded_file):
         st.error(f"ERROR CRÍTICO: No se pudo leer la hoja 'Dotacion_25' del archivo cargado. Mensaje: {e}")
         return pd.DataFrame()
     if df_excel.empty: return pd.DataFrame()
-    if 'LEGAJO' in df_excel.columns: df_excel['LEGAJO'] = pd.to_numeric(df_excel['LEGAJO'], errors='coerce')
-    
+
+    # --- Normalizar y detectar columnas clave sin importar mayúsculas/minúsculas ---
+    # Detectar columna Legajo (caso-insensible) y renombrarla temporalmente a 'LEGAJO' en el dataframe
+    legajo_col = next((c for c in df_excel.columns if str(c).strip().lower() == 'legajo'), None)
+    if legajo_col:
+        # si el nombre real no es 'LEGAJO', creamos la columna estándar 'LEGAJO' a partir de ella
+        if legajo_col != 'LEGAJO':
+            df_excel['LEGAJO'] = df_excel[legajo_col]
+    # Si no vino con ningún nombre 'legajo', no hacemos nada; luego lo normalizamos más abajo
+
+    # Igual para CECO (por si la columna viene 'Ceco' o 'CECO' o similar)
+    ceco_col = next((c for c in df_excel.columns if str(c).strip().lower() in ['ceco', 'centro de costo', 'centro de costos']), None)
+    if ceco_col and ceco_col != 'CECO':
+        df_excel['CECO'] = df_excel[ceco_col]
+
+    # --- LEGAJO: convertir a num y luego a string para filtros multiselect (igual que CECO) ---
+    if 'LEGAJO' in df_excel.columns:
+        # Convertimos legajo a numérico para quitar formatos raros, luego a Int64 para permitir NA y finalmente a str
+        df_excel['LEGAJO'] = pd.to_numeric(df_excel['LEGAJO'], errors='coerce').astype('Int64').astype(str)
+        df_excel['LEGAJO'] = df_excel['LEGAJO'].replace('<NA>', 'no disponible')
+
     excel_col_fecha_ingreso_raw = 'Fecha ing.'
     excel_col_fecha_nacimiento_raw = 'Fecha Nac.'
     excel_col_rango_antiguedad_raw = 'Rango (Antigüedad)'
@@ -237,7 +256,7 @@ def load_and_clean_data(uploaded_file):
         df_excel.dropna(subset=['CECO'], inplace=True)
         df_excel['CECO'] = df_excel['CECO'].astype(int).astype(str)
 
-    text_cols_for_filters_charts = ['Gerencia', 'Relación', 'Sexo', 'Función', 'Distrito', 'Ministerio', 'Rango Antiguedad', 'Rango Edad', 'Periodo', 'Nivel', 'CECO']
+    text_cols_for_filters_charts = ['LEGAJO','Gerencia', 'Relación', 'Sexo', 'Función', 'Distrito', 'Ministerio', 'Rango Antiguedad', 'Rango Edad', 'Periodo', 'Nivel', 'CECO']
     for col in text_cols_for_filters_charts:
         if col not in df_excel.columns: df_excel[col] = 'no disponible'
         df_excel[col] = df_excel[col].astype(str).replace(['None', 'nan', ''], 'no disponible').str.strip()
@@ -267,11 +286,14 @@ if uploaded_file is not None:
 
     st.sidebar.header('Filtros del Dashboard')
     
+    # *** LEGAJO ADICIONADO AL CONFIG DE FILTROS (misma funcionalidad que CECO) ***
     filter_cols_config = {
         'Periodo': 'Periodo', 'Gerencia': 'Gerencia', 'Relación': 'Relación', 'Función': 'Función',
         'Distrito': 'Distrito', 'Ministerio': 'Ministerio', 'Rango Antiguedad': 'Antigüedad',
-        'Rango Edad': 'Edad', 'Sexo': 'Sexo', 'Nivel': 'Nivel', 'CECO': 'Centro de Costo'
+        'Rango Edad': 'Edad', 'Sexo': 'Sexo', 'Nivel': 'Nivel', 'CECO': 'Centro de Costo',
+        'LEGAJO': 'Legajo'  # agregado aquí para que aparezca en el sidebar
     }
+    # Conservamos el orden tal cual está en dict (Python 3.7+ mantiene inserción)
     filter_cols = list(filter_cols_config.keys())
 
     if 'selections' not in st.session_state:
@@ -673,7 +695,7 @@ if uploaded_file is not None:
         st.header('Tabla de Datos Filtrados')
         display_df = filtered_df.copy()
         if 'LEGAJO' in display_df.columns:
-            display_df['LEGAJO'] = display_df['LEGAJO'].apply(lambda x: format_integer_es(x) if pd.notna(x) else '')
+            display_df['LEGAJO'] = display_df['LEGAJO'].apply(lambda x: format_integer_es(int(x)) if (pd.notna(x) and x != 'no disponible' and str(x).isdigit()) else ('' if x=='no disponible' else x))
         st.dataframe(display_df)
         generate_download_buttons(filtered_df, 'datos_filtrados_dotacion', key_suffix="_brutos")
 
