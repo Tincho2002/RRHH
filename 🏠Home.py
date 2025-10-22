@@ -124,7 +124,9 @@ st.markdown("""
 .card-dotacion { background-color: #e0f7fa; }
 .card-horas { background-color: #fffde7; }
 .card-masa { background-color: #f1f8e9; }
-.card-planta { background-color: #f3e5f5; } /* <-- MODIFICACIÓN: Nuevo estilo para la tarjeta */
+.card-planta { background-color: #f3e5f5; }
+/* --- NUEVA TARJETA AÑADIDA --- */
+.card-eficiencia { background-color: #e0f2f1; } /* Color menta/verde azulado claro */
 
 
 .app-card:hover {
@@ -250,7 +252,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- TARJETAS NAVEGABLES ---
+# --- TARJETAS NAVEGABLES (MODIFICADO) ---
 st.markdown("""
 <div class="card-container">
     <a href="/Dotación" target="_self" class="app-card card-dotacion">
@@ -269,8 +271,14 @@ st.markdown("""
         <div class="access-icon">🔗</div>
     </a>
     <a href="/Planta_de_Cargos" target="_self" class="app-card card-planta">
-        <div class="card-title">🏢 Planta de Cargos</div>
+        <div class="card-title">📊 Planta de Cargos</div>
         <p>Analiza la dinámica de ingresos y egresos, y la composición detallada de la dotación.</p>
+        <div class="access-icon">🔗</div>
+    </a>
+    <!-- --- NUEVA TARJETA AÑADIDA --- -->
+    <a href="/Indicadores_de_Eficiencia" target="_self" class="app-card card-eficiencia">
+        <div class="card-title">🎯 Indicadores de Eficiencia</div>
+        <p>Mide el rendimiento y la productividad a través de KPIs clave.</p>
         <div class="access-icon">🔗</div>
     </a>
 </div>
