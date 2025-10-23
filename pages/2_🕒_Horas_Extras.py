@@ -210,8 +210,8 @@ def create_format_dict(df):
     numeric_cols = df.select_dtypes(include=np.number).columns
     formatters = {}
     for col in numeric_cols:
-        # 1. Nivel/Subnivel/CECO/Legajo sin decimales
-        if 'Nivel' in col or 'Subnivel' in col or 'CECO' in col or 'Legajo' in col:
+        # 1. Nivel/Subnivel/CECO/Legajo/Codigo ubicación sin decimales
+        if 'Nivel' in col or 'Subnivel' in col or 'CECO' in col or 'Legajo' in col or 'Codigo ubicación' in col:
             formatters[col] = lambda x: format_number_es(x, 0)
         # 2. Cantidades con dos decimales
         elif any(keyword in col for keyword in ['Cant', 'Q', 'Total_Cantidades', 'Cantidad Total']):
@@ -496,6 +496,59 @@ if uploaded_file is not None:
                 cantidad_fc = df_last_month['Cantidad HE FC'].sum() if 'Cantidad HE FC' in st.session_state.he_quantity_types else 0
                 total_costo_mes = costo_50 + costo_50_sab + costo_100 + costo_fc
                 total_cantidad_mes = cantidad_50 + cantidad_50_sab + cantidad_100 + cantidad_fc
+                
+                # =============================================================================
+                # --- MODIFICACIÓN 3: Lógica de Delta para Tarjeta Resumen ---
+                # Se calcula el mes anterior y sus totales para obtener la variación.
+                # =============================================================================
+                all_months_sorted = sorted(filtered_df['Mes'].dropna().unique())
+                previous_month_str = None
+                total_costo_mes_prev = 0
+                total_cantidad_mes_prev = 0
+                delta_costo_str = ""
+                delta_cantidad_str = ""
+
+                if latest_month_str in all_months_sorted:
+                    latest_month_index = all_months_sorted.index(latest_month_str)
+                    if latest_month_index > 0:
+                        previous_month_str = all_months_sorted[latest_month_index - 1]
+
+                if previous_month_str:
+                    df_previous_month = filtered_df[filtered_df['Mes'] == previous_month_str].copy()
+                    
+                    costo_50_prev = df_previous_month['Horas extras al 50 %'].sum() if 'Horas extras al 50 %' in st.session_state.he_cost_types else 0
+                    cantidad_50_prev = df_previous_month['Cantidad HE 50'].sum() if 'Cantidad HE 50' in st.session_state.he_quantity_types else 0
+                    costo_50_sab_prev = df_previous_month['Horas extras al 50 % Sabados'].sum() if 'Horas extras al 50 % Sabados' in st.session_state.he_cost_types else 0
+                    cantidad_50_sab_prev = df_previous_month['Cant HE al 50 Sabados'].sum() if 'Cant HE al 50 Sabados' in st.session_state.he_quantity_types else 0
+                    costo_100_prev = df_previous_month['Horas extras al 100%'].sum() if 'Horas extras al 100%' in st.session_state.he_cost_types else 0
+                    cantidad_100_prev = df_previous_month['Cantidad HE 100'].sum() if 'Cantidad HE 100' in st.session_state.he_quantity_types else 0
+                    costo_fc_prev = df_previous_month['Importe HE Fc'].sum() if 'Importe HE Fc' in st.session_state.he_cost_types else 0
+                    cantidad_fc_prev = df_previous_month['Cantidad HE FC'].sum() if 'Cantidad HE FC' in st.session_state.he_quantity_types else 0
+                    
+                    total_costo_mes_prev = costo_50_prev + costo_50_sab_prev + costo_100_prev + costo_fc_prev
+                    total_cantidad_mes_prev = cantidad_50_prev + cantidad_50_sab_prev + cantidad_100_prev + cantidad_fc_prev
+
+                    # Calcular deltas
+                    if total_costo_mes_prev > 0:
+                        delta_costo_pct = ((total_costo_mes - total_costo_mes_prev) / total_costo_mes_prev) * 100
+                    else:
+                        delta_costo_pct = 100.0 if total_costo_mes > 0 else 0.0
+                    
+                    if total_cantidad_mes_prev > 0:
+                        delta_cantidad_pct = ((total_cantidad_mes - total_cantidad_mes_prev) / total_cantidad_mes_prev) * 100
+                    else:
+                        delta_cantidad_pct = 100.0 if total_cantidad_mes > 0 else 0.0
+
+                    # Crear el string del delta
+                    costo_color = 'green' if delta_costo_pct >= 0 else 'red'
+                    cant_color = 'green' if delta_cantidad_pct >= 0 else 'red'
+                    costo_arrow = '▲' if delta_costo_pct >= 0 else '▼'
+                    cant_arrow = '▲' if delta_cantidad_pct >= 0 else '▼'
+
+                    delta_costo_str = f'<div class="delta {costo_color}">{costo_arrow} {delta_costo_pct:.1f}%</div>'
+                    delta_cantidad_str = f'<div class="delta {cant_color}">{cant_arrow} {delta_cantidad_pct:.1f}%</div>'
+                # --- FIN MODIFICACIÓN 3 ---
+
                 month_dt = datetime.strptime(latest_month_str, '%Y-%m')
                 meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
                 month_name = f"{meses_espanol.get(month_dt.month, '')} {month_dt.year}"
@@ -526,6 +579,13 @@ if uploaded_file is not None:
                     .summary-main-kpi{{text-align:center}}
                     .summary-main-kpi .value{{font-size:2.5rem;font-weight:700;color:#6C5CE7}}
                     .summary-main-kpi .label{{font-size:1rem;color:#5a5a5a}}
+                    .summary-main-kpi .delta {{
+                        font-size: 1rem;
+                        font-weight: 600;
+                        margin-top: 4px;
+                    }}
+                    .summary-main-kpi .delta.green {{ color: #2ca02c; }}
+                    .summary-main-kpi .delta.red {{ color: #d62728; }}
                     .summary-breakdown{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
                     .summary-sub-kpi{{
                         background-color:#ffffff;
@@ -560,8 +620,16 @@ if uploaded_file is not None:
                 <div class="summary-card">
                     <div class="summary-header">RESUMEN MENSUAL: {month_name}</div>
                     <div class="summary-totals">
-                        <div class="summary-main-kpi"><div class="value" data-target="{total_costo_mes}" data-type="currency" data-decimals="2"></div><div class="label">Costo Total</div></div>
-                        <div class="summary-main-kpi"><div class="value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="2"></div><div class="label">Cantidad Total</div></div>
+                        <div class="summary-main-kpi">
+                            <div class="value" data-target="{total_costo_mes}" data-type="currency" data-decimals="2"></div>
+                            <div class="label">Costo Total</div>
+                            {delta_costo_str}
+                        </div>
+                        <div class="summary-main-kpi">
+                            <div class="value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            <div class="label">Cantidad Total</div>
+                            {delta_cantidad_str}
+                        </div>
                     </div>
                     <div class="summary-breakdown">
                         {avg_kpi_html}
@@ -975,4 +1043,5 @@ if uploaded_file is not None:
             generate_download_buttons(filtered_df, 'datos_brutos_filtrados', 'tab4_brutos')
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
