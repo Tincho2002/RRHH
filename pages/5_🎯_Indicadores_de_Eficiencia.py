@@ -248,7 +248,7 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
             use_container_width=True
         )
 
-# --- NUEVA FUNCIÓN PARA TARJETAS KPI ---
+# --- FUNCIÓN PARA TARJETAS KPI (MODIFICADA) ---
 def show_kpi_cards(df, var_list):
     """
     Calcula y muestra las tarjetas KPI para 2024 vs 2025.
@@ -258,8 +258,8 @@ def show_kpi_cards(df, var_list):
     df_2024 = df[df['Año'] == 2024][var_list].sum()
     df_2025 = df[df['Año'] == 2025][var_list].sum()
 
-    # 2. Definir layout
-    cols = st.columns(4)
+    # 2. Definir layout (MODIFICADO a 5 columnas)
+    cols = st.columns(5)
     
     # Mapeo de nombres amigables (label)
     label_map = {
@@ -271,7 +271,7 @@ def show_kpi_cards(df, var_list):
         '$K_Guardias_2T': 'Costo Guardias 2T',
         '$K_Guardias_3T': 'Costo Guardias 3T',
         '$K_TD': 'Costo TD',
-        '$K_Total_Guardias': 'Costo Total Guardias', # NUEVO
+        '$K_Total_Guardias': 'Costo Total Guardias',
         'hs_50%': 'Horas HE 50%',
         'hs_100%': 'Horas HE 100%',
         'hs_Total_HE': 'Horas Total HE',
@@ -280,7 +280,7 @@ def show_kpi_cards(df, var_list):
         'ds_Guardias_2T': 'Días Guardias 2T',
         'ds_Guardias_3T': 'Días Guardias 3T',
         'ds_TD': 'Días TD',
-        'ds_Total_Guardias': 'Días Total Guardias', # NUEVO
+        'ds_Total_Guardias': 'Días Total Guardias',
     }
 
     # 3. Iterar y crear métricas
@@ -298,18 +298,32 @@ def show_kpi_cards(df, var_list):
         else:
             delta_pct = 0.0 # Cubre 0 a 0
 
-        # Determinar formateador
+        # --- MODIFICACIÓN: Formato con prefijo/sufijo ---
         is_int = var.startswith('ds_') or var.startswith('hs_')
         formatter_val = format_number_int if is_int else format_number
-
-        value_fmt = formatter_val(total_2025)
-        delta_abs_fmt = formatter_val(delta_abs)
+        
+        val_str = formatter_val(total_2025)
+        delta_abs_str = formatter_val(delta_abs)
         delta_pct_fmt = format_percentage(delta_pct) # format_percentage ya añade el " %"
+
+        if var.startswith('$K_'):
+            value_fmt = f"$K {val_str}"
+            delta_abs_fmt = f"$K {delta_abs_str}"
+        elif var.startswith('hs_'):
+            value_fmt = f"{val_str} hs"
+            delta_abs_fmt = f"{delta_abs_str} hs"
+        elif var.startswith('ds_'):
+            value_fmt = f"{val_str} ds"
+            delta_abs_fmt = f"{delta_abs_str} ds"
+        else:
+            value_fmt = val_str
+            delta_abs_fmt = delta_abs_str
+        # --- FIN MODIFICACIÓN ---
 
         delta_str = f"{delta_abs_fmt} ({delta_pct_fmt})"
         
-        # Asignar a la columna correcta
-        current_col = cols[col_index % 4]
+        # Asignar a la columna correcta (MODIFICADO a % 5)
+        current_col = cols[col_index % 5]
         label = label_map.get(var, var) # Usar nombre amigable
         
         current_col.metric(
@@ -370,32 +384,76 @@ if df.empty:
     st.error("El archivo cargado está vacío o no se pudo procesar.")
     st.stop()
 
-# --- NUEVO: Obtener opciones para filtros ---
+# --- Definir listas de opciones "default" (todos seleccionados) ---
+month_options = list(month_map.values())
 all_bimestres = sorted(df['Bimestre'].unique())
 all_trimestres = sorted(df['Trimestre'].unique())
 all_semestres = sorted(df['Semestre'].unique())
 # Ordenar los períodos específicos cronológicamente
-all_periodos_especificos = df.sort_values('Período')['Período_fmt'].unique()
+all_periodos_especificos = list(df.sort_values('Período')['Período_fmt'].unique())
+# --- FIN ---
+
+
+# ----------------- Lógica de Filtros en Barra Lateral (MODIFICADA) -----------------
+st.sidebar.header("Filtros Generales")
+
+# --- NUEVO: Botón de Reseteo ---
+def reset_filters():
+    st.session_state.selected_years = all_years
+    st.session_state.selected_months_names = month_options
+    st.session_state.selected_bimestres = all_bimestres
+    st.session_state.selected_trimestres = all_trimestres
+    st.session_state.selected_semestres = all_semestres
+    st.session_state.selected_periodos_especificos = all_periodos_especificos
+
+st.sidebar.button("Resetear Filtros", on_click=reset_filters, use_container_width=True)
+st.sidebar.markdown("---")
 # --- FIN NUEVO ---
 
-
-# ----------------- Filtros en la barra lateral -----------------
-st.sidebar.header("Filtros Generales")
-selected_years = st.sidebar.multiselect("Años:", all_years, default=all_years)
-month_options = list(month_map.values())
-selected_months_names = st.sidebar.multiselect("Meses:", month_options, default=month_options)
+# --- MODIFICADO: Filtros usan st.session_state ---
+selected_years = st.sidebar.multiselect(
+    "Años:", 
+    all_years, 
+    key='selected_years', 
+    default=all_years
+)
+selected_months_names = st.sidebar.multiselect(
+    "Meses:", 
+    month_options, 
+    key='selected_months_names', 
+    default=month_options
+)
 selected_months = [k for k,v in month_map.items() if v in selected_months_names]
 
-# --- NUEVO: Filtros de agrupación ---
-selected_bimestres = st.sidebar.multiselect("Bimestres:", all_bimestres, default=all_bimestres)
-selected_trimestres = st.sidebar.multiselect("Trimestres:", all_trimestres, default=all_trimestres)
-selected_semestres = st.sidebar.multiselect("Semestres:", all_semestres, default=all_semestres)
+selected_bimestres = st.sidebar.multiselect(
+    "Bimestres:", 
+    all_bimestres, 
+    key='selected_bimestres', 
+    default=all_bimestres
+)
+selected_trimestres = st.sidebar.multiselect(
+    "Trimestres:", 
+    all_trimestres, 
+    key='selected_trimestres', 
+    default=all_trimestres
+)
+selected_semestres = st.sidebar.multiselect(
+    "Semestres:", 
+    all_semestres, 
+    key='selected_semestres', 
+    default=all_semestres
+)
 st.sidebar.markdown("---")
-selected_periodos_especificos = st.sidebar.multiselect("Período Específico (Mes-Año):", all_periodos_especificos, default=all_periodos_especificos)
-# --- FIN NUEVO ---
+selected_periodos_especificos = st.sidebar.multiselect(
+    "Período Específico (Mes-Año):", 
+    all_periodos_especificos, 
+    key='selected_periodos_especificos', 
+    default=all_periodos_especificos
+)
+# --- FIN MODIFICADO ---
 
 
-# --- MODIFICADO: Lógica de filtro extendida ---
+# --- Lógica de filtro (usa valores de los widgets) ---
 dff = df[
     df['Año'].isin(selected_years) &
     df['Mes'].isin(selected_months) &
@@ -404,7 +462,7 @@ dff = df[
     df['Semestre'].isin(selected_semestres) &
     df['Período_fmt'].isin(selected_periodos_especificos)
 ].copy()
-# --- FIN MODIFICADO ---
+# --- FIN ---
 
 dff = dff.sort_values('Período')
 
@@ -416,17 +474,15 @@ with tab1:
     # --- SECCIÓN DE TARJETAS KPI (MODIFICADO) ---
     st.subheader("Totales Anuales (2025 vs 2024)")
     costo_vars_list = [
-        '$K_50%', '$K_100%', '$K_Total_HE', '$K_TD', # Fila 1
-        '$K_GTO', '$K_GTI', '$K_Guardias_2T', '$K_Guardias_3T', # Fila 2
-        '$K_Total_Guardias' # Fila 3 (NUEVO)
+        '$K_50%', '$K_100%', '$K_Total_HE', '$K_TD', '$K_GTO', # Fila 1
+        '$K_GTI', '$K_Guardias_2T', '$K_Guardias_3T', '$K_Total_Guardias' # Fila 2
     ]
     # Usamos 'df' (el original) para calcular totales sin afectar por filtros
     show_kpi_cards(df, costo_vars_list)
     st.markdown("---")
     # --- FIN SECCIÓN TARJETAS ---
 
-    st.subheader("Análisis de Costos ($K)") # Cambiado de st.header a st.subheader
-    # El multiselect aquí ahora incluirá '$K_Total_HE' y '$K_Total_Guardias'
+    st.subheader("Análisis de Costos ($K)") 
     selected_k_vars = st.multiselect("Variables de Costos ($K):", k_columns, default=[k_columns[0]] if k_columns else [])
 
     if selected_k_vars:
@@ -469,17 +525,15 @@ with tab2:
     # --- SECCIÓN DE TARJETAS KPI (MODIFICADO) ---
     st.subheader("Totales Anuales (2025 vs 2024)")
     qty_vars_list = [
-        'hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', # Fila 1
-        'ds_GTO', 'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T', # Fila 2
-        'ds_Total_Guardias' # Fila 3 (NUEVO)
+        'hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', 'ds_GTO', # Fila 1
+        'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T', 'ds_Total_Guardias' # Fila 2
     ]
     # Usamos 'df' (el original) para calcular totales sin afectar por filtros
     show_kpi_cards(df, qty_vars_list)
     st.markdown("---")
     # --- FIN SECCIÓN TARJETAS ---
 
-    st.subheader("Análisis de Cantidades (hs / ds)") # Cambiado de st.header a st.subheader
-    # El multiselect aquí ahora incluirá 'hs_Total_HE' y 'ds_Total_Guardias'
+    st.subheader("Análisis de Cantidades (hs / ds)") 
     selected_qty_vars = st.multiselect("Variables de Cantidad (hs / ds):", qty_columns, default=[qty_columns[0]] if qty_columns else [])
 
     if selected_qty_vars:
