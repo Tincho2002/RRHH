@@ -439,7 +439,7 @@ def reset_filters():
     st.session_state.selected_semestres = all_semestres
     st.session_state.selected_periodos_especificos = all_periodos_especificos
 
-st.sidebar.button("Resetear Filtros", on_click=reset_filters, use_container_width=True)
+st.sidebar.button("🔄 Resetear Filtros", on_click=reset_filters, use_container_width=True)
 st.sidebar.markdown("---")
 # --- FIN NUEVO ---
 
