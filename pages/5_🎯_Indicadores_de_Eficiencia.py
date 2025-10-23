@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 import re
 import zipfile # Para capturar errores específicos de Excel
 import logging # Para logging detallado
+import openpyxl # Necesario para listar hojas
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -392,34 +393,57 @@ def get_available_options(df, selections, target_column):
 @st.cache_data
 def load_and_clean_data(uploaded_file):
     df_read = pd.DataFrame()
-    sheet_name = 'eficiencia' # Nombre de hoja esperado
+    sheet_name_to_find = 'eficiencia' # Nombre de hoja esperado (en minúsculas para comparación)
 
-    # --- Leer SÓLO como Excel ---
+    # --- Leer SÓLO como Excel, buscando la hoja insensible a mayúsculas ---
     try:
         logging.info("Intentando leer como archivo Excel...")
         uploaded_file.seek(0)
+
+        # 1. Obtener la lista de nombres de hojas
+        try:
+             xls = pd.ExcelFile(uploaded_file, engine='openpyxl')
+             sheet_names = xls.sheet_names
+             logging.info(f"Hojas encontradas: {sheet_names}")
+        except Exception as e_list_sheets:
+             st.error(f"Error al listar las hojas del archivo Excel: {e_list_sheets}")
+             return pd.DataFrame()
+
+        # 2. Buscar la hoja 'eficiencia' (insensible a mayúsculas/minúsculas y espacios)
+        actual_sheet_name = None
+        for name in sheet_names:
+            if name.strip().lower() == sheet_name_to_find:
+                actual_sheet_name = name
+                logging.info(f"Hoja '{sheet_name_to_find}' encontrada como: '{actual_sheet_name}'")
+                break
+
+        # 3. Si no se encontró la hoja, mostrar error y salir
+        if actual_sheet_name is None:
+             st.error(f"ERROR CRÍTICO: No se encontró una hoja llamada '{sheet_name_to_find}' (o similar) en el archivo Excel.")
+             st.info(f"Hojas disponibles: {', '.join(sheet_names)}")
+             return pd.DataFrame()
+
+        # 4. Leer la hoja encontrada, intentando header=0 y luego header=1
         try:
             # Intentar leer desde la primera fila (header=0)
-            df_read = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=0, engine='openpyxl')
-            logging.info(f"Leído como Excel desde fila 1 (hoja '{sheet_name}').")
+            uploaded_file.seek(0) # Resetear para la lectura final
+            df_read = pd.read_excel(uploaded_file, sheet_name=actual_sheet_name, header=0, engine='openpyxl')
+            logging.info(f"Leído como Excel desde fila 1 (hoja '{actual_sheet_name}').")
             st.success("Archivo leído como Excel.") # Mensaje de éxito
         except Exception as e_h0:
             # Si falla header=0, intentar header=1 como fallback
             logging.warning(f"No se pudo leer Excel desde la fila 1 ({e_h0}). Intentando desde la fila 2...")
-            uploaded_file.seek(0) # Reiniciar puntero
-            df_read = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=1, engine='openpyxl')
-            logging.info(f"Leído como Excel desde fila 2 (hoja '{sheet_name}').")
+            uploaded_file.seek(0) # Reset pointer
+            df_read = pd.read_excel(uploaded_file, sheet_name=actual_sheet_name, header=1, engine='openpyxl')
+            logging.info(f"Leído como Excel desde fila 2 (hoja '{actual_sheet_name}').")
             st.success("Archivo leído como Excel (desde fila 2).") # Mensaje de éxito
 
-    # --- Manejar errores específicos de Excel ---
-    except (KeyError, ValueError, zipfile.BadZipFile) as e_excel:
-        if isinstance(e_excel, KeyError):
-             st.error(f"ERROR CRÍTICO: No se encontró la hoja llamada '{sheet_name}' en el archivo Excel.")
-             st.info("Asegúrese de que el archivo Excel contenga una hoja con ese nombre exacto (verificar mayúsculas/minúsculas).")
-        elif isinstance(e_excel, zipfile.BadZipFile):
+    # --- Manejar otros errores específicos de Excel (formato, etc.) ---
+    except (ValueError, zipfile.BadZipFile) as e_excel_format:
+        if isinstance(e_excel_format, zipfile.BadZipFile):
              st.error("ERROR CRÍTICO: El archivo .xlsx parece estar corrupto o no es un archivo Excel válido.")
-        else: # Otros ValueErrors durante la lectura
-             st.error(f"ERROR CRÍTICO: No se pudo leer el archivo Excel. Error: {e_excel}")
+        else: # Other ValueErrors during read
+             st.error(f"ERROR CRÍTICO: No se pudo leer el archivo Excel (posible problema de formato). Error: {e_excel_format}")
         return pd.DataFrame() # Retornar vacío si la lectura de Excel falla
 
     # --- Manejar otros errores inesperados ---
@@ -453,41 +477,57 @@ def load_and_clean_data(uploaded_file):
     logging.info(f"Columnas después de la limpieza: {df.columns.tolist()}")
 
     # --- Identificar columna de Período ---
+    # Busca 'periodo' o 'fecha' en las columnas *limpias*
     periodo_col_name = None
     possible_period_names = ['periodo', 'fecha']
+    cleaned_columns_lower = [c.lower() for c in df.columns]
+
     for name in possible_period_names:
-         found_col = next((col for col in df.columns if name in col.lower()), None)
-         if found_col:
-              periodo_col_name = found_col
-              break
+        try:
+            # Encontrar el índice de la primera columna que contiene el nombre
+            idx = next(i for i, col_lower in enumerate(cleaned_columns_lower) if name in col_lower)
+            periodo_col_name = df.columns[idx] # Obtener el nombre limpio original
+            break
+        except StopIteration:
+            continue # Probar el siguiente nombre posible
+
     if not periodo_col_name:
-         first_col_name = df.columns[0]
-         if 'periodo' in first_col_name.lower() or 'fecha' in first_col_name.lower():
-             periodo_col_name = first_col_name
-             logging.warning(f"No se encontró 'Periodo' o 'Fecha', usando primera columna '{periodo_col_name}' como fecha.")
-         else:
-             st.error("No se pudo identificar la columna de fecha/período.")
-             return pd.DataFrame()
+         # Fallback si no se encuentra por nombre: usar la primera columna
+         periodo_col_name = df.columns[0]
+         logging.warning(f"No se encontró columna con 'periodo' o 'fecha' en los nombres limpios. Usando la primera columna '{periodo_col_name}' como fecha.")
+         # Verificar si el nombre *original* de la primera columna contenía algo útil
+         original_first_col = str(original_columns[0]).lower()
+         if 'periodo' not in original_first_col and 'fecha' not in original_first_col:
+             st.warning(f"Advertencia: La primera columna ('{original_columns[0]}') tampoco parece ser una columna de fecha estándar.")
+
+
     logging.info(f"Columna de período identificada como: '{periodo_col_name}'")
+    # Renombrar a 'Periodo' si no lo es ya
     if periodo_col_name != 'Periodo':
          df.rename(columns={periodo_col_name: 'Periodo'}, inplace=True)
+         logging.info(f"Columna '{periodo_col_name}' renombrada a 'Periodo'.")
+
 
     # --- Procesar Período ---
+    if 'Periodo' not in df.columns:
+        st.error("ERROR INTERNO: La columna 'Periodo' no está presente después del renombrado.")
+        return pd.DataFrame()
+
     try:
-        # Intentar convertir directamente, puede fallar si hay formatos mixtos
+        # Intentar convertir directamente
         df['Periodo'] = pd.to_datetime(df['Periodo'], errors='coerce')
-    except Exception:
-         # Si falla, intentar inferir formato (puede ser lento)
+    except Exception as e1:
+         logging.warning(f"Conversión directa a fecha falló ({e1}). Intentando inferir formato...")
+         # Si falla, intentar inferir formato
          try:
-              logging.warning("Formato de fecha no estándar detectado, intentando inferir...")
               df['Periodo'] = pd.to_datetime(df['Periodo'], infer_datetime_format=True, errors='coerce')
          except Exception as e_date:
-              st.error(f"Error crítico al convertir la columna 'Periodo' a fecha: {e_date}")
+              st.error(f"Error crítico al convertir la columna 'Periodo' a fecha incluso infiriendo: {e_date}")
               return pd.DataFrame()
 
     df.dropna(subset=['Periodo'], inplace=True)
     if df.empty:
-         st.error("No quedan datos válidos después de procesar las fechas.")
+         st.error("No quedan datos válidos después de procesar las fechas. Verifique el formato de la columna 'Periodo'.")
          return pd.DataFrame()
 
     df['Año'] = df['Periodo'].dt.year
@@ -840,4 +880,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
