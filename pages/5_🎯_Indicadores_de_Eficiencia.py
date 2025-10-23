@@ -241,9 +241,112 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
             use_container_width=True
         )
 
+# --- NUEVA FUNCIÓN PARA TARJETAS KPI ---
+def show_kpi_cards(df, var_list):
+    """
+    Calcula y muestra las tarjetas KPI para 2024 vs 2025.
+    Usa el DataFrame *original* (df) para ignorar los filtros de mes/año.
+    """
+    # 1. Calcular totales
+    df_2024 = df[df['Año'] == 2024][var_list].sum()
+    df_2025 = df[df['Año'] == 2025][var_list].sum()
+
+    # 2. Definir layout
+    cols = st.columns(4)
+    
+    # Mapeo de nombres amigables (label)
+    label_map = {
+        '$K_50%': 'Costo HE 50%',
+        '$K_100%': 'Costo HE 100%',
+        '$K_Total_HE': 'Costo Total HE',
+        '$K_GTO': 'Costo GTO',
+        '$K_GTI': 'Costo GTI',
+        '$K_Guardias_2T': 'Costo Guardias 2T',
+        '$K_Guardias_3T': 'Costo Guardias 3T',
+        '$K_TD': 'Costo TD',
+        'hs_50%': 'Horas HE 50%',
+        'hs_100%': 'Horas HE 100%',
+        'hs_Total_HE': 'Horas Total HE',
+        'ds_GTO': 'Días GTO',
+        'ds_GTI': 'Días GTI',
+        'ds_Guardias_2T': 'Días Guardias 2T',
+        'ds_Guardias_3T': 'Días Guardias 3T',
+        'ds_TD': 'Días TD',
+    }
+
+    # 3. Iterar y crear métricas
+    col_index = 0
+    for var in var_list:
+        total_2024 = df_2024.get(var, 0)
+        total_2025 = df_2025.get(var, 0)
+        
+        delta_abs = total_2025 - total_2024
+        
+        if total_2024 > 0 and not pd.isna(total_2024):
+            delta_pct = (delta_abs / total_2024) * 100
+        elif (total_2024 == 0 or pd.isna(total_2024)) and total_2025 > 0:
+            delta_pct = 100.0 # Si 2024 es 0 y 2025 es > 0, es 100% (o N/A, pero 100% es indicativo)
+        else:
+            delta_pct = 0.0 # Cubre 0 a 0
+
+        # Determinar formateador
+        is_int = var.startswith('ds_') or var.startswith('hs_')
+        formatter_val = format_number_int if is_int else format_number
+
+        value_fmt = formatter_val(total_2025)
+        delta_abs_fmt = formatter_val(delta_abs)
+        delta_pct_fmt = format_percentage(delta_pct) # format_percentage ya añade el " %"
+
+        delta_str = f"{delta_abs_fmt} ({delta_pct_fmt})"
+        
+        # Asignar a la columna correcta
+        current_col = cols[col_index % 4]
+        label = label_map.get(var, var) # Usar nombre amigable
+        
+        current_col.metric(
+            label=label,
+            value=value_fmt,
+            delta=delta_str
+        )
+        col_index += 1
+
 # ----------------- Inicio de la App -----------------
 
 st.title("Visualizador de Eficiencia")
+
+# --- CSS PARA ESTILOS DE TARJETAS ---
+# Se aplica a [data-testid="stMetric"] que es el contenedor de st.metric
+CSS_STYLE = """
+<style>
+[data-testid="stMetric"] {
+    background-color: #f0f8ff; /* Color de fondo azul claro (AliceBlue) */
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid #e0e0e0;
+}
+
+[data-testid="stMetric"]:hover {
+    transform: scale(1.03); /* Transición de zoom */
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+/* Opcional: ajustar el tamaño de la etiqueta y el valor si es necesario */
+[data-testid="stMetric"] label {
+    font-size: 1rem; /* Tamaño de la etiqueta */
+}
+[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    font-size: 1.5rem; /* Tamaño del valor principal */
+}
+[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+    font-size: 0.875rem; /* Tamaño del delta */
+}
+</style>
+"""
+st.markdown(CSS_STYLE, unsafe_allow_html=True)
+# --- FIN CSS ---
+
 
 uploaded_file = st.file_uploader("Cargue el archivo 'eficiencia.xlsx'", type="xlsx")
 
@@ -273,7 +376,18 @@ tab1, tab2 = st.tabs(["$K (Costos)", "Cantidades (hs / ds)"])
 
 # ----------------- Pestaña de Costos -----------------
 with tab1:
-    st.header("Análisis de Costos ($K)")
+    # --- SECCIÓN DE TARJETAS KPI (NUEVO) ---
+    st.subheader("Totales Anuales (2025 vs 2024)")
+    costo_vars_list = [
+        '$K_50%', '$K_100%', '$K_Total_HE', '$K_TD', # Fila 1
+        '$K_GTO', '$K_GTI', '$K_Guardias_2T', '$K_Guardias_3T' # Fila 2
+    ]
+    # Usamos 'df' (el original) para calcular totales sin afectar por filtros
+    show_kpi_cards(df, costo_vars_list)
+    st.markdown("---")
+    # --- FIN SECCIÓN TARJETAS ---
+
+    st.subheader("Análisis de Costos ($K)") # Cambiado de st.header a st.subheader
     # El multiselect aquí ahora incluirá '$K_Total_HE' y '$K_Total_Guardias'
     selected_k_vars = st.multiselect("Variables de Costos ($K):", k_columns, default=[k_columns[0]] if k_columns else [])
 
@@ -314,7 +428,18 @@ with tab1:
 
 # ----------------- Pestaña de Cantidades -----------------
 with tab2:
-    st.header("Análisis de Cantidades (hs / ds)")
+    # --- SECCIÓN DE TARJETAS KPI (NUEVO) ---
+    st.subheader("Totales Anuales (2025 vs 2024)")
+    qty_vars_list = [
+        'hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', # Fila 1
+        'ds_GTO', 'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T' # Fila 2
+    ]
+    # Usamos 'df' (el original) para calcular totales sin afectar por filtros
+    show_kpi_cards(df, qty_vars_list)
+    st.markdown("---")
+    # --- FIN SECCIÓN TARJETAS ---
+
+    st.subheader("Análisis de Cantidades (hs / ds)") # Cambiado de st.header a st.subheader
     # El multiselect aquí ahora incluirá 'hs_Total_HE' y 'ds_Total_Guardias'
     selected_qty_vars = st.multiselect("Variables de Cantidad (hs / ds):", qty_columns, default=[qty_columns[0]] if qty_columns else [])
 
@@ -352,3 +477,4 @@ with tab2:
         fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Mensual (%)")
         st.plotly_chart(fig_var_anio_qty, use_container_width=True)
         show_table(df_var_anio_qty, "Cantidades_Var_Interanual", is_percentage=is_pct_anio_qty)
+
