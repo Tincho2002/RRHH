@@ -251,7 +251,7 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
 # --- FUNCIÓN PARA TARJETAS KPI (MODIFICADA) ---
 def show_kpi_cards(df, var_list):
     """
-    Calcula y muestra las tarjetas KPI para 2024 vs 2025.
+    Calcula y muestra las tarjetas KPI para 2024 vs 2025 usando HTML/CSS.
     Usa el DataFrame *original* (df) para ignorar los filtros de mes/año.
     """
     # 1. Calcular totales
@@ -298,7 +298,7 @@ def show_kpi_cards(df, var_list):
         else:
             delta_pct = 0.0 # Cubre 0 a 0
 
-        # --- MODIFICACIÓN: Formato con prefijo/sufijo ---
+        # --- Formato con prefijo/sufijo ---
         is_int = var.startswith('ds_') or var.startswith('hs_')
         formatter_val = format_number_int if is_int else format_number
         
@@ -318,30 +318,28 @@ def show_kpi_cards(df, var_list):
         else:
             value_fmt = val_str
             delta_abs_fmt = delta_abs_str
-        # --- FIN MODIFICACIÓN ---
 
-        # --- MODIFICACIÓN: Lógica de color y formato de delta ---
+        # --- Lógica de color y formato de delta ---
         delta_class = "delta-positive" if delta_abs >= 0 else "delta-negative"
         delta_icon = "↑" if delta_abs >= 0 else "↓"
         # Usamos <br> para el salto de línea en HTML
         delta_str_html = f"{delta_icon} {delta_abs_fmt}<br>({delta_pct_fmt})"
-        # --- FIN MODIFICACIÓN ---
 
-        # Asignar a la columna correcta (MODIFICADO a % 5)
+        # Asignar a la columna correcta
         current_col = cols[col_index % 5]
         label = label_map.get(var, var) # Usar nombre amigable
         
-        # --- MODIFICACIÓN: Usar st.markdown para el delta ---
-        current_col.metric(
-            label=label,
-            value=value_fmt,
-            delta=None # Desactivamos el delta nativo
-        )
-        # Mostramos nuestro delta personalizado con HTML y CSS
-        current_col.markdown(
-            f'<p class="custom-delta {delta_class}">{delta_str_html}</p>', 
-            unsafe_allow_html=True
-        )
+        # --- MODIFICACIÓN: Construir y renderizar tarjeta HTML ---
+        html_card = f"""
+        <div class="custom-metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value_fmt}</div>
+            <div class="custom-delta {delta_class}">
+                {delta_str_html}
+            </div>
+        </div>
+        """
+        current_col.markdown(html_card, unsafe_allow_html=True)
         # --- FIN MODIFICACIÓN ---
         
         col_index += 1
@@ -353,7 +351,8 @@ st.title("Visualizador de Eficiencia")
 # --- CSS PARA ESTILOS DE TARJETAS (MODIFICADO) ---
 CSS_STYLE = """
 <style>
-[data-testid="stMetric"] {
+/* --- MODIFICADO: Ahora aplica a nuestra clase personalizada --- */
+.custom-metric-card {
     background-color: #f0f8ff; /* Color de fondo azul claro (AliceBlue) */
     border-radius: 10px;
     padding: 15px;
@@ -362,33 +361,40 @@ CSS_STYLE = """
     border: 1px solid #e0e0e0;
     /* Damos una altura mínima para alinear las tarjetas */
     min-height: 150px; 
+    /* Asegurar que el padding se respete al 100% */
+    box-sizing: border-box; 
+    margin-bottom: 10px; /* Espacio por si se apilan en móvil */
 }
 
-[data-testid="stMetric"]:hover {
+.custom-metric-card:hover {
     transform: scale(1.03); /* Transición de zoom */
     box-shadow: 0 8px 16px rgba(0,0,0,0.2);
 }
 
-[data-testid="stMetric"] label {
+/* --- NUEVO: Clases para el contenido interno --- */
+.metric-label {
     font-size: 1rem; /* Tamaño de la etiqueta */
+    color: #333; /* Color de etiqueta */
+    margin-bottom: 5px;
 }
-[data-testid="stMetric"] [data-testid="stMetricValue"] {
+.metric-value {
     font-size: 1.5rem; /* Tamaño del valor principal */
+    font-weight: 600; /* Semi-bold */
+    color: #000; /* Color de valor */
 }
-
-/* --- NUEVO: Clases para el delta personalizado --- */
 .custom-delta {
     font-size: 0.875rem; /* Tamaño del delta */
     line-height: 1.3;    /* Espacio entre líneas para el <br> */
-    margin-top: -10px;   /* Ajuste para acercarlo al valor */
+    margin-top: 8px;   /* Ajuste para separarlo del valor */
 }
+/* --- FIN NUEVO --- */
+
 .delta-positive {
     color: #28a745; /* Verde */
 }
 .delta-negative {
     color: #dc3545; /* Rojo */
 }
-/* --- FIN NUEVO --- */
 </style>
 """
 st.markdown(CSS_STYLE, unsafe_allow_html=True)
