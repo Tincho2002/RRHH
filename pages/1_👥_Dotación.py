@@ -334,13 +334,19 @@ if uploaded_file is not None:
     st.markdown("---")
     
     period_to_display = None
-    all_periodos = get_sorted_unique_options(df, 'Periodo')
+    all_periodos_sorted = get_sorted_unique_options(df, 'Periodo') # Master sorted list
     selected_periodos = st.session_state.selections.get('Periodo', [])
     
-    if selected_periodos:
-        sorted_selected_periods = [p for p in all_periodos if p in selected_periodos]
-        if sorted_selected_periods:
-            period_to_display = sorted_selected_periods[-1]
+    # Get the sorted list of *selected* periods
+    sorted_selected_periods = [p for p in all_periodos_sorted if p in selected_periodos]
+    
+    previous_period = None
+    if sorted_selected_periods:
+        period_to_display = sorted_selected_periods[-1]
+        # Find the *actual* previous period from the *selected* list
+        current_index = sorted_selected_periods.index(period_to_display)
+        if current_index > 0:
+            previous_period = sorted_selected_periods[current_index - 1]
 
     if not filtered_df.empty and period_to_display:
         df_display = filtered_df[filtered_df['Periodo'] == period_to_display].copy()
@@ -349,16 +355,55 @@ if uploaded_file is not None:
         fc_count = df_display[df_display['Relación'] == 'FC'].shape[0]
         masculino_count = df_display[df_display['Sexo'] == 'Masculino'].shape[0]
         femenino_count = df_display[df_display['Sexo'] == 'Femenino'].shape[0]
+        
         convenio_pct = (convenio_count / total_dotacion * 100) if total_dotacion > 0 else 0
         fc_pct = (fc_count / total_dotacion * 100) if total_dotacion > 0 else 0
         masculino_pct = (masculino_count / total_dotacion * 100) if total_dotacion > 0 else 0
         femenino_pct = (femenino_count / total_dotacion * 100) if total_dotacion > 0 else 0
+        
+        # --- START DELTA LOGIC ---
+        delta_total_str, delta_convenio_str, delta_fc_str, delta_masculino_str, delta_femenino_str = "", "", "", "", ""
+
+        def get_delta_string(current_val, prev_val):
+            if prev_val > 0:
+                delta_pct = ((current_val - prev_val) / prev_val) * 100
+            else:
+                delta_pct = 100.0 if current_val > 0 else 0.0
+            color = 'green' if delta_pct >= 0 else 'red'
+            arrow = '▲' if delta_pct >= 0 else '▼'
+            return f'<div class="delta {color}">{arrow} {delta_pct:.1f}%</div>'
+
+        if previous_period:
+            # Use filtered_df to get previous period data, ensuring filters are applied
+            df_previous_period = filtered_df[filtered_df['Periodo'] == previous_period].copy()
+            total_dotacion_prev = len(df_previous_period)
+            convenio_count_prev = df_previous_period[df_previous_period['Relación'] == 'Convenio'].shape[0]
+            fc_count_prev = df_previous_period[df_previous_period['Relación'] == 'FC'].shape[0]
+            masculino_count_prev = df_previous_period[df_previous_period['Sexo'] == 'Masculino'].shape[0]
+            femenino_count_prev = df_previous_period[df_previous_period['Sexo'] == 'Femenino'].shape[0]
+            
+            delta_total_str = get_delta_string(total_dotacion, total_dotacion_prev)
+            delta_convenio_str = get_delta_string(convenio_count, convenio_count_prev)
+            delta_fc_str = get_delta_string(fc_count, fc_count_prev)
+            delta_masculino_str = get_delta_string(masculino_count, masculino_count_prev)
+            delta_femenino_str = get_delta_string(femenino_count, femenino_count_prev)
+        # --- END DELTA LOGIC ---
+        
         card_html = f"""
         <style>
             .summary-container {{ display: flex; background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); align-items: center; gap: 20px; border: 1px solid #e0e0e0; }}
             .summary-main-kpi {{ text-align: center; border-right: 2px solid #f0f2f6; padding-right: 20px; flex-grow: 1; }}
             .summary-main-kpi .title {{ font-size: 1.1rem; font-weight: bold; color: #2C3E50; margin-bottom: 5px; }}
             .summary-main-kpi .value {{ font-size: 3.5rem; font-weight: bold; color: #2C3E50; }}
+            /* --- CSS DELTA MAIN --- */
+            .summary-main-kpi .delta {{
+                font-size: 1.2rem;
+                font-weight: 600;
+                margin-top: 5px;
+            }}
+            .summary-main-kpi .delta.green {{ color: #2ca02c; }}
+            .summary-main-kpi .delta.red {{ color: #d62728; }}
+
             .summary-breakdown {{ display: flex; flex-direction: column; gap: 15px; flex-grow: 2; }}
             .summary-row {{ display: flex; justify-content: space-around; align-items: center; }}
             .summary-sub-kpi {{ text-align: left; display: flex; align-items: center; gap: 10px; width: 200px; }}
@@ -366,6 +411,13 @@ if uploaded_file is not None:
             .summary-sub-kpi .details {{ display: flex; flex-direction: column; }}
             .summary-sub-kpi .value {{ font-size: 1.5rem; font-weight: bold; color: #34495E; }}
             .summary-sub-kpi .label {{ font-size: 0.9rem; color: #7F8C8D; }}
+            /* --- CSS DELTA SUB --- */
+            .summary-sub-kpi .delta {{
+                font-size: 0.9rem;
+                font-weight: 600;
+            }}
+            .summary-sub-kpi .delta.green {{ color: #2ca02c; }}
+            .summary-sub-kpi .delta.red {{ color: #d62728; }}
 
             @media (max-width: 768px) {{
                 .summary-container {{
@@ -394,15 +446,44 @@ if uploaded_file is not None:
             <div class="summary-main-kpi">
                 <div class="title">DOTACIÓN {period_to_display.upper()}</div>
                 <div class="value" data-target="{total_dotacion}">👥 0</div>
+                {delta_total_str}
             </div>
             <div class="summary-breakdown">
                 <div class="summary-row">
-                    <div class="summary-sub-kpi"><div class="icon">📄</div><div class="details"><div class="value" data-target="{convenio_count}">0</div><div class="label">Convenio ({format_percentage_es(convenio_pct)})</div></div></div>
-                    <div class="summary-sub-kpi"><div class="icon">💼</div><div class="details"><div class="value" data-target="{fc_count}">0</div><div class="label">Fuera de Convenio ({format_percentage_es(fc_pct)})</div></div></div>
+                    <div class="summary-sub-kpi">
+                        <div class="icon">📄</div>
+                        <div class="details">
+                            <div class="value" data-target="{convenio_count}">0</div>
+                            <div class="label">Convenio ({format_percentage_es(convenio_pct)})</div>
+                            {delta_convenio_str}
+                        </div>
+                    </div>
+                    <div class="summary-sub-kpi">
+                        <div class="icon">💼</div>
+                        <div class="details">
+                            <div class="value" data-target="{fc_count}">0</div>
+                            <div class="label">Fuera de Convenio ({format_percentage_es(fc_pct)})</div>
+                            {delta_fc_str}
+                        </div>
+                    </div>
                 </div>
                 <div class="summary-row">
-                    <div class="summary-sub-kpi"><div class="icon">👨</div><div class="details"><div class="value" data-target="{masculino_count}">0</div><div class="label">Masculino ({format_percentage_es(masculino_pct)})</div></div></div>
-                    <div class="summary-sub-kpi"><div class="icon">👩</div><div class="details"><div class="value" data-target="{femenino_count}">0</div><div class="label">Femenino ({format_percentage_es(femenino_pct)})</div></div></div>
+                    <div class="summary-sub-kpi">
+                        <div class="icon">👨</div>
+                        <div class="details">
+                            <div class="value" data-target="{masculino_count}">0</div>
+                            <div class="label">Masculino ({format_percentage_es(masculino_pct)})</div>
+                            {delta_masculino_str}
+                        </div>
+                    </div>
+                    <div class="summary-sub-kpi">
+                        <div class="icon">👩</div>
+                        <div class="details">
+                            <div class="value" data-target="{femenino_count}">0</div>
+                            <div class="label">Femenino ({format_percentage_es(femenino_pct)})</div>
+                            {delta_femenino_str}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -454,10 +535,10 @@ if uploaded_file is not None:
             st.subheader('Dotación por Periodo (Total)')
             col_table_periodo, col_chart_periodo = st.columns([1, 2])
             periodo_counts = filtered_df.groupby('Periodo').size().reset_index(name='Cantidad')
-            periodo_counts['Periodo'] = pd.Categorical(periodo_counts['Periodo'], categories=all_periodos, ordered=True)
+            periodo_counts['Periodo'] = pd.Categorical(periodo_counts['Periodo'], categories=all_periodos_sorted, ordered=True)
             periodo_counts = periodo_counts.sort_values('Periodo').reset_index(drop=True)
             with col_chart_periodo:
-                line_periodo = alt.Chart(periodo_counts).mark_line(point=True).encode(x=alt.X('Periodo', sort=all_periodos, title='Periodo'), y=alt.Y('Cantidad', title='Cantidad Total de Empleados', scale=alt.Scale(zero=False)), tooltip=['Periodo', alt.Tooltip('Cantidad', format=',.0f')])
+                line_periodo = alt.Chart(periodo_counts).mark_line(point=True).encode(x=alt.X('Periodo', sort=all_periodos_sorted, title='Periodo'), y=alt.Y('Cantidad', title='Cantidad Total de Empleados', scale=alt.Scale(zero=False)), tooltip=['Periodo', alt.Tooltip('Cantidad', format=',.0f')])
                 text_periodo = line_periodo.mark_text(align='center', baseline='bottom', dy=-10, color='black').encode(text='Cantidad:Q')
                 st.altair_chart((line_periodo + text_periodo), use_container_width=True)
             with col_table_periodo:
@@ -466,7 +547,7 @@ if uploaded_file is not None:
             st.markdown('---')
             st.subheader('Distribución Comparativa por Sexo')
             col_table_sexo, col_chart_sexo = st.columns([1, 2])
-            sexo_pivot = filtered_df.groupby(['Periodo', 'Sexo']).size().unstack(fill_value=0).reindex(all_periodos, fill_value=0).reset_index()
+            sexo_pivot = filtered_df.groupby(['Periodo', 'Sexo']).size().unstack(fill_value=0).reindex(all_periodos_sorted, fill_value=0).reset_index()
             with col_chart_sexo:
                 if not sexo_pivot.empty:
                     fig_sexo = make_subplots(specs=[[{"secondary_y": True}]])
@@ -486,7 +567,7 @@ if uploaded_file is not None:
             st.markdown('---')
             st.subheader('Distribución Comparativa por Relación')
             col_table_rel, col_chart_rel = st.columns([1, 2])
-            rel_pivot = filtered_df.groupby(['Periodo', 'Relación']).size().unstack(fill_value=0).reindex(all_periodos, fill_value=0).reset_index()
+            rel_pivot = filtered_df.groupby(['Periodo', 'Relación']).size().unstack(fill_value=0).reindex(all_periodos_sorted, fill_value=0).reset_index()
             with col_chart_rel:
                 if not rel_pivot.empty:
                     fig_rel = make_subplots(specs=[[{"secondary_y": True}]])
@@ -506,7 +587,7 @@ if uploaded_file is not None:
             st.markdown('---')
             st.subheader('Variación Mensual de Dotación')
             col_table_var, col_chart_var = st.columns([1, 2])
-            var_counts = filtered_df.groupby('Periodo').size().reindex(all_periodos, fill_value=0).reset_index(name='Cantidad_Actual')
+            var_counts = filtered_df.groupby('Periodo').size().reindex(all_periodos_sorted, fill_value=0).reset_index(name='Cantidad_Actual')
             var_counts['Variacion_Cantidad'] = var_counts['Cantidad_Actual'].diff()
             var_counts['Variacion_%'] = (var_counts['Variacion_Cantidad'] / var_counts['Cantidad_Actual'].shift(1) * 100).replace([np.inf, -np.inf], 0)
             var_counts['label'] = var_counts.apply(lambda r: f"{format_integer_es(r['Variacion_Cantidad'])} ({format_percentage_es(r['Variacion_%'], 2)})" if pd.notna(r['Variacion_Cantidad']) and r.name > 0 else "", axis=1)
@@ -514,7 +595,7 @@ if uploaded_file is not None:
                 st.dataframe(var_counts.style.format({"Cantidad_Actual": format_integer_es, "Variacion_Cantidad": format_integer_es, "Variacion_%": lambda x: format_percentage_es(x, 2)}))
                 generate_download_buttons(var_counts, 'variacion_mensual_total', key_suffix="_resumen4")
             with col_chart_var:
-                chart_var = alt.Chart(var_counts.iloc[1:]).mark_bar().encode(x=alt.X('Periodo', sort=all_periodos), y=alt.Y('Variacion_Cantidad', title='Variación'), color=alt.condition(alt.datum.Variacion_Cantidad > 0, alt.value("green"), alt.value("red")), tooltip=['Periodo', 'Variacion_Cantidad', alt.Tooltip('Variacion_%', format='.2f')])
+                chart_var = alt.Chart(var_counts.iloc[1:]).mark_bar().encode(x=alt.X('Periodo', sort=all_periodos_sorted), y=alt.Y('Variacion_Cantidad', title='Variación'), color=alt.condition(alt.datum.Variacion_Cantidad > 0, alt.value("green"), alt.value("red")), tooltip=['Periodo', 'Variacion_Cantidad', alt.Tooltip('Variacion_%', format='.2f')])
                 text_var = chart_var.mark_text(align='center', baseline='middle', dy=alt.expr("datum.Variacion_Cantidad > 0 ? -10 : 15"), color='white').encode(text='label:N')
                 st.altair_chart(chart_var + text_var, use_container_width=True)
 
@@ -534,7 +615,7 @@ if uploaded_file is not None:
 
             st.markdown("---")
             
-            show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=False, key="show_map_comp_check")
+            show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=st.session_state.get('show_map_comp_check', False), key="show_map_comp_check")
             
             def generate_map_figure(df, mapbox_style):
                 df_mapa_data = pd.merge(df, df_coords, on="Distrito", how="left")
@@ -647,7 +728,7 @@ if uploaded_file is not None:
         st.header('Análisis de Edad y Antigüedad por Periodo')
         if filtered_df.empty or not selected_periodos: st.warning("No hay datos para mostrar con los filtros seleccionados.")
         else:
-            periodo_a_mostrar_edad = st.selectbox('Selecciona un Periodo:', selected_periodos, index=len(selected_periodos) - 1 if selected_periodos else 0, key='periodo_selector_edad')
+            periodo_a_mostrar_edad = st.selectbox('Selecciona un Periodo:', sorted_selected_periods, index=len(sorted_selected_periods) - 1 if sorted_selected_periods else 0, key='periodo_selector_edad')
             df_periodo_edad = filtered_df[filtered_df['Periodo'] == periodo_a_mostrar_edad]
             st.subheader(f'Distribución por Edad para {periodo_a_mostrar_edad}'); col_table_edad, col_chart_edad = st.columns([1, 2])
             with col_chart_edad:
@@ -677,7 +758,7 @@ if uploaded_file is not None:
         st.header('Desglose Detallado por Categoría por Periodo')
         if filtered_df.empty or not selected_periodos: st.warning("No hay datos para mostrar.")
         else:
-            periodo_a_mostrar_desglose = st.selectbox('Seleccionar Periodo:', selected_periodos, index=len(selected_periodos) - 1 if selected_periodos else 0, key='periodo_selector_desglose')
+            periodo_a_mostrar_desglose = st.selectbox('Seleccionar Periodo:', sorted_selected_periods, index=len(sorted_selected_periods) - 1 if sorted_selected_periods else 0, key='periodo_selector_desglose')
             cat_seleccionada = st.selectbox('Seleccionar Categoría:', ['Gerencia', 'Ministerio', 'Función', 'Distrito', 'Nivel'], key='cat_selector_desglose')
             df_periodo_desglose = filtered_df[filtered_df['Periodo'] == periodo_a_mostrar_desglose]
             st.subheader(f'Dotación por {cat_seleccionada} para {periodo_a_mostrar_desglose}')
@@ -701,3 +782,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
+
