@@ -258,7 +258,7 @@ def show_kpi_cards(df, var_list):
     df_2024 = df[df['Año'] == 2024][var_list].sum()
     df_2025 = df[df['Año'] == 2025][var_list].sum()
 
-    # 2. Definir layout (MODIFICADO a 5 columnas)
+    # 2. Definir layout (5 columnas)
     cols = st.columns(5)
     
     # Mapeo de nombres amigables (label)
@@ -303,7 +303,7 @@ def show_kpi_cards(df, var_list):
         formatter_val = format_number_int if is_int else format_number
         
         val_str = formatter_val(total_2025)
-        delta_abs_str = formatter_val(delta_abs)
+        delta_abs_str = formatter_val(abs(delta_abs)) # Usamos abs() para el color
         delta_pct_fmt = format_percentage(delta_pct) # format_percentage ya añade el " %"
 
         if var.startswith('$K_'):
@@ -320,25 +320,37 @@ def show_kpi_cards(df, var_list):
             delta_abs_fmt = delta_abs_str
         # --- FIN MODIFICACIÓN ---
 
-        delta_str = f"{delta_abs_fmt} ({delta_pct_fmt})"
-        
+        # --- MODIFICACIÓN: Lógica de color y formato de delta ---
+        delta_class = "delta-positive" if delta_abs >= 0 else "delta-negative"
+        delta_icon = "↑" if delta_abs >= 0 else "↓"
+        # Usamos <br> para el salto de línea en HTML
+        delta_str_html = f"{delta_icon} {delta_abs_fmt}<br>({delta_pct_fmt})"
+        # --- FIN MODIFICACIÓN ---
+
         # Asignar a la columna correcta (MODIFICADO a % 5)
         current_col = cols[col_index % 5]
         label = label_map.get(var, var) # Usar nombre amigable
         
+        # --- MODIFICACIÓN: Usar st.markdown para el delta ---
         current_col.metric(
             label=label,
             value=value_fmt,
-            delta=delta_str
+            delta=None # Desactivamos el delta nativo
         )
+        # Mostramos nuestro delta personalizado con HTML y CSS
+        current_col.markdown(
+            f'<p class="custom-delta {delta_class}">{delta_str_html}</p>', 
+            unsafe_allow_html=True
+        )
+        # --- FIN MODIFICACIÓN ---
+        
         col_index += 1
 
 # ----------------- Inicio de la App -----------------
 
 st.title("Visualizador de Eficiencia")
 
-# --- CSS PARA ESTILOS DE TARJETAS ---
-# Se aplica a [data-testid="stMetric"] que es el contenedor de st.metric
+# --- CSS PARA ESTILOS DE TARJETAS (MODIFICADO) ---
 CSS_STYLE = """
 <style>
 [data-testid="stMetric"] {
@@ -348,6 +360,8 @@ CSS_STYLE = """
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     border: 1px solid #e0e0e0;
+    /* Damos una altura mínima para alinear las tarjetas */
+    min-height: 150px; 
 }
 
 [data-testid="stMetric"]:hover {
@@ -355,16 +369,26 @@ CSS_STYLE = """
     box-shadow: 0 8px 16px rgba(0,0,0,0.2);
 }
 
-/* Opcional: ajustar el tamaño de la etiqueta y el valor si es necesario */
 [data-testid="stMetric"] label {
     font-size: 1rem; /* Tamaño de la etiqueta */
 }
 [data-testid="stMetric"] [data-testid="stMetricValue"] {
     font-size: 1.5rem; /* Tamaño del valor principal */
 }
-[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+
+/* --- NUEVO: Clases para el delta personalizado --- */
+.custom-delta {
     font-size: 0.875rem; /* Tamaño del delta */
+    line-height: 1.3;    /* Espacio entre líneas para el <br> */
+    margin-top: -10px;   /* Ajuste para acercarlo al valor */
 }
+.delta-positive {
+    color: #28a745; /* Verde */
+}
+.delta-negative {
+    color: #dc3545; /* Rojo */
+}
+/* --- FIN NUEVO --- */
 </style>
 """
 st.markdown(CSS_STYLE, unsafe_allow_html=True)
@@ -410,45 +434,44 @@ st.sidebar.button("Resetear Filtros", on_click=reset_filters, use_container_widt
 st.sidebar.markdown("---")
 # --- FIN NUEVO ---
 
-# --- MODIFICADO: Filtros usan st.session_state ---
+# --- MODIFICACIÓN: Inicializar Session State para evitar warning ---
+if 'selected_years' not in st.session_state:
+    reset_filters()
+# --- FIN MODIFICACIÓN ---
+
+# --- MODIFICADO: Filtros usan st.session_state (sin 'default') ---
 selected_years = st.sidebar.multiselect(
     "Años:", 
     all_years, 
-    key='selected_years', 
-    default=all_years
+    key='selected_years'
 )
 selected_months_names = st.sidebar.multiselect(
     "Meses:", 
     month_options, 
-    key='selected_months_names', 
-    default=month_options
+    key='selected_months_names'
 )
 selected_months = [k for k,v in month_map.items() if v in selected_months_names]
 
 selected_bimestres = st.sidebar.multiselect(
     "Bimestres:", 
     all_bimestres, 
-    key='selected_bimestres', 
-    default=all_bimestres
+    key='selected_bimestres'
 )
 selected_trimestres = st.sidebar.multiselect(
     "Trimestres:", 
     all_trimestres, 
-    key='selected_trimestres', 
-    default=all_trimestres
+    key='selected_trimestres'
 )
 selected_semestres = st.sidebar.multiselect(
     "Semestres:", 
     all_semestres, 
-    key='selected_semestres', 
-    default=all_semestres
+    key='selected_semestres'
 )
 st.sidebar.markdown("---")
 selected_periodos_especificos = st.sidebar.multiselect(
     "Período Específico (Mes-Año):", 
     all_periodos_especificos, 
-    key='selected_periodos_especificos', 
-    default=all_periodos_especificos
+    key='selected_periodos_especificos'
 )
 # --- FIN MODIFICADO ---
 
