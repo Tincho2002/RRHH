@@ -31,15 +31,15 @@ body, .stApp {
     color: var(--text-color) !important;
 }
 
+/* Forzar color de texto oscuro en elementos genéricos que Streamlit pueda cambiar */
+p, div, span, label, li, h1, h2, h3, h4, h5, h6 {
+    color: var(--text-color);
+}
+
 /* --- GENERAL Y TIPOGRAFÍA --- */
 .stApp {
     font-size: 0.92rem;
     font-family: var(--font);
-}
-
-/* Forzar color de texto oscuro en elementos genéricos que Streamlit pueda cambiar */
-p, div, span, label, li, h1, h2, h3, h4, h5, h6 {
-    color: var(--text-color);
 }
 
 /* --- COLORES BASE DEL TEMA --- */
@@ -219,7 +219,7 @@ def create_format_dict(df):
         # 3. Mantener otros enteros (como Legajo si fuera numérico) sin decimales
         elif 'int' in str(df[col].dtype):
             formatters[col] = lambda x: format_number_es(x, 0)
-        # 4. El resto (costos, etc.) con dos decimales
+        # 4. El resto (costos) con dos decimales
         else:
             formatters[col] = lambda x: format_number_es(x, 2)
     return formatters
@@ -498,15 +498,20 @@ if uploaded_file is not None:
                 total_cantidad_mes = cantidad_50 + cantidad_50_sab + cantidad_100 + cantidad_fc
                 
                 # =============================================================================
-                # --- MODIFICACIÓN 3: Lógica de Delta para Tarjeta Resumen ---
+                # --- Lógica de Delta para Tarjeta Resumen ---
                 # Se calcula el mes anterior y sus totales para obtener la variación.
+                # Se extiende para las tarjetas de detalle de costos/cantidades.
                 # =============================================================================
                 all_months_sorted = sorted(filtered_df['Mes'].dropna().unique())
                 previous_month_str = None
-                total_costo_mes_prev = 0
-                total_cantidad_mes_prev = 0
+                
                 delta_costo_str = ""
                 delta_cantidad_str = ""
+
+                delta_costo_50_str, delta_cantidad_50_str = "", ""
+                delta_costo_50_sab_str, delta_cantidad_50_sab_str = "", ""
+                delta_costo_100_str, delta_cantidad_100_str = "", ""
+                delta_costo_fc_str, delta_cantidad_fc_str = "", ""
 
                 if latest_month_str in all_months_sorted:
                     latest_month_index = all_months_sorted.index(latest_month_str)
@@ -528,35 +533,37 @@ if uploaded_file is not None:
                     total_costo_mes_prev = costo_50_prev + costo_50_sab_prev + costo_100_prev + costo_fc_prev
                     total_cantidad_mes_prev = cantidad_50_prev + cantidad_50_sab_prev + cantidad_100_prev + cantidad_fc_prev
 
-                    # Calcular deltas
-                    if total_costo_mes_prev > 0:
-                        delta_costo_pct = ((total_costo_mes - total_costo_mes_prev) / total_costo_mes_prev) * 100
-                    else:
-                        delta_costo_pct = 100.0 if total_costo_mes > 0 else 0.0
-                    
-                    if total_cantidad_mes_prev > 0:
-                        delta_cantidad_pct = ((total_cantidad_mes - total_cantidad_mes_prev) / total_cantidad_mes_prev) * 100
-                    else:
-                        delta_cantidad_pct = 100.0 if total_cantidad_mes > 0 else 0.0
+                    # Función auxiliar para calcular delta y formatear string
+                    def get_delta_string(current_val, prev_val):
+                        if prev_val > 0:
+                            delta_pct = ((current_val - prev_val) / prev_val) * 100
+                        else:
+                            delta_pct = 100.0 if current_val > 0 else 0.0
+                        color = 'green' if delta_pct >= 0 else 'red'
+                        arrow = '▲' if delta_pct >= 0 else '▼'
+                        return f'<div class="delta {color}">{arrow} {delta_pct:.1f}%</div>'
 
-                    # Crear el string del delta
-                    costo_color = 'green' if delta_costo_pct >= 0 else 'red'
-                    cant_color = 'green' if delta_cantidad_pct >= 0 else 'red'
-                    costo_arrow = '▲' if delta_costo_pct >= 0 else '▼'
-                    cant_arrow = '▲' if delta_cantidad_pct >= 0 else '▼'
+                    # Deltas para totales generales
+                    delta_costo_str = get_delta_string(total_costo_mes, total_costo_mes_prev)
+                    delta_cantidad_str = get_delta_string(total_cantidad_mes, total_cantidad_mes_prev)
 
-                    delta_costo_str = f'<div class="delta {costo_color}">{costo_arrow} {delta_costo_pct:.1f}%</div>'
-                    delta_cantidad_str = f'<div class="delta {cant_color}">{cant_arrow} {delta_cantidad_pct:.1f}%</div>'
-                # --- FIN MODIFICACIÓN 3 ---
+                    # Deltas para cada tipo de HE
+                    delta_costo_50_str = get_delta_string(costo_50, costo_50_prev)
+                    delta_cantidad_50_str = get_delta_string(cantidad_50, cantidad_50_prev)
+                    delta_costo_50_sab_str = get_delta_string(costo_50_sab, costo_50_sab_prev)
+                    delta_cantidad_50_sab_str = get_delta_string(cantidad_50_sab, cantidad_50_sab_prev)
+                    delta_costo_100_str = get_delta_string(costo_100, costo_100_prev)
+                    delta_cantidad_100_str = get_delta_string(cantidad_100, cantidad_100_prev)
+                    delta_costo_fc_str = get_delta_string(costo_fc, costo_fc_prev)
+                    delta_cantidad_fc_str = get_delta_string(cantidad_fc, cantidad_fc_prev)
 
                 month_dt = datetime.strptime(latest_month_str, '%Y-%m')
                 meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
                 month_name = f"{meses_espanol.get(month_dt.month, '')} {month_dt.year}"
 
                 # =============================================================================
-                # --- MODIFICACIÓN 2: card_html ---
-                # Se añaden transiciones :hover a .summary-card y .summary-sub-kpi
-                # Se mantiene la MODIFICACIÓN anterior de data-decimals="2" para cantidades.
+                # --- card_html ---
+                # Se añaden las transiciones y se inyectan los deltas en las tarjetas de detalle.
                 # =============================================================================
                 card_html = f"""
                 <style>
@@ -586,6 +593,7 @@ if uploaded_file is not None:
                     }}
                     .summary-main-kpi .delta.green {{ color: #2ca02c; }}
                     .summary-main-kpi .delta.red {{ color: #d62728; }}
+                    
                     .summary-breakdown{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
                     .summary-sub-kpi{{
                         background-color:#ffffff;
@@ -603,6 +611,13 @@ if uploaded_file is not None:
                     .summary-sub-kpi .value-cost,.summary-sub-kpi .value-qty{{font-size:1.25rem;font-weight:600}}
                     .summary-sub-kpi .value-cost{{color:#2a7a2a}}
                     .summary-sub-kpi .value-qty{{color:#3a3a9a}}
+                    .summary-sub-kpi .delta {{
+                        font-size: 0.8rem;
+                        font-weight: 500;
+                        margin-top: 2px;
+                    }}
+                    .summary-sub-kpi .delta.green {{ color: #2ca02c; }}
+                    .summary-sub-kpi .delta.red {{ color: #d62728; }}
                     
                     @media (max-width: 768px) {{
                         .summary-card {{ padding: 1rem; }}
@@ -633,10 +648,34 @@ if uploaded_file is not None:
                     </div>
                     <div class="summary-breakdown">
                         {avg_kpi_html}
-                        <div class="summary-sub-kpi"><div class="type">Total HE 50%</div><div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="2"></div></div>
-                        <div class="summary-sub-kpi"><div class="type">Total HE 50% Sábados</div><div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="2"></div></div>
-                        <div class="summary-sub-kpi"><div class="type">Total HE 100%</div><div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="2"></div></div>
-                        <div class="summary-sub-kpi"><div class="type">Total HE FC</div><div class="value-cost" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div><div class="value-qty" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="2"></div></div>
+                        <div class="summary-sub-kpi">
+                            <div class="type">Total HE 50%</div>
+                            <div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div>
+                            <div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            {delta_costo_50_str}
+                            {delta_cantidad_50_str}
+                        </div>
+                        <div class="summary-sub-kpi">
+                            <div class="type">Total HE 50% Sábados</div>
+                            <div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div>
+                            <div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            {delta_costo_50_sab_str}
+                            {delta_cantidad_50_sab_str}
+                        </div>
+                        <div class="summary-sub-kpi">
+                            <div class="type">Total HE 100%</div>
+                            <div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div>
+                            <div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            {delta_costo_100_str}
+                            {delta_cantidad_100_str}
+                        </div>
+                        <div class="summary-sub-kpi">
+                            <div class="type">Total HE FC</div>
+                            <div class="value-cost" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div>
+                            <div class="value-qty" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            {delta_costo_fc_str}
+                            {delta_cantidad_fc_str}
+                        </div>
                     </div>
                 </div>
                 <script>
@@ -741,7 +780,7 @@ if uploaded_file is not None:
         st.header("Distribución Geográfica de Horas Extras")
 
         # =============================================================================
-        # --- MODIFICACIÓN 3: Lógica de KPI con Delta ---
+        # --- Lógica de KPI con Delta ---
         # Se reemplaza la lógica anterior (líneas 682-728) para calcular
         # los totales del mes actual y el mes anterior, y así obtener el delta.
         # =============================================================================
@@ -1043,5 +1082,3 @@ if uploaded_file is not None:
             generate_download_buttons(filtered_df, 'datos_brutos_filtrados', 'tab4_brutos')
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
