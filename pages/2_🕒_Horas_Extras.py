@@ -201,7 +201,7 @@ def format_currency_es(num):
 # =============================================================================
 # --- MODIFICACIÓN 1: create_format_dict ---
 # Se ajusta la lógica para:
-# 1. Formatear 'Nivel' o 'Subnivel' con 0 decimales.
+# 1. Formatear 'Nivel', 'Subnivel', 'CECO' y 'Legajo' con 0 decimales.
 # 2. Formatear Cantidades ('Cant', 'Q', etc.) con 2 decimales.
 # 3. Mantener otros enteros con 0 decimales.
 # 4. Dejar el resto (costos) con 2 decimales.
@@ -210,8 +210,8 @@ def create_format_dict(df):
     numeric_cols = df.select_dtypes(include=np.number).columns
     formatters = {}
     for col in numeric_cols:
-        # 1. Nivel/Subnivel (y CECO por si acaso) sin decimales
-        if 'Nivel' in col or 'Subnivel' in col or 'CECO' in col:
+        # 1. Nivel/Subnivel/CECO/Legajo sin decimales
+        if 'Nivel' in col or 'Subnivel' in col or 'CECO' in col or 'Legajo' in col:
             formatters[col] = lambda x: format_number_es(x, 0)
         # 2. Cantidades con dos decimales
         elif any(keyword in col for keyword in ['Cant', 'Q', 'Total_Cantidades', 'Cantidad Total']):
@@ -502,11 +502,24 @@ if uploaded_file is not None:
 
                 # =============================================================================
                 # --- MODIFICACIÓN 2: card_html ---
-                # Se cambia data-decimals="0" a data-decimals="2" para todas las cantidades.
+                # Se añaden transiciones :hover a .summary-card y .summary-sub-kpi
+                # Se mantiene la MODIFICACIÓN anterior de data-decimals="2" para cantidades.
                 # =============================================================================
                 card_html = f"""
                 <style>
-                    .summary-card{{background-color:#f8f7fc;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,0.05);padding:1.5rem;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif !important}}
+                    .summary-card{{
+                        background-color:#f8f7fc;
+                        border-radius:8px;
+                        box-shadow:0 4px 10px rgba(0,0,0,0.05);
+                        padding:1.5rem;
+                        font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif !important;
+                        transition: box-shadow 0.3s ease-in-out, border-color 0.3s ease-in-out;
+                        border: 1px solid transparent;
+                    }}
+                    .summary-card:hover {{
+                        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+                        border-color: #90caf9;
+                    }}
                     .summary-card *{{font-family:inherit !important}}
                     .summary-header{{text-align:center;font-size:1.2rem;font-weight:600;margin-bottom:1.5rem;border-bottom:2px solid #e0e0e0;padding-bottom:1rem;color:#6C5CE7 !important}}
                     .summary-totals{{display:flex;justify-content:space-around;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}}
@@ -514,7 +527,18 @@ if uploaded_file is not None:
                     .summary-main-kpi .value{{font-size:2.5rem;font-weight:700;color:#6C5CE7}}
                     .summary-main-kpi .label{{font-size:1rem;color:#5a5a5a}}
                     .summary-breakdown{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
-                    .summary-sub-kpi{{background-color:#ffffff;padding:1rem;border-radius:6px;border:1px solid #e0e0e0;text-align:center}}
+                    .summary-sub-kpi{{
+                        background-color:#ffffff;
+                        padding:1rem;
+                        border-radius:6px;
+                        border:1px solid #e0e0e0;
+                        text-align:center;
+                        transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+                    }}
+                    .summary-sub-kpi:hover {{
+                        background-color: #e3f2fd;
+                        border-color: #90caf9;
+                    }}
                     .summary-sub-kpi .type{{font-weight:600;font-size:0.9rem;margin-bottom:0.5rem}}
                     .summary-sub-kpi .value-cost,.summary-sub-kpi .value-qty{{font-size:1.25rem;font-weight:600}}
                     .summary-sub-kpi .value-cost{{color:#2a7a2a}}
@@ -644,114 +668,205 @@ if uploaded_file is not None:
                     st.dataframe(df_variaciones.style.format(formatters_var), use_container_width=True)
                     generate_download_buttons(df_variaciones, 'variaciones_mensuales', 'tab1_var')
                 else: st.info("No hay suficientes datos (se necesita más de un mes) para calcular las variaciones.")
+    
     with tab_mapa:
         st.header("Distribución Geográfica de Horas Extras")
-        if filtered_df.empty: st.warning("No hay datos para mostrar en el mapa con los filtros seleccionados.")
+
+        # =============================================================================
+        # --- MODIFICACIÓN 3: Lógica de KPI con Delta ---
+        # Se reemplaza la lógica anterior (líneas 682-728) para calcular
+        # los totales del mes actual y el mes anterior, y así obtener el delta.
+        # =============================================================================
+        
+        # 1. Copiar selecciones y remover el filtro de 'Mes' para obtener datos base
+        selections_without_month = st.session_state.he_selections.copy()
+        selected_months = selections_without_month.pop('Mes', [])
+        df_mapa_base_filtered = apply_filters(df, selections_without_month)
+
+        if df_mapa_base_filtered.empty:
+            st.warning("No hay datos para mostrar en el mapa con los filtros seleccionados (excluyendo el mes).")
         else:
-            df_mapa_display = filtered_df.copy()
-            latest_month_map = ""
-            if st.session_state.he_selections.get('Mes'):
-                all_months_sorted = sorted(df['Mes'].dropna().unique())
-                selected_months_sorted = [m for m in all_months_sorted if m in st.session_state.he_selections['Mes']]
-                if selected_months_sorted: latest_month_map = selected_months_sorted[-1]
-            else: latest_month_map = df['Mes'].dropna().max()
-            month_name_map = "General"
-            if pd.notna(latest_month_map):
-                df_mapa_display = df_mapa_display[df_mapa_display['Mes'] == latest_month_map].copy()
-                month_dt_map = datetime.strptime(latest_month_map, '%Y-%m')
-                meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
-                month_name_map = f"{meses_espanol.get(month_dt_map.month, '')} {month_dt_map.year}"
-            selected_cost_cols = [cost_columns_options[k] for k in st.session_state.he_cost_types if k in cost_columns_options]
-            selected_quant_cols = [quantity_columns_options[k] for k in st.session_state.he_quantity_types if k in quantity_columns_options]
-            existing_cost_cols = [col for col in selected_cost_cols if col in df_mapa_display.columns]
-            existing_quant_cols = [col for col in selected_quant_cols if col in df_mapa_display.columns]
-            if existing_cost_cols: df_mapa_display['Costo_Total_Dinamico'] = df_mapa_display[existing_cost_cols].sum(axis=1)
-            else: df_mapa_display['Costo_Total_Dinamico'] = 0
-            if existing_quant_cols: df_mapa_display['Cantidad_Total_Dinamica'] = df_mapa_display[existing_quant_cols].sum(axis=1)
-            else: df_mapa_display['Cantidad_Total_Dinamica'] = 0
-            df_mapa_agg = df_mapa_display.groupby('Ubicación').agg(Costo_Total=('Costo_Total_Dinamico', 'sum'), Cantidad_Total=('Cantidad_Total_Dinamica', 'sum')).reset_index()
-            df_mapa_data = pd.merge(df_mapa_agg, df_coords, left_on='Ubicación', right_on="Distrito", how="left")
-            df_mapa_data.dropna(subset=['Latitud', 'Longitud'], inplace=True)
-            if not df_mapa_agg.empty:
-                total_costo_mapa, total_cantidad_mapa, ubicaciones_unicas = df_mapa_agg['Costo_Total'].sum(), df_mapa_agg['Cantidad_Total'].sum(), df_mapa_agg['Ubicación'].nunique()
+            # 2. Determinar el mes actual y el mes anterior
+            all_available_months_sorted = sorted(df_mapa_base_filtered['Mes'].dropna().unique())
+            
+            if not all_available_months_sorted:
+                st.warning("No hay datos de meses válidos en los datos filtrados.")
+                # Usamos st.stop() o st.empty() si no se puede continuar
+            else:
+                latest_month_map = ""
+                if selected_months:
+                    # Usar el último mes de la *selección* del usuario
+                    valid_selected_months = sorted([m for m in selected_months if m in all_available_months_sorted])
+                    if valid_selected_months:
+                        latest_month_map = valid_selected_months[-1]
+                
+                if not latest_month_map:
+                    # Si no hay selección de mes, usar el último mes disponible en los datos filtrados
+                    latest_month_map = all_available_months_sorted[-1]
+
+                previous_month_str = None
+                total_costo_prev, total_cantidad_prev, ubicaciones_unicas_prev = 0, 0, 0
+                
+                if latest_month_map in all_available_months_sorted:
+                    latest_month_index = all_available_months_sorted.index(latest_month_map)
+                    if latest_month_index > 0:
+                        previous_month_str = all_available_months_sorted[latest_month_index - 1]
+
+                # 3. Definir columnas de costo y cantidad (esta lógica ya existía)
+                selected_cost_cols = [cost_columns_options[k] for k in st.session_state.he_cost_types if k in cost_columns_options]
+                selected_quant_cols = [quantity_columns_options[k] for k in st.session_state.he_quantity_types if k in quantity_columns_options]
+                
+                # --- Función auxiliar para no repetir código ---
+                def calculate_map_totals(df_month, cost_cols, quant_cols):
+                    if df_month.empty:
+                        return 0, 0, 0, pd.DataFrame()
+                    
+                    df_calc = df_month.copy()
+                    existing_cost_cols = [col for col in cost_cols if col in df_calc.columns]
+                    existing_quant_cols = [col for col in quant_cols if col in df_calc.columns]
+                    
+                    if existing_cost_cols: df_calc['Costo_Total_Dinamico'] = df_calc[existing_cost_cols].sum(axis=1)
+                    else: df_calc['Costo_Total_Dinamico'] = 0
+                    
+                    if existing_quant_cols: df_calc['Cantidad_Total_Dinamica'] = df_calc[existing_quant_cols].sum(axis=1)
+                    else: df_calc['Cantidad_Total_Dinamica'] = 0
+                    
+                    df_agg = df_calc.groupby('Ubicación').agg(
+                        Costo_Total=('Costo_Total_Dinamico', 'sum'), 
+                        Cantidad_Total=('Cantidad_Total_Dinamica', 'sum')
+                    ).reset_index()
+                    
+                    total_costo = df_agg['Costo_Total'].sum()
+                    total_cantidad = df_agg['Cantidad_Total'].sum()
+                    ubicaciones_unicas = df_agg['Ubicación'].nunique()
+                    
+                    return total_costo, total_cantidad, ubicaciones_unicas, df_agg
+
+                # 4. Calcular totales para el mes actual
+                df_mapa_display = df_mapa_base_filtered[df_mapa_base_filtered['Mes'] == latest_month_map]
+                total_costo_mapa, total_cantidad_mapa, ubicaciones_unicas, df_mapa_agg = calculate_map_totals(df_mapa_display, selected_cost_cols, selected_quant_cols)
+
+                # 5. Calcular totales para el mes anterior (si existe)
+                if previous_month_str:
+                    df_mapa_previous = df_mapa_base_filtered[df_mapa_base_filtered['Mes'] == previous_month_str]
+                    total_costo_prev, total_cantidad_prev, ubicaciones_unicas_prev, _ = calculate_map_totals(df_mapa_previous, selected_cost_cols, selected_quant_cols)
+
+                # 6. Preparar datos del mapa (esta lógica ya existía)
+                df_mapa_data = pd.merge(df_mapa_agg, df_coords, left_on='Ubicación', right_on="Distrito", how="left")
+                df_mapa_data.dropna(subset=['Latitud', 'Longitud'], inplace=True)
+                
+                # 7. Obtener nombre del mes (esta lógica ya existía)
+                month_name_map = "General"
+                if pd.notna(latest_month_map):
+                    month_dt_map = datetime.strptime(latest_month_map, '%Y-%m')
+                    meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
+                    month_name_map = f"{meses_espanol.get(month_dt_map.month, '')} {month_dt_map.year}"
+
+                # 8. Calcular deltas
+                delta_costo_str, delta_cantidad_str, delta_ubicaciones_str = None, None, None
+                if previous_month_str:
+                    # Calcular delta de costo
+                    if total_costo_prev > 0:
+                        delta_costo = ((total_costo_mapa - total_costo_prev) / total_costo_prev) * 100
+                    else:
+                        delta_costo = 100.0 if total_costo_mapa > 0 else 0.0
+                    
+                    # Calcular delta de cantidad
+                    if total_cantidad_prev > 0:
+                        delta_cantidad = ((total_cantidad_mapa - total_cantidad_prev) / total_cantidad_prev) * 100
+                    else:
+                        delta_cantidad = 100.0 if total_cantidad_mapa > 0 else 0.0
+
+                    # Calcular delta de ubicaciones
+                    delta_ubicaciones = ubicaciones_unicas - ubicaciones_unicas_prev
+                    
+                    delta_costo_str = f"{delta_costo:.1f}%"
+                    delta_cantidad_str = f"{delta_cantidad:.1f}%"
+                    delta_ubicaciones_str = f"{delta_ubicaciones:+.0f}" # + para mostrar aumento o disminución
+                
+                # 9. Mostrar KPIs con deltas (MODIFICACIÓN)
                 st.subheader(f"Resumen para el período: {month_name_map}")
                 st.markdown("<br>", unsafe_allow_html=True)
                 kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
-                kpi_col1.metric("💰 Costo Total (Período)", format_currency_es(total_costo_mapa))
                 # =============================================================================
                 # --- MODIFICACIÓN 5: KPI Mapa ---
                 # Se cambia format_number_es(..., 0) a format_number_es(..., 2)
+                # Y se añaden los deltas calculados
                 # =============================================================================
-                kpi_col2.metric("⏱️ Cantidad Total (Período)", f"{format_number_es(total_cantidad_mapa, 2)} hs")
-                kpi_col3.metric("📍 Ubicaciones Activas", format_number_es(ubicaciones_unicas, 0))
+                kpi_col1.metric("💰 Costo Total (Período)", format_currency_es(total_costo_mapa), delta=delta_costo_str)
+                kpi_col2.metric("⏱️ Cantidad Total (Período)", f"{format_number_es(total_cantidad_mapa, 2)} hs", delta=delta_cantidad_str)
+                kpi_col3.metric("📍 Ubicaciones Activas", format_number_es(ubicaciones_unicas, 0), delta=delta_ubicaciones_str, delta_color="normal")
                 st.markdown("---")
-            st.subheader(f"Comparador de Mapas para el Período: {month_name_map}")
-            map_style_options = {"Satélite con Calles": "satellite-streets", "Mapa de Calles": "open-street-map", "Estilo Claro": "carto-positron"}
-            if df_mapa_data.empty: st.warning("No se encontraron coordenadas para las ubicaciones seleccionadas para el comparador.")
-            else:
-                comp_col1, comp_col2 = st.columns([3, 2])
-                with comp_col1:
-                    sel_col1, sel_col2 = st.columns(2)
-                    with sel_col1: style1_name = st.selectbox("Selecciona el estilo del mapa izquierdo:", options=list(map_style_options.keys()), index=0, key="map_style1")
-                    with sel_col2: style2_name = st.selectbox("Selecciona el estilo del mapa derecho:", options=list(map_style_options.keys()), index=1, key="map_style2")
-                    st.markdown("---")
-                    show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=st.session_state.get('show_map_comp_check', False), key="show_map_comp_check")
-                    def generate_map_figure(df_plot_data, mapbox_style):
-                        if df_plot_data.empty: return None
-                        mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
-                        px.set_mapbox_access_token(mapbox_access_token)
+
+                # El resto del código de la pestaña continúa aquí...
+                st.subheader(f"Comparador de Mapas para el Período: {month_name_map}")
+                map_style_options = {"Satélite con Calles": "satellite-streets", "Mapa de Calles": "open-street-map", "Estilo Claro": "carto-positron"}
+                if df_mapa_data.empty: st.warning("No se encontraron coordenadas para las ubicaciones seleccionadas para el comparador.")
+                else:
+                    comp_col1, comp_col2 = st.columns([3, 2])
+                    with comp_col1:
+                        sel_col1, sel_col2 = st.columns(2)
+                        with sel_col1: style1_name = st.selectbox("Selecciona el estilo del mapa izquierdo:", options=list(map_style_options.keys()), index=0, key="map_style1")
+                        with sel_col2: style2_name = st.selectbox("Selecciona el estilo del mapa derecho:", options=list(map_style_options.keys()), index=1, key="map_style2")
+                        st.markdown("---")
+                        show_map_comparison = st.checkbox("✅ Mostrar Comparación de Mapas", value=st.session_state.get('show_map_comp_check', False), key="show_map_comp_check")
+                        def generate_map_figure(df_plot_data, mapbox_style):
+                            if df_plot_data.empty: return None
+                            mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
+                            px.set_mapbox_access_token(mapbox_access_token)
+                            # =============================================================================
+                            # --- MODIFICACIÓN 6: Mapa Plotly (Comparador) ---
+                            # Se cambia hover_data "Cantidad_Total": ':.0f' a ':,.2f'
+                            # =============================================================================
+                            fig = px.scatter_mapbox(df_plot_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':,.2f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
+                            fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+                            return fig
+                        if show_map_comparison:
+                            with st.spinner("Generando mapas para comparación..."):
+                                try:
+                                    fig1, fig2 = generate_map_figure(df_mapa_data, map_style_options[style1_name]), generate_map_figure(df_mapa_data, map_style_options[style2_name])
+                                    if fig1 and fig2:
+                                        img1_bytes, img2_bytes = fig1.to_image(format="png", width=1200, height=950, scale=2), fig2.to_image(format="png", width=1200, height=950, scale=2)
+                                        img1_pil, img2_pil = Image.open(io.BytesIO(img1_bytes)), Image.open(io.BytesIO(img2_bytes))
+                                        image_comparison(img1=img1_pil, img2=img2_pil, label1=style1_name, label2=style2_name, width=850)
+                                    else: st.warning("No se pudieron generar los mapas para la comparación.")
+                                except Exception as e: st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
+                        else: st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
+                    with comp_col2:
+                        table_data_comp = df_mapa_agg.rename(columns={'Ubicación': 'Distrito', 'Costo_Total': 'Costo Total', 'Cantidad_Total': 'Cantidad Total'})
+                        table_data_comp.sort_values(by='Costo Total', ascending=False, inplace=True)
+                        total_row_comp = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_comp['Costo Total'].sum()], 'Cantidad Total': [table_data_comp['Cantidad Total'].sum()]})
+                        df_final_table_comp = pd.concat([table_data_comp, total_row_comp], ignore_index=True)
                         # =============================================================================
-                        # --- MODIFICACIÓN 6: Mapa Plotly (Comparador) ---
+                        # --- MODIFICACIÓN 7: Tabla Mapa (Comparador) ---
+                        # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
+                        # =============================================================================
+                        st.dataframe(df_final_table_comp.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
+                st.markdown("---")
+                st.subheader(f"Mapa Interactivo Individual para el Período: {month_name_map}")
+                if not df_mapa_data.empty:
+                    selected_style_single_name = st.selectbox("Selecciona el estilo del mapa:", options=list(map_style_options.keys()), key="map_style_selector_single", index=0)
+                    selected_mapbox_style_single = map_style_options[selected_style_single_name]
+                    single_map_col, single_table_col = st.columns([3, 2])
+                    with single_map_col:
+                        # =============================================================================
+                        # --- MODIFICACIÓN 8: Mapa Plotly (Individual) ---
                         # Se cambia hover_data "Cantidad_Total": ':.0f' a ':,.2f'
                         # =============================================================================
-                        fig = px.scatter_mapbox(df_plot_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':,.2f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
-                        fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-                        return fig
-                    if show_map_comparison:
-                        with st.spinner("Generando mapas para comparación..."):
-                            try:
-                                fig1, fig2 = generate_map_figure(df_mapa_data, map_style_options[style1_name]), generate_map_figure(df_mapa_data, map_style_options[style2_name])
-                                if fig1 and fig2:
-                                    img1_bytes, img2_bytes = fig1.to_image(format="png", width=1200, height=950, scale=2), fig2.to_image(format="png", width=1200, height=950, scale=2)
-                                    img1_pil, img2_pil = Image.open(io.BytesIO(img1_bytes)), Image.open(io.BytesIO(img2_bytes))
-                                    image_comparison(img1=img1_pil, img2=img2_pil, label1=style1_name, label2=style2_name, width=850)
-                                else: st.warning("No se pudieron generar los mapas para la comparación.")
-                            except Exception as e: st.error(f"Ocurrió un error al generar las imágenes del mapa: {e}")
-                    else: st.info("Seleccione los estilos de mapa deseados y marque la casilla 'Mostrar Comparación de Mapas' para visualizar y generar la comparación.")
-                with comp_col2:
-                    table_data_comp = df_mapa_agg.rename(columns={'Ubicación': 'Distrito', 'Costo_Total': 'Costo Total', 'Cantidad_Total': 'Cantidad Total'})
-                    table_data_comp.sort_values(by='Costo Total', ascending=False, inplace=True)
-                    total_row_comp = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_comp['Costo Total'].sum()], 'Cantidad Total': [table_data_comp['Cantidad Total'].sum()]})
-                    df_final_table_comp = pd.concat([table_data_comp, total_row_comp], ignore_index=True)
-                    # =============================================================================
-                    # --- MODIFICACIÓN 7: Tabla Mapa (Comparador) ---
-                    # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
-                    # =============================================================================
-                    st.dataframe(df_final_table_comp.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
-            st.markdown("---")
-            st.subheader(f"Mapa Interactivo Individual para el Período: {month_name_map}")
-            if not df_mapa_data.empty:
-                selected_style_single_name = st.selectbox("Selecciona el estilo del mapa:", options=list(map_style_options.keys()), key="map_style_selector_single", index=0)
-                selected_mapbox_style_single = map_style_options[selected_style_single_name]
-                single_map_col, single_table_col = st.columns([3, 2])
-                with single_map_col:
-                    # =============================================================================
-                    # --- MODIFICACIÓN 8: Mapa Plotly (Individual) ---
-                    # Se cambia hover_data "Cantidad_Total": ':.0f' a ':,.2f'
-                    # =============================================================================
-                    fig_single = px.scatter_mapbox(df_mapa_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':,.2f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style_single, zoom=6, center={"lat": -32.5, "lon": -61.5})
-                    fig_single.update_layout(margin={"r":0, "t":0, "l":0, "b":0}, height=600)
-                    st.plotly_chart(fig_single, use_container_width=True)
-                with single_table_col:
-                    table_data_single = df_mapa_agg.rename(columns={'Ubicación': 'Distrito', 'Costo_Total': 'Costo Total', 'Cantidad_Total': 'Cantidad Total'})
-                    table_data_single.sort_values(by='Costo Total', ascending=False, inplace=True)
-                    total_row_single = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_single['Costo Total'].sum()], 'Cantidad Total': [table_data_single['Cantidad Total'].sum()]})
-                    df_final_table_single = pd.concat([table_data_single, total_row_single], ignore_index=True)
-                    # =============================================================================
-                    # --- MODIFICACIÓN 9: Tabla Mapa (Individual) ---
-                    # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
-                    # =============================================================================
-                    st.dataframe(df_final_table_single.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
+                        fig_single = px.scatter_mapbox(df_mapa_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':,.2f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style_single, zoom=6, center={"lat": -32.5, "lon": -61.5})
+                        fig_single.update_layout(margin={"r":0, "t":0, "l":0, "b":0}, height=600)
+                        st.plotly_chart(fig_single, use_container_width=True)
+                    with single_table_col:
+                        table_data_single = df_mapa_agg.rename(columns={'Ubicación': 'Distrito', 'Costo_Total': 'Costo Total', 'Cantidad_Total': 'Cantidad Total'})
+                        table_data_single.sort_values(by='Costo Total', ascending=False, inplace=True)
+                        total_row_single = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_single['Costo Total'].sum()], 'Cantidad Total': [table_data_single['Cantidad Total'].sum()]})
+                        df_final_table_single = pd.concat([table_data_single, total_row_single], ignore_index=True)
+                        # =============================================================================
+                        # --- MODIFICACIÓN 9: Tabla Mapa (Individual) ---
+                        # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
+                        # =============================================================================
+                        st.dataframe(df_final_table_single.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
+
     with tab_desglose_org:
         st.header('Desglose Organizacional Detallado')
         dimension_options = {'Gerencia y Ministerio': ['Gerencia', 'Ministerio'], 'Gerencia y Sexo': ['Gerencia', 'Sexo'], 'Ministerio y Sexo': ['Ministerio', 'Sexo'], 'Nivel y Sexo': ['Nivel', 'Sexo'], 'Función y Sexo': ['Función', 'Sexo']}
@@ -860,3 +975,4 @@ if uploaded_file is not None:
             generate_download_buttons(filtered_df, 'datos_brutos_filtrados', 'tab4_brutos')
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
