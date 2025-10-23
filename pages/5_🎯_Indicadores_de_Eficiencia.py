@@ -63,6 +63,13 @@ def load_data(uploaded_file):
     df['Mes'] = df['Período'].dt.month
     df['Período_fmt'] = df['Período'].dt.strftime('%b-%y')  # Formato ej: Ene-25
 
+    # --- NUEVO: Columnas de Agrupación Temporal ---
+    df['Bimestre'] = (df['Mes'] - 1) // 2 + 1
+    df['Trimestre'] = (df['Mes'] - 1) // 3 + 1
+    df['Semestre'] = (df['Mes'] - 1) // 6 + 1
+    # --- FIN NUEVO ---
+
+
     # Estas listas AHORA incluirán TODOS los totales nuevos
     k_cols = sorted([c for c in df.columns if c.startswith('$K_')])
     qty_cols = sorted([c for c in df.columns if c.startswith('hs_') or c.startswith('ds_')])
@@ -264,6 +271,7 @@ def show_kpi_cards(df, var_list):
         '$K_Guardias_2T': 'Costo Guardias 2T',
         '$K_Guardias_3T': 'Costo Guardias 3T',
         '$K_TD': 'Costo TD',
+        '$K_Total_Guardias': 'Costo Total Guardias', # NUEVO
         'hs_50%': 'Horas HE 50%',
         'hs_100%': 'Horas HE 100%',
         'hs_Total_HE': 'Horas Total HE',
@@ -272,6 +280,7 @@ def show_kpi_cards(df, var_list):
         'ds_Guardias_2T': 'Días Guardias 2T',
         'ds_Guardias_3T': 'Días Guardias 3T',
         'ds_TD': 'Días TD',
+        'ds_Total_Guardias': 'Días Total Guardias', # NUEVO
     }
 
     # 3. Iterar y crear métricas
@@ -361,6 +370,15 @@ if df.empty:
     st.error("El archivo cargado está vacío o no se pudo procesar.")
     st.stop()
 
+# --- NUEVO: Obtener opciones para filtros ---
+all_bimestres = sorted(df['Bimestre'].unique())
+all_trimestres = sorted(df['Trimestre'].unique())
+all_semestres = sorted(df['Semestre'].unique())
+# Ordenar los períodos específicos cronológicamente
+all_periodos_especificos = df.sort_values('Período')['Período_fmt'].unique()
+# --- FIN NUEVO ---
+
+
 # ----------------- Filtros en la barra lateral -----------------
 st.sidebar.header("Filtros Generales")
 selected_years = st.sidebar.multiselect("Años:", all_years, default=all_years)
@@ -368,7 +386,26 @@ month_options = list(month_map.values())
 selected_months_names = st.sidebar.multiselect("Meses:", month_options, default=month_options)
 selected_months = [k for k,v in month_map.items() if v in selected_months_names]
 
-dff = df[df['Año'].isin(selected_years) & df['Mes'].isin(selected_months)].copy()
+# --- NUEVO: Filtros de agrupación ---
+selected_bimestres = st.sidebar.multiselect("Bimestres:", all_bimestres, default=all_bimestres)
+selected_trimestres = st.sidebar.multiselect("Trimestres:", all_trimestres, default=all_trimestres)
+selected_semestres = st.sidebar.multiselect("Semestres:", all_semestres, default=all_semestres)
+st.sidebar.markdown("---")
+selected_periodos_especificos = st.sidebar.multiselect("Período Específico (Mes-Año):", all_periodos_especificos, default=all_periodos_especificos)
+# --- FIN NUEVO ---
+
+
+# --- MODIFICADO: Lógica de filtro extendida ---
+dff = df[
+    df['Año'].isin(selected_years) &
+    df['Mes'].isin(selected_months) &
+    df['Bimestre'].isin(selected_bimestres) &
+    df['Trimestre'].isin(selected_trimestres) &
+    df['Semestre'].isin(selected_semestres) &
+    df['Período_fmt'].isin(selected_periodos_especificos)
+].copy()
+# --- FIN MODIFICADO ---
+
 dff = dff.sort_values('Período')
 
 # ----------------- Pestañas de la aplicación -----------------
@@ -376,11 +413,12 @@ tab1, tab2 = st.tabs(["$K (Costos)", "Cantidades (hs / ds)"])
 
 # ----------------- Pestaña de Costos -----------------
 with tab1:
-    # --- SECCIÓN DE TARJETAS KPI (NUEVO) ---
+    # --- SECCIÓN DE TARJETAS KPI (MODIFICADO) ---
     st.subheader("Totales Anuales (2025 vs 2024)")
     costo_vars_list = [
         '$K_50%', '$K_100%', '$K_Total_HE', '$K_TD', # Fila 1
-        '$K_GTO', '$K_GTI', '$K_Guardias_2T', '$K_Guardias_3T' # Fila 2
+        '$K_GTO', '$K_GTI', '$K_Guardias_2T', '$K_Guardias_3T', # Fila 2
+        '$K_Total_Guardias' # Fila 3 (NUEVO)
     ]
     # Usamos 'df' (el original) para calcular totales sin afectar por filtros
     show_kpi_cards(df, costo_vars_list)
@@ -428,11 +466,12 @@ with tab1:
 
 # ----------------- Pestaña de Cantidades -----------------
 with tab2:
-    # --- SECCIÓN DE TARJETAS KPI (NUEVO) ---
+    # --- SECCIÓN DE TARJETAS KPI (MODIFICADO) ---
     st.subheader("Totales Anuales (2025 vs 2024)")
     qty_vars_list = [
         'hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', # Fila 1
-        'ds_GTO', 'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T' # Fila 2
+        'ds_GTO', 'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T', # Fila 2
+        'ds_Total_Guardias' # Fila 3 (NUEVO)
     ]
     # Usamos 'df' (el original) para calcular totales sin afectar por filtros
     show_kpi_cards(df, qty_vars_list)
