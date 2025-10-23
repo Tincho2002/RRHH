@@ -393,7 +393,7 @@ def get_available_options(df, selections, target_column):
 def load_and_clean_data(uploaded_file):
     df_read = pd.DataFrame()
     read_method = "Excel" # Assume Excel first
-    sheet_name = 'eficiencia' # Nombre de hoja esperado
+    sheet_name = 'eficiencia' # Nombre de hoja esperado (**IMPORTANTE**)
 
     # --- Prioritize reading as Excel ---
     try:
@@ -403,73 +403,72 @@ def load_and_clean_data(uploaded_file):
             # Try reading from the first row (header=0)
             df_read = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=0, engine='openpyxl')
             logging.info(f"Leído como Excel desde fila 1 (hoja '{sheet_name}').")
+            st.success("Archivo leído como Excel.") # Success message
         except Exception as e_h0:
             logging.warning(f"No se pudo leer Excel desde la fila 1 ({e_h0}). Intentando desde la fila 2...")
             uploaded_file.seek(0) # Reset pointer
             df_read = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=1, engine='openpyxl')
             logging.info(f"Leído como Excel desde fila 2 (hoja '{sheet_name}').")
-        st.success("Archivo leído como Excel.")
+            st.success("Archivo leído como Excel (desde fila 2).") # Success message
 
-    # --- Fallback to reading as CSV ONLY if Excel fails due to format/sheet errors ---
-    except (ValueError, zipfile.BadZipFile, KeyError) as e_excel:
-         # El error KeyError ocurre si sheet_name no se encuentra. ValueError o BadZipFile si el formato es incorrecto.
-        logging.warning(f"Lectura como Excel falló (Error: {e_excel}). Verificando si es un problema de hoja o formato...")
-        read_method = "CSV"
-        
-        # Verificar si el error fue por no encontrar la hoja (KeyError)
+    # --- Handle potential Excel read errors (Sheet not found, bad format) ---
+    except (KeyError, ValueError, zipfile.BadZipFile) as e_excel:
         if isinstance(e_excel, KeyError):
-            st.error(f"ERROR CRÍTICO: No se encontró la hoja llamada '{sheet_name}' en el archivo Excel.")
-            st.info("Asegúrese de que el archivo Excel contenga una hoja con ese nombre exacto (en minúsculas).")
-            return pd.DataFrame() # No intentar leer como CSV si falta la hoja
+             st.error(f"ERROR CRÍTICO: No se encontró la hoja llamada '{sheet_name}' en el archivo Excel.")
+             st.info("Asegúrese de que el archivo Excel contenga una hoja con ese nombre exacto (en minúsculas si es necesario).")
+        elif isinstance(e_excel, zipfile.BadZipFile):
+             st.error("ERROR CRÍTICO: El archivo .xlsx parece estar corrupto o no es un archivo Excel válido.")
+        else: # Other ValueErrors during read
+             st.error(f"ERROR CRÍTICO: No se pudo leer el archivo Excel. Error: {e_excel}")
         
-        # Si el error fue por formato (ValueError, BadZipFile), intentar leer como CSV
-        logging.warning("El archivo no parece ser un Excel válido. Intentando leer como CSV...")
-        try:
-            uploaded_file.seek(0)
+        # --- Fallback to reading as CSV ONLY if Excel fails due to FORMAT errors (not missing sheet) ---
+        if not isinstance(e_excel, KeyError): # Don't try CSV if sheet is missing
+            logging.warning("El archivo no parece ser un Excel válido. Intentando leer como CSV...")
+            read_method = "CSV"
             try:
-                # Try CSV UTF-8 header=0
-                logging.info("Intentando CSV (utf-8, header=0)...")
-                df_read = pd.read_csv(uploaded_file, header=0, sep=None, engine='python', encoding='utf-8-sig', decimal='.')
-                first_col_name = str(df_read.columns[0]).lower()
-                if df_read.empty or ('periodo' not in first_col_name and 'fecha' not in first_col_name):
-                    logging.warning("Encabezado CSV (utf-8, h=0) incorrecto. Intentando header=1...")
+                uploaded_file.seek(0)
+                try:
+                    # Try CSV UTF-8 header=0
+                    logging.info("Intentando CSV (utf-8, header=0)...")
+                    df_read = pd.read_csv(uploaded_file, header=0, sep=None, engine='python', encoding='utf-8-sig', decimal='.')
+                    first_col_name = str(df_read.columns[0]).lower()
+                    if df_read.empty or ('periodo' not in first_col_name and 'fecha' not in first_col_name):
+                        logging.warning("Encabezado CSV (utf-8, h=0) incorrecto. Intentando header=1...")
+                        uploaded_file.seek(0)
+                        df_read = pd.read_csv(uploaded_file, header=1, sep=None, engine='python', encoding='utf-8-sig', decimal='.')
+                except UnicodeDecodeError:
+                    logging.warning("Error de codificación UTF-8. Intentando CSV (latin-1)...")
                     uploaded_file.seek(0)
-                    df_read = pd.read_csv(uploaded_file, header=1, sep=None, engine='python', encoding='utf-8-sig', decimal='.')
-            except UnicodeDecodeError:
-                 logging.warning("Error de codificación UTF-8. Intentando CSV (latin-1)...")
-                 uploaded_file.seek(0)
-                 try:
-                      # Try CSV latin-1 header=0
-                      logging.info("Intentando CSV (latin-1, header=0)...")
-                      df_read = pd.read_csv(uploaded_file, header=0, sep=None, engine='python', encoding='latin-1', decimal='.')
-                      first_col_name = str(df_read.columns[0]).lower()
-                      if df_read.empty or ('periodo' not in first_col_name and 'fecha' not in first_col_name):
-                           logging.warning("Encabezado CSV (latin-1, h=0) incorrecto. Intentando header=1...")
-                           uploaded_file.seek(0)
-                           df_read = pd.read_csv(uploaded_file, header=1, sep=None, engine='python', encoding='latin-1', decimal='.')
-                 except Exception as e_csv_l1:
-                      logging.error(f"Error final leyendo CSV (latin-1): {e_csv_l1}")
-                      st.error(f"ERROR CRÍTICO: No se pudo leer el archivo ni como Excel (formato inválido) ni como CSV (latin-1).")
-                      st.error(f"Detalle Excel: {e_excel}")
-                      st.error(f"Detalle CSV: {e_csv_l1}")
-                      return pd.DataFrame()
-            except Exception as e_csv_utf8:
-                 logging.error(f"Error final leyendo CSV (utf-8): {e_csv_utf8}")
-                 st.error(f"ERROR CRÍTICO: No se pudo leer el archivo ni como Excel (formato inválido) ni como CSV (utf-8).")
-                 st.error(f"Detalle Excel: {e_excel}")
-                 st.error(f"Detalle CSV: {e_csv_utf8}")
-                 return pd.DataFrame()
+                    try:
+                        # Try CSV latin-1 header=0
+                        logging.info("Intentando CSV (latin-1, header=0)...")
+                        df_read = pd.read_csv(uploaded_file, header=0, sep=None, engine='python', encoding='latin-1', decimal='.')
+                        first_col_name = str(df_read.columns[0]).lower()
+                        if df_read.empty or ('periodo' not in first_col_name and 'fecha' not in first_col_name):
+                             logging.warning("Encabezado CSV (latin-1, h=0) incorrecto. Intentando header=1...")
+                             uploaded_file.seek(0)
+                             df_read = pd.read_csv(uploaded_file, header=1, sep=None, engine='python', encoding='latin-1', decimal='.')
+                    except Exception as e_csv_l1:
+                        logging.error(f"Error final leyendo CSV (latin-1): {e_csv_l1}")
+                        st.error(f"ERROR: Falló lectura como Excel ({e_excel}) y también como CSV ({e_csv_l1}).")
+                        return pd.DataFrame()
+                except Exception as e_csv_utf8:
+                    logging.error(f"Error final leyendo CSV (utf-8): {e_csv_utf8}")
+                    st.error(f"ERROR: Falló lectura como Excel ({e_excel}) y también como CSV ({e_csv_utf8}).")
+                    return pd.DataFrame()
 
-            # Final check for CSV read success
-            if df_read.empty or df_read.shape[1] <= 1:
-                 st.error("Lectura de CSV resultó en un DataFrame vacío o inválido.")
-                 return pd.DataFrame()
-            logging.info(f"Archivo leído exitosamente como {read_method} (fallback).")
-            st.success(f"Archivo leído como {read_method} (fallback).") # Mensaje para el usuario
+                # Final check for CSV read success
+                if df_read.empty or df_read.shape[1] <= 1:
+                    st.error("Lectura de CSV resultó en un DataFrame vacío o inválido.")
+                    return pd.DataFrame()
+                logging.info(f"Archivo leído exitosamente como {read_method} (fallback).")
+                st.success(f"Archivo leído como {read_method} (fallback).")
 
-        except Exception as e_csv_fallback:
-             st.error(f"ERROR CRÍTICO al intentar leer como CSV después de fallo Excel: {e_csv_fallback}")
-             return pd.DataFrame()
+            except Exception as e_csv_fallback:
+                st.error(f"ERROR CRÍTICO al intentar leer como CSV después de fallo Excel: {e_csv_fallback}")
+                return pd.DataFrame()
+        else: # If error was KeyError (sheet not found)
+             return pd.DataFrame() # Return empty DF
 
     # --- Catch-all for other unexpected read errors ---
     except Exception as e_general:
@@ -482,7 +481,7 @@ def load_and_clean_data(uploaded_file):
         return pd.DataFrame()
 
     df = df_read.copy()
-    # No mostramos el mensaje de éxito aquí si ya se mostró en el bloque try/except
+    # Success message already shown in try block
 
     # --- Limpieza robusta de nombres de columna ---
     original_columns = df.columns.tolist()
