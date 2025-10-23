@@ -348,7 +348,7 @@ def show_kpi_cards(df, var_list):
 
 st.title("Visualizador de Eficiencia")
 
-# --- CSS PARA ESTILOS DE TARJETAS (MODIFICADO) ---
+# --- CSS PARA ESTILOS DE TARJETAS (MODIFICADO PARA CENTRAR) ---
 CSS_STYLE = """
 <style>
 /* --- MODIFICADO: Ahora aplica a nuestra clase personalizada --- */
@@ -364,6 +364,9 @@ CSS_STYLE = """
     /* Asegurar que el padding se respete al 100% */
     box-sizing: border-box; 
     margin-bottom: 10px; /* Espacio por si se apilan en móvil */
+    
+    /* --- MODIFICACIÓN: Centrar contenido --- */
+    text-align: center;
 }
 
 .custom-metric-card:hover {
