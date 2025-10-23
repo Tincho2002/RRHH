@@ -9,6 +9,10 @@ import streamlit.components.v1 as components
 import plotly.graph_objects as go
 import re
 import zipfile # Para capturar errores específicos de Excel
+import logging # Para logging detallado
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
 
 # --- Configuración de la página ---
 st.set_page_config(layout="wide", page_title="Indicadores de Eficiencia", page_icon="🎯")
@@ -390,80 +394,102 @@ def load_and_clean_data(uploaded_file):
     df_read = pd.DataFrame()
     file_type = uploaded_file.type
     file_name = uploaded_file.name
+    read_method = "Excel" # Assume Excel first
 
     # --- Prioritize reading as Excel ---
     try:
-        st.info("Intentando leer como archivo Excel...")
+        logging.info("Intentando leer como archivo Excel...")
         uploaded_file.seek(0)
         try:
             # Try reading from the first row (header=0)
             df_read = pd.read_excel(uploaded_file, sheet_name='Eficiencia', header=0, engine='openpyxl')
+            logging.info("Leído como Excel desde fila 1.")
         except Exception as e_h0:
-            st.warning(f"No se pudo leer Excel desde la fila 1 ({e_h0}). Intentando desde la fila 2...")
+            logging.warning(f"No se pudo leer Excel desde la fila 1 ({e_h0}). Intentando desde la fila 2...")
             uploaded_file.seek(0) # Reset pointer
             df_read = pd.read_excel(uploaded_file, sheet_name='Eficiencia', header=1, engine='openpyxl')
-        st.success("Archivo leído como Excel.")
+            logging.info("Leído como Excel desde fila 2.")
 
-    # --- Fallback to reading as CSV if Excel fails due to format errors ---
-    except (ValueError, zipfile.BadZipFile, KeyError) as e_excel: # Catch specific Excel format errors + KeyError for sheet_name
-        st.warning(f"No se pudo leer como Excel ({e_excel}). El archivo podría ser CSV o estar corrupto. Intentando leer como CSV...")
+    # --- Fallback to reading as CSV ONLY if Excel fails due to format/sheet errors ---
+    except (ValueError, zipfile.BadZipFile, KeyError) as e_excel:
+        logging.warning(f"Lectura como Excel falló ({e_excel}). Intentando leer como CSV...")
+        read_method = "CSV"
         try:
-            uploaded_file.seek(0) # Reset pointer
+            uploaded_file.seek(0)
             try:
-                # Try reading CSV from header=0, infer separator
-                df_read = pd.read_csv(uploaded_file, header=0, sep=None, engine='python', encoding='utf-8-sig')
-                # Basic check: first column name should contain 'periodo' or 'fecha'
+                # Try CSV UTF-8 header=0
+                logging.info("Intentando CSV (utf-8, header=0)...")
+                df_read = pd.read_csv(uploaded_file, header=0, sep=None, engine='python', encoding='utf-8-sig', decimal='.')
                 first_col_name = str(df_read.columns[0]).lower()
-                if 'periodo' not in first_col_name and 'fecha' not in first_col_name:
-                    st.warning("Primera fila no parece ser el encabezado correcto en CSV. Intentando desde la segunda fila...")
+                if df_read.empty or ('periodo' not in first_col_name and 'fecha' not in first_col_name):
+                    logging.warning("Encabezado CSV (utf-8, h=0) incorrecto. Intentando header=1...")
                     uploaded_file.seek(0)
-                    df_read = pd.read_csv(uploaded_file, header=1, sep=None, engine='python', encoding='utf-8-sig')
-            except Exception as e_csv_h0:
-                 st.warning(f"Error leyendo CSV con header=0 ({e_csv_h0}). Intentando desde la segunda fila...")
+                    df_read = pd.read_csv(uploaded_file, header=1, sep=None, engine='python', encoding='utf-8-sig', decimal='.')
+            except UnicodeDecodeError:
+                 logging.warning("Error de codificación UTF-8. Intentando CSV (latin-1)...")
                  uploaded_file.seek(0)
-                 df_read = pd.read_csv(uploaded_file, header=1, sep=None, engine='python', encoding='utf-8-sig')
+                 try:
+                      # Try CSV latin-1 header=0
+                      logging.info("Intentando CSV (latin-1, header=0)...")
+                      df_read = pd.read_csv(uploaded_file, header=0, sep=None, engine='python', encoding='latin-1', decimal='.')
+                      first_col_name = str(df_read.columns[0]).lower()
+                      if df_read.empty or ('periodo' not in first_col_name and 'fecha' not in first_col_name):
+                           logging.warning("Encabezado CSV (latin-1, h=0) incorrecto. Intentando header=1...")
+                           uploaded_file.seek(0)
+                           df_read = pd.read_csv(uploaded_file, header=1, sep=None, engine='python', encoding='latin-1', decimal='.')
+                 except Exception as e_csv_l1:
+                      logging.error(f"Error final leyendo CSV (latin-1): {e_csv_l1}")
+                      st.error(f"ERROR CRÍTICO: No se pudo leer el archivo ni como Excel ni como CSV (latin-1).")
+                      st.error(f"Detalle Excel: {e_excel}")
+                      st.error(f"Detalle CSV: {e_csv_l1}")
+                      return pd.DataFrame()
+            except Exception as e_csv_utf8:
+                 logging.error(f"Error final leyendo CSV (utf-8): {e_csv_utf8}")
+                 st.error(f"ERROR CRÍTICO: No se pudo leer el archivo ni como Excel ni como CSV (utf-8).")
+                 st.error(f"Detalle Excel: {e_excel}")
+                 st.error(f"Detalle CSV: {e_csv_utf8}")
+                 return pd.DataFrame()
 
-            # Final check for CSV read
+            # Final check for CSV read success
             if df_read.empty or df_read.shape[1] <= 1:
-                 raise ValueError("Lectura de CSV resultó en un DataFrame vacío o con pocas columnas.")
-            st.success("Archivo leído como CSV.")
+                 st.error("Lectura de CSV resultó en un DataFrame vacío o inválido.")
+                 return pd.DataFrame()
+            logging.info(f"Archivo leído exitosamente como {read_method}.")
 
-        except Exception as e_csv:
-            st.error(f"ERROR CRÍTICO: No se pudo leer el archivo ni como Excel (formato inválido) ni como CSV.")
-            st.error(f"Detalle Excel: {e_excel}")
-            st.error(f"Detalle CSV: {e_csv}")
-            return pd.DataFrame()
-            
+        except Exception as e_csv_fallback:
+             st.error(f"ERROR CRÍTICO al intentar leer como CSV después de fallo Excel: {e_csv_fallback}")
+             return pd.DataFrame()
+
     # --- Catch-all for other unexpected read errors ---
     except Exception as e_general:
         st.error(f"ERROR INESPERADO al leer el archivo: {e_general}")
         return pd.DataFrame()
 
-
-    # --- Rest of the cleaning (proceed only if df_read is not empty) ---
+    # --- Proceed with cleaning if read was successful ---
     if df_read.empty:
         st.error("El archivo parece estar vacío después de la lectura.")
         return pd.DataFrame()
-
+        
     df = df_read.copy()
+    st.success(f"Archivo leído exitosamente usando el método: {read_method}")
+
 
     # --- Limpieza robusta de nombres de columna ---
     original_columns = df.columns.tolist()
     cleaned_columns = []
+    logging.info(f"Columnas originales: {original_columns}")
     for col in original_columns:
-        new_col = str(col).strip() # Quitar espacios al inicio/final
-        new_col = new_col.replace('$', 'K_') # Reemplazar $ con K_ consistentemente
-        new_col = new_col.replace('%', 'pct') # Reemplazar % con pct (sin guion bajo antes)
-        new_col = re.sub(r'\s+', '_', new_col) # Reemplazar espacios intermedios con _
-        new_col = new_col.replace('.', '_') # Reemplazar puntos
-        new_col = re.sub(r'[^a-zA-Z0-9_]+', '', new_col) # Eliminar otros caracteres no válidos
-        new_col = new_col.strip('_') # Quitar _ al inicio/final
-        # Evitar nombres vacíos
-        if not new_col: new_col = f"col_{len(cleaned_columns)}"
+        new_col = str(col).strip()
+        new_col = new_col.replace('$', 'K_')
+        new_col = new_col.replace('%', 'pct')
+        new_col = re.sub(r'\s+', '_', new_col)
+        new_col = new_col.replace('.', '_') # Reemplazar puntos por guiones bajos
+        new_col = re.sub(r'[^a-zA-Z0-9_]+', '', new_col) # Eliminar caracteres no alfanuméricos restantes (excepto _)
+        new_col = new_col.strip('_')
+        if not new_col: new_col = f"col_{len(cleaned_columns)}" # Evitar nombres vacíos
         cleaned_columns.append(new_col)
-        
     df.columns = cleaned_columns
-    st.write("Columnas después de la limpieza:", df.columns.tolist()) # Debug
+    logging.info(f"Columnas después de la limpieza: {df.columns.tolist()}")
 
     # --- Identificar columna de Período ---
     periodo_col_name = None
@@ -473,27 +499,26 @@ def load_and_clean_data(uploaded_file):
          if found_col:
               periodo_col_name = found_col
               break
-
     if not periodo_col_name:
-         # Fallback: Check first column if no match found
          first_col_name = df.columns[0]
          if 'periodo' in first_col_name.lower() or 'fecha' in first_col_name.lower():
              periodo_col_name = first_col_name
-             st.warning(f"No se encontró 'Periodo' o 'Fecha' exacto, usando primera columna '{periodo_col_name}' como fecha.")
+             logging.warning(f"No se encontró 'Periodo' o 'Fecha', usando primera columna '{periodo_col_name}' como fecha.")
          else:
-             st.error("No se pudo identificar la columna de fecha/período. Asegúrese que exista una columna llamada 'Periodo' o 'Fecha'.")
+             st.error("No se pudo identificar la columna de fecha/período.")
              return pd.DataFrame()
-    else:
-         st.info(f"Columna de período identificada como: '{periodo_col_name}'")
-         if periodo_col_name != 'Periodo':
-              df.rename(columns={periodo_col_name: 'Periodo'}, inplace=True)
+    logging.info(f"Columna de período identificada como: '{periodo_col_name}'")
+    if periodo_col_name != 'Periodo':
+         df.rename(columns={periodo_col_name: 'Periodo'}, inplace=True)
 
     # --- Procesar Período ---
     try:
+        # Intentar convertir directamente, puede fallar si hay formatos mixtos
         df['Periodo'] = pd.to_datetime(df['Periodo'], errors='coerce')
     except Exception:
+         # Si falla, intentar inferir formato (puede ser lento)
          try:
-              st.warning("Formato de fecha no estándar detectado, intentando inferir...")
+              logging.warning("Formato de fecha no estándar detectado, intentando inferir...")
               df['Periodo'] = pd.to_datetime(df['Periodo'], infer_datetime_format=True, errors='coerce')
          except Exception as e_date:
               st.error(f"Error crítico al convertir la columna 'Periodo' a fecha: {e_date}")
@@ -514,19 +539,25 @@ def load_and_clean_data(uploaded_file):
     numeric_cols_found = []
     for col in df.columns:
         if col not in ['Periodo', 'Año', 'Mes_Num', 'Mes']:
+            original_dtype = df[col].dtype
             try:
                 # Replace comma decimal separator if present, then convert
                 if df[col].dtype == 'object':
                      # Handle potential non-string values before replace
                      df[col] = df[col].apply(lambda x: str(x).replace(',', '.') if pd.notna(x) else x)
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                if not df[col].isnull().all():
-                     df[col] = df[col].fillna(0)
+                # Intentar convertir a numérico, forzando errores a NaN
+                converted_col = pd.to_numeric(df[col], errors='coerce')
+                # Si la conversión fue exitosa (no todos NaN), aplicar y llenar NaN con 0
+                if not converted_col.isnull().all():
+                     df[col] = converted_col.fillna(0)
                      numeric_cols_found.append(col)
+                # else: # Si todos son NaN, no era numérica, revertir o dejar NaN?
+                     # logging.warning(f"Columna '{col}' parecía numérica pero no se pudo convertir.")
+                     # df[col] = original_col_copy # Revertir si la conversión falló completamente
             except Exception as e:
-                st.info(f"Columna '{col}' no se convirtió a numérica. Error: {e}")
-                pass
-    st.write("Columnas numéricas identificadas y limpiadas:", numeric_cols_found)
+                logging.info(f"Columna '{col}' (dtype: {original_dtype}) no se convirtió a numérica. Error: {e}")
+                pass # Dejar la columna como está si falla
+    logging.info(f"Columnas numéricas identificadas y limpiadas: {numeric_cols_found}")
 
 
     # --- Calcular Indicadores Faltantes ---
@@ -536,44 +567,45 @@ def load_and_clean_data(uploaded_file):
         df['Total_Costos_Calculados'] = df[k_cols].sum(axis=1)
     else:
         df['Total_Costos_Calculados'] = 0
-        st.warning("No se encontraron columnas de costo (empezando con 'K_') para calcular costos totales.")
+        logging.warning("No se encontraron columnas de costo (empezando con 'K_')")
 
     qty_cols = [col for col in df.columns if col.startswith('hs_') or col.startswith('ds_')]
     if qty_cols:
         df['Total_Cantidades_Calculadas'] = df[qty_cols].sum(axis=1)
     else:
         df['Total_Cantidades_Calculadas'] = 0
-        st.warning("No se encontraron columnas de cantidad (empezando con 'hs_' o 'ds_') para calcular cantidades totales.")
+        logging.warning("No se encontraron columnas de cantidad ('hs_' o 'ds_')")
 
     # Usar las columnas calculadas si las originales no existen
     if 'Eficiencia_Total_raw' not in df.columns:
         df['Eficiencia_Total_raw'] = df.apply(lambda row: row['Total_Costos_Calculados'] / row['Total_Cantidades_Calculadas'] if row['Total_Cantidades_Calculadas'] != 0 else 0, axis=1)
-        st.info("Columna 'Eficiencia_Total_raw' calculada como Costos Totales / Cantidades Totales.")
+        logging.info("Columna 'Eficiencia_Total_raw' calculada.")
 
     # Recheck investment columns based on *cleaned* names
-    inv_cols = [col for col in df.columns if 'GTO' in col or 'GTI' in col]
-    k_inv_cols = [col for col in inv_cols if col.startswith('K_')]
+    # Asumiendo que GTI y GTO son Gastos de Inversión y Operación (o similar)
+    inv_cols_pattern = ['gto', 'gti'] # Buscar estos patrones en minúscula
+    k_inv_cols = [col for col in df.columns if col.startswith('K_') and any(p in col.lower() for p in inv_cols_pattern)]
     if 'Total_Inversiones_raw' not in df.columns:
         if k_inv_cols:
              df['Total_Inversiones_raw'] = df[k_inv_cols].sum(axis=1)
-             st.info("Columna 'Total_Inversiones_raw' calculada como suma de K_GTO y/o K_GTI.")
+             logging.info(f"Columna 'Total_Inversiones_raw' calculada sumando: {k_inv_cols}")
         else:
              df['Total_Inversiones_raw'] = 0
-             st.warning("No se encontraron columnas 'K_GTO' o 'K_GTI' para calcular Total Inversiones. Se usará 0.")
+             logging.warning("No se encontraron columnas como K_GTO o K_GTI.")
 
-    # Crear columnas faltantes con 0 si no existen o no se pudieron calcular/encontrar
+    # Crear columnas faltantes con 0 si no existen
     if 'Eficiencia_Operativa_raw' not in df.columns: df['Eficiencia_Operativa_raw'] = 0
     if 'Eficiencia_Gestion_raw' not in df.columns: df['Eficiencia_Gestion_raw'] = 0
     if 'Costos_Var_Interanual' not in df.columns: df['Costos_Var_Interanual'] = 0
 
-    st.write("Columnas finales antes de retornar:", df.columns.tolist()) # Debug
+    logging.info(f"Columnas finales antes de retornar: {df.columns.tolist()}")
     return df
 
 # --- INICIO DE LA APLICACIÓN ---
 st.title("🎯 Indicadores de Eficiencia")
 st.write("Análisis de la variación de costos e indicadores clave.")
 
-uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel o CSV de Eficiencia", type=["xlsx", "csv"]) # Permitir ambos tipos
+uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel o CSV de Eficiencia", type=["xlsx", "csv"])
 st.markdown("---")
 
 if uploaded_file is not None:
@@ -583,10 +615,9 @@ if uploaded_file is not None:
 
     # --- Verificación post-carga ---
     if df.empty:
-        # Los errores específicos ya se mostraron en load_and_clean_data
         st.stop()
     elif 'Periodo' not in df.columns or df['Periodo'].isnull().all():
-        st.error("La columna 'Periodo' no se pudo procesar correctamente. Verifique el formato de fechas.")
+        st.error("La columna 'Periodo' no se pudo procesar. Verifique el formato.")
         st.stop()
     else:
         st.success(f"Se ha cargado un total de **{format_integer_es(len(df))}** registros de indicadores.")
@@ -848,3 +879,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel o CSV para comenzar el análisis.")
+
