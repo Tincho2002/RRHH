@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from io import BytesIO
-from fpdf import FPDF
+# from fpdf import FPDF # Comentado si no se usa to_pdf
 import numpy as np
 from datetime import datetime
 import streamlit.components.v1 as components
@@ -13,6 +13,7 @@ import re
 st.set_page_config(layout="wide", page_title="Indicadores de Eficiencia", page_icon="🎯")
 
 # --- CSS Personalizado para un Estilo Profesional y RESPONSIVE ---
+# (CSS Omitido por brevedad - es el mismo que la versión anterior)
 st.markdown("""
 <style>
 /* --- TEMA PERSONALIZADO PARA CONSISTENCIA VISUAL --- */
@@ -300,14 +301,14 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     col_dl1, col_dl2 = st.columns(2)
     csv_buffer = BytesIO()
     # Asegurar codificación utf-8 para CSV
-    df_to_download.to_csv(csv_buffer, index=False, encoding='utf-8-sig') 
+    df_to_download.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
     csv_data = csv_buffer.getvalue()
     with col_dl1:
         st.download_button(
-            label="⬇️ Descargar como CSV", 
-            data=csv_data, 
-            file_name=f"{filename_prefix}.csv", 
-            mime="text/csv", 
+            label="⬇️ Descargar como CSV",
+            data=csv_data,
+            file_name=f"{filename_prefix}.csv",
+            mime="text/csv",
             key=f"csv_download_{filename_prefix}{key_suffix}"
         )
     excel_buffer = BytesIO()
@@ -315,10 +316,10 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     excel_buffer.seek(0)
     with col_dl2:
         st.download_button(
-            label="📊 Descargar como Excel", 
-            data=excel_buffer.getvalue(), 
-            file_name=f"{filename_prefix}.xlsx", 
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            label="📊 Descargar como Excel",
+            data=excel_buffer.getvalue(),
+            file_name=f"{filename_prefix}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"excel_download_{filename_prefix}{key_suffix}"
         )
 
@@ -326,11 +327,19 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
 def apply_all_filters(df, selections):
     _df = df.copy()
     for col, values in selections.items():
-        if values and col in _df.columns: 
-            if col == 'Años': # Convertir los años a string para el filtro de lista
-                _df = _df[_df['Año'].astype(str).isin([str(v) for v in values])]
-            elif col == 'Meses': # Convertir los meses a string para el filtro de lista
+        # Asegurar que 'values' no esté vacío y la columna exista
+        if values and col in _df.columns:
+            # Filtrado específico para Años (columna 'Año' es numérica)
+            if col == 'Años':
+                # Convertir selección a números enteros para comparar
+                numeric_values = [int(v) for v in values if str(v).isdigit()]
+                if numeric_values:
+                    _df = _df[_df['Año'].isin(numeric_values)]
+            # Filtrado específico para Meses (columna 'Mes' es string)
+            elif col == 'Meses':
+                # Comparar como strings
                 _df = _df[_df['Mes'].astype(str).isin([str(v) for v in values])]
+            # Filtrado general para otras columnas si se añadieran
             else:
                 _df = _df[_df[col].isin(values)]
     return _df
@@ -344,18 +353,21 @@ def get_sorted_unique_options(dataframe, column_name):
             # Filtrar solo meses presentes en los datos antes de ordenar
             present_months = [m for m in unique_values if m in month_order]
             return sorted(present_months, key=lambda x: month_order.get(x, 99))
-        if column_name == 'Años':
+        if column_name == 'Años' or column_name == 'Año': # Añadido 'Año'
              # Convertir a int para ordenar, luego devolver como string si es necesario, o mantener int
-             int_values = [int(x) for x in unique_values if str(x).isdigit()]
-             return sorted(int_values, reverse=True) # Devolver como enteros
+             try:
+                  int_values = [int(x) for x in unique_values]
+                  return sorted(int_values, reverse=True) # Devolver como enteros
+             except ValueError: # Si algún valor no es numérico, ordenar como string
+                  return sorted(map(str, unique_values), reverse=True)
         return sorted(unique_values)
     return []
-    
+
 def get_available_options(df, selections, target_column):
     _df = df.copy()
     for col, values in selections.items():
         # Asegurar que los valores del filtro sean del tipo correcto para la comparación
-        if col != target_column and values and col in _df.columns: 
+        if col != target_column and values and col in _df.columns:
             if col == 'Años':
                  # Comparar con la columna 'Año' (numérica) usando valores numéricos
                  numeric_values = [int(v) for v in values if str(v).isdigit()]
@@ -366,7 +378,7 @@ def get_available_options(df, selections, target_column):
                  _df = _df[_df['Mes'].astype(str).isin([str(v) for v in values])]
             else:
                 _df = _df[_df[col].isin(values)]
-                
+
     # Determinar qué columna usar para obtener opciones únicas
     source_col = 'Año' if target_column == 'Años' else 'Mes' if target_column == 'Meses' else target_column
     return get_sorted_unique_options(_df, source_col)
@@ -374,93 +386,152 @@ def get_available_options(df, selections, target_column):
 
 @st.cache_data
 def load_and_clean_data(uploaded_file):
-    df_excel = pd.DataFrame()
+    df_read = pd.DataFrame()
+    file_type = uploaded_file.type
+    
     try:
-        # Intentar leer asumiendo que los encabezados están en la primera fila (índice 0)
-        df_excel = pd.read_excel(uploaded_file, sheet_name='Eficiencia', header=0, engine='openpyxl')
-    except Exception as e1:
+        # Intentar leer como Excel primero
+        st.info("Intentando leer como archivo Excel...")
+        # Intentar leer desde la primera fila
         try:
-            # Si falla, intentar leer saltando la primera fila (encabezados en la segunda fila, índice 1)
-            st.warning("No se encontraron encabezados en la primera fila. Intentando leer desde la segunda fila...")
-            df_excel = pd.read_excel(uploaded_file, sheet_name='Eficiencia', header=1, engine='openpyxl')
-        except Exception as e2:
-            st.error(f"ERROR CRÍTICO: No se pudo leer la hoja 'Eficiencia'. Verifique el formato.")
-            st.error(f"Error Detalle 1 (fila 1): {e1}")
-            st.error(f"Error Detalle 2 (fila 2): {e2}")
+            df_read = pd.read_excel(uploaded_file, sheet_name='Eficiencia', header=0, engine='openpyxl')
+        except Exception:
+            # Si falla, intentar leer desde la segunda fila
+            st.warning("No se pudo leer desde la fila 1, intentando desde la fila 2...")
+            uploaded_file.seek(0) # Reiniciar el puntero del archivo
+            df_read = pd.read_excel(uploaded_file, sheet_name='Eficiencia', header=1, engine='openpyxl')
+        st.success("Archivo leído como Excel.")
+        
+    except Exception as e_excel:
+        st.warning(f"No se pudo leer como Excel ({e_excel}). Intentando leer como CSV...")
+        try:
+            # Si falla Excel, intentar leer como CSV
+            uploaded_file.seek(0) # Reiniciar puntero
+            # Intentar detectar separador automáticamente
+            df_read = pd.read_csv(uploaded_file, header=0, sep=None, engine='python', encoding='utf-8-sig')
+            # Verificar si leyó correctamente o necesita saltar fila
+            if df_read.shape[1] <= 1 or df_read.iloc[0].isnull().all():
+                 st.warning("Leyendo CSV desde la segunda fila...")
+                 uploaded_file.seek(0)
+                 df_read = pd.read_csv(uploaded_file, header=1, sep=None, engine='python', encoding='utf-8-sig')
+            st.success("Archivo leído como CSV.")
+        except Exception as e_csv:
+            st.error(f"ERROR CRÍTICO: No se pudo leer el archivo ni como Excel ni como CSV.")
+            st.error(f"Detalle Excel: {e_excel}")
+            st.error(f"Detalle CSV: {e_csv}")
             return pd.DataFrame()
 
-    if df_excel.empty: return pd.DataFrame()
-
-    # Limpiar nombres de columnas: quitar espacios extra, reemplazar caracteres no alfanuméricos por _
-    df_excel.columns = [re.sub(r'\s+', ' ', col).strip() for col in df_excel.columns] # Primero normalizar espacios
-    df_excel.columns = [re.sub(r'[^a-zA-Z0-9%$/]+', '_', col) for col in df_excel.columns] # Luego reemplazar caracteres especiales
-    df_excel.columns = [col.strip('_') for col in df_excel.columns] # Quitar guiones bajos al inicio/final si los hubiera
-    
-    # Renombrar columnas clave de forma robusta buscando por patrón (case-insensitive)
-    rename_map = {
-        'fecha': 'Periodo',
-        'eficiencia_total': 'Eficiencia_Total_raw',
-        'eficiencia_operativa': 'Eficiencia_Operativa_raw',
-        'eficiencia_gestion': 'Eficiencia_Gestion_raw',
-        'total_inversiones': 'Total_Inversiones_raw',
-        'costos_var_interanual': 'Costos_Var_Interanual' # Ya estaba bien pero por si acaso
-    }
-    
-    actual_renames = {}
-    missing_mandatory = []
-    
-    for key, target_name in rename_map.items():
-        found_col = None
-        # Buscar columna que contenga la clave (ignorando case y _)
-        pattern = key.replace('_', '.*') # Permite caracteres entre palabras
-        for col in df_excel.columns:
-            if re.search(pattern, col.lower().replace('_', '')):
-                found_col = col
-                break
-        
-        if found_col:
-            actual_renames[found_col] = target_name
-        elif key == 'fecha': # La columna Periodo es obligatoria
-            missing_mandatory.append(target_name)
-
-    if missing_mandatory:
-        st.error(f"Columnas obligatorias no encontradas: {', '.join(missing_mandatory)}. Verifique el archivo Excel.")
+    if df_read.empty:
+        st.error("El archivo parece estar vacío después de la lectura.")
         return pd.DataFrame()
-        
-    df_excel.rename(columns=actual_renames, inplace=True)
+
+    df = df_read.copy() # Trabajar con una copia
+
+    # --- Limpieza robusta de nombres de columna ---
+    original_columns = df.columns.tolist()
+    cleaned_columns = []
+    for col in original_columns:
+        new_col = str(col).strip() # Quitar espacios al inicio/final
+        new_col = new_col.replace('$', 'K_') # Reemplazar $ con K_
+        new_col = new_col.replace('%', '_pct') # Reemplazar % con _pct
+        new_col = re.sub(r'\s+', '_', new_col) # Reemplazar espacios intermedios con _
+        new_col = re.sub(r'[^a-zA-Z0-9_]+', '', new_col) # Eliminar otros caracteres no válidos
+        new_col = new_col.strip('_') # Quitar _ al inicio/final
+        cleaned_columns.append(new_col)
+    
+    df.columns = cleaned_columns
+    st.write("Columnas después de la limpieza:", df.columns.tolist()) # Debug: Mostrar columnas limpias
+
+    # --- Identificar columna de Período ---
+    periodo_col_name = None
+    possible_period_names = ['periodo', 'fecha']
+    for name in possible_period_names:
+         found_col = next((col for col in df.columns if name in col.lower()), None)
+         if found_col:
+              periodo_col_name = found_col
+              break
+
+    if not periodo_col_name:
+         st.error("No se pudo identificar la columna de fecha/período. Buscando 'Periodo' o 'Fecha'.")
+         return pd.DataFrame()
+    else:
+         st.info(f"Columna de período identificada como: '{periodo_col_name}'")
+         if periodo_col_name != 'Periodo':
+              df.rename(columns={periodo_col_name: 'Periodo'}, inplace=True) # Renombrar a estándar
 
     # Procesar Período
-    if 'Periodo' not in df_excel.columns:
-         st.error("La columna 'Periodo' (o 'Fecha') es obligatoria y no se pudo identificar.")
-         return pd.DataFrame()
-         
-    df_excel['Periodo'] = pd.to_datetime(df_excel['Periodo'], errors='coerce')
-    df_excel.dropna(subset=['Periodo'], inplace=True)
-    df_excel['Año'] = df_excel['Periodo'].dt.year
-    df_excel['Mes_Num'] = df_excel['Periodo'].dt.month
+    df['Periodo'] = pd.to_datetime(df['Periodo'], errors='coerce')
+    df.dropna(subset=['Periodo'], inplace=True)
+    df['Año'] = df['Periodo'].dt.year
+    df['Mes_Num'] = df['Periodo'].dt.month
     spanish_months_map = {1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
-    df_excel['Mes'] = df_excel['Mes_Num'].map(spanish_months_map)
+    df['Mes'] = df['Mes_Num'].map(spanish_months_map)
 
-    # Convertir columnas numéricas esperadas, llenando NaN con 0
-    # Usamos los nombres *estándar* después del renombrado
-    numeric_cols_standard = [
-        'Eficiencia_Total_raw', 'Eficiencia_Operativa_raw', 'Eficiencia_Gestion_raw',
-        'Total_Inversiones_raw', 'Costos_Var_Interanual'
-    ]
-    for col in numeric_cols_standard:
-        if col in df_excel.columns:
-            df_excel[col] = pd.to_numeric(df_excel[col], errors='coerce').fillna(0)
-        else:
-            st.warning(f"Columna numérica esperada '{col}' no encontrada. Se creará con ceros.")
-            df_excel[col] = 0 # Si la columna no existe después de renombrar, la creamos con 0
+    # --- Convertir todas las columnas numéricas posibles ---
+    numeric_cols_found = []
+    for col in df.columns:
+        # Intentar convertir columnas que no sean de fecha/texto conocido
+        if col not in ['Periodo', 'Año', 'Mes_Num', 'Mes']:
+            try:
+                # Intentar convertir a numérico, forzando errores a NaN
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                # Si la conversión fue exitosa (no todos NaN), llenar NaN con 0
+                if not df[col].isnull().all():
+                     df[col] = df[col].fillna(0)
+                     numeric_cols_found.append(col)
+                # else: # Si todos son NaN, quizás no era numérica, dejarla como estaba o eliminarla?
+                #     st.warning(f"Columna '{col}' parecía numérica pero contenía solo valores no convertibles.")
+            except Exception:
+                # Si falla la conversión inicial, no es numérica
+                st.info(f"Columna '{col}' no se convirtió a numérica.")
+                pass # Dejar la columna como está si no se puede convertir
 
-    return df_excel
+    st.write("Columnas numéricas identificadas y limpiadas:", numeric_cols_found) # Debug
+
+    # --- Calcular Indicadores Faltantes (BASADO EN SUPOSICIONES) ---
+    # !! REVISAR ESTOS CÁLCULOS !!
     
+    # Sumar costos ($K_)
+    k_cols = [col for col in df.columns if col.startswith('K_')]
+    if k_cols:
+        df['Total_Costos_Calculados'] = df[k_cols].sum(axis=1)
+    else:
+        df['Total_Costos_Calculados'] = 0
+        st.warning("No se encontraron columnas de costo (empezando con 'K_') para calcular costos totales.")
+
+    # Sumar cantidades (hs_ y ds_)
+    qty_cols = [col for col in df.columns if col.startswith('hs_') or col.startswith('ds_')]
+    if qty_cols:
+        df['Total_Cantidades_Calculadas'] = df[qty_cols].sum(axis=1)
+    else:
+        df['Total_Cantidades_Calculadas'] = 0
+        st.warning("No se encontraron columnas de cantidad (empezando con 'hs_' o 'ds_') para calcular cantidades totales.")
+
+    # Calcular Eficiencia Total (si es posible)
+    df['Eficiencia_Total_raw'] = df.apply(lambda row: row['Total_Costos_Calculados'] / row['Total_Cantidades_Calculadas'] if row['Total_Cantidades_Calculadas'] != 0 else 0, axis=1)
+
+    # Calcular Inversiones (si es posible) - Suposición: GTO y GTI son inversiones
+    inv_cols = [col for col in df.columns if 'GTO' in col or 'GTI' in col]
+    k_inv_cols = [col for col in inv_cols if col.startswith('K_')] # Solo sumar las de costos
+    if k_inv_cols:
+         df['Total_Inversiones_raw'] = df[k_inv_cols].sum(axis=1)
+    else:
+         df['Total_Inversiones_raw'] = 0
+         st.warning("No se encontraron columnas 'K_GTO' o 'K_GTI' para calcular Total Inversiones.")
+
+    # Crear columnas faltantes con 0 si no existen o no se pudieron calcular
+    if 'Eficiencia_Operativa_raw' not in df.columns: df['Eficiencia_Operativa_raw'] = 0
+    if 'Eficiencia_Gestion_raw' not in df.columns: df['Eficiencia_Gestion_raw'] = 0
+    if 'Costos_Var_Interanual' not in df.columns: df['Costos_Var_Interanual'] = 0
+
+    st.write("Columnas finales antes de retornar:", df.columns.tolist()) # Debug
+    return df
+
 # --- INICIO DE LA APLICACIÓN ---
 st.title("🎯 Indicadores de Eficiencia")
 st.write("Análisis de la variación de costos e indicadores clave.")
 
-uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Eficiencia", type=["xlsx"])
+uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel o CSV de Eficiencia", type=["xlsx", "csv"]) # Permitir ambos tipos
 st.markdown("---")
 
 if uploaded_file is not None:
@@ -484,16 +555,23 @@ if uploaded_file is not None:
     if 'eff_selections' not in st.session_state:
         # Guardar años como números y meses como strings
         initial_selections = {
-            'Años': get_sorted_unique_options(df, 'Año'), 
+            'Años': get_sorted_unique_options(df, 'Año'),
             'Meses': get_sorted_unique_options(df, 'Mes')
             }
+        # Asegurar que los años sean numéricos si es posible
+        if all(isinstance(y, int) for y in initial_selections['Años']):
+             pass # Ya son números
+        else:
+             try: initial_selections['Años'] = [int(y) for y in initial_selections['Años']]
+             except: pass # Dejar como string si no se pueden convertir
+
         st.session_state.eff_selections = initial_selections
         st.rerun() # Volver a ejecutar para asegurar que el estado se aplique
 
     # Botón de Reset
     if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="reset_filters"):
         initial_selections = {
-             'Años': get_sorted_unique_options(df, 'Año'), 
+             'Años': get_sorted_unique_options(df, 'Año'),
              'Meses': get_sorted_unique_options(df, 'Mes')
              }
         st.session_state.eff_selections = initial_selections
@@ -510,8 +588,13 @@ if uploaded_file is not None:
         available_options = get_available_options(df, st.session_state.eff_selections, col_key)
         
         # Obtener la selección actual del estado, asegurándose de que los valores todavía estén disponibles
-        current_selection = [sel for sel in st.session_state.eff_selections.get(col_key, []) if sel in available_options]
-        
+        # Convertir la selección actual al mismo tipo que las opciones (int para años, str para meses)
+        current_selection_raw = st.session_state.eff_selections.get(col_key, [])
+        if col_key == 'Años':
+            current_selection = [sel for sel in current_selection_raw if sel in available_options]
+        else: # Meses (y otros si los hubiera) son strings
+            current_selection = [str(sel) for sel in current_selection_raw if str(sel) in available_options]
+
         # Crear el multiselect
         selected = st.sidebar.multiselect(
             title,
@@ -529,7 +612,7 @@ if uploaded_file is not None:
 
     # Aplicar filtros al DataFrame principal
     filtered_df = apply_all_filters(df, st.session_state.eff_selections)
-    
+
     st.write(f"Después de aplicar los filtros, se muestran **{format_integer_es(len(filtered_df))}** registros.")
     st.markdown("---")
 
@@ -542,27 +625,27 @@ if uploaded_file is not None:
 
     # Obtener el último período filtrado y el anterior a ese
     df_for_kpis = filtered_df.sort_values(by=['Año', 'Mes_Num']).copy()
-    
+
     latest_period_df = pd.DataFrame()
     previous_period_df = pd.DataFrame() # DataFrame para el período anterior
 
     if not df_for_kpis.empty:
         # Identificar los periodos únicos (Año, Mes_Num) presentes en los datos filtrados
         unique_periods_filtered = df_for_kpis[['Año', 'Mes_Num']].drop_duplicates().sort_values(by=['Año', 'Mes_Num'])
-        
+
         if not unique_periods_filtered.empty:
             # El último periodo es el último en la lista ordenada de periodos filtrados
             latest_period_info = unique_periods_filtered.iloc[-1]
             latest_period_df = df_for_kpis[
-                (df_for_kpis['Año'] == latest_period_info['Año']) & 
+                (df_for_kpis['Año'] == latest_period_info['Año']) &
                 (df_for_kpis['Mes_Num'] == latest_period_info['Mes_Num'])
             ].copy() # Usar .copy() para evitar SettingWithCopyWarning
-            
+
             # El periodo anterior es el penúltimo en la lista ordenada
             if len(unique_periods_filtered) > 1:
                 previous_period_info = unique_periods_filtered.iloc[-2]
                 previous_period_df = df_for_kpis[
-                    (df_for_kpis['Año'] == previous_period_info['Año']) & 
+                    (df_for_kpis['Año'] == previous_period_info['Año']) &
                     (df_for_kpis['Mes_Num'] == previous_period_info['Mes_Num'])
                 ].copy() # Usar .copy()
 
@@ -582,6 +665,8 @@ if uploaded_file is not None:
     kpi_period_label = "Período Seleccionado"
     if not latest_period_df.empty:
         # Usar el Mes y Año del DataFrame del último período
+        # Recuperar el nombre del mes usando el mapa
+        spanish_months_map_inv = {v:k for k,v in spanish_months_map.items()} # Invertir mapa si es necesario
         latest_month_name_kpi = spanish_months_map.get(latest_period_df['Mes_Num'].iloc[0], '')
         latest_year_kpi = latest_period_df['Año'].iloc[0]
         kpi_period_label = f"{latest_month_name_kpi} {latest_year_kpi}"
@@ -593,10 +678,13 @@ if uploaded_file is not None:
         elif len(unique_years) == 1:
             kpi_period_label = f"Año {unique_years[0]}"
         else: # Si hay múltiples años/meses, usar un rango o etiqueta genérica
-             min_p = filtered_df['Periodo'].min().strftime('%b-%Y')
-             max_p = filtered_df['Periodo'].max().strftime('%b-%Y')
-             if min_p == max_p: kpi_period_label = min_p
-             else: kpi_period_label = f"{min_p} a {max_p}"
+             try:
+                 min_p = filtered_df['Periodo'].min().strftime('%b-%Y')
+                 max_p = filtered_df['Periodo'].max().strftime('%b-%Y')
+                 if min_p == max_p: kpi_period_label = min_p
+                 else: kpi_period_label = f"{min_p} a {max_p}"
+             except: # En caso de error de fecha
+                  kpi_period_label = "Múltiples Períodos"
 
 
     # Mostrar las métricas en 4 columnas usando st.metric directamente
@@ -625,7 +713,7 @@ if uploaded_file is not None:
                  <div data-testid="stMetricDelta">{delta_operativa_str if delta_operativa_str else '<div class="delta-container"></div>'}</div>
              </div>
              """, unsafe_allow_html=True)
-             
+
     with col_kpi3:
          st.markdown(f"""
              <div data-testid="stMetric">
@@ -643,7 +731,7 @@ if uploaded_file is not None:
                  <div data-testid="stMetricDelta">{delta_inversiones_str if delta_inversiones_str else '<div class="delta-container"></div>'}</div>
              </div>
              """, unsafe_allow_html=True)
-    
+
     # El script de animación JS ya no es necesario si usamos st.metric
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -654,21 +742,21 @@ if uploaded_file is not None:
         st.subheader("Variación Interanual (Costos)")
         # --- Modificación: Filtrar Año 2024 ---
         # Asegurarse que la columna Año sea numérica para la comparación
-        df_interanual = filtered_df[filtered_df['Año'] != 2024].copy() 
-        
+        df_interanual = filtered_df[filtered_df['Año'] != 2024].copy()
+
         if not df_interanual.empty and 'Costos_Var_Interanual' in df_interanual.columns:
             # Asegurar el orden correcto de los periodos antes de graficar/tabular
             df_interanual = df_interanual.sort_values(by='Periodo').copy()
             df_interanual['Periodo_Formatted'] = df_interanual['Periodo'].dt.strftime('%b-%y')
-            
+
             # --- Gráfico ---
             st.markdown("##### Gráfico de Variación Interanual")
-            
+
             # Crear el gráfico base
             chart_interanual = alt.Chart(df_interanual).mark_bar(color='#5b9bd5').encode(
-                x=alt.X('Periodo_Formatted:N', 
+                x=alt.X('Periodo_Formatted:N',
                         # Ordenar el eje X basado en la fecha original para asegurar el orden cronológico
-                        sort=alt.EncodingSortField(field="Periodo", op="min", order='ascending'), 
+                        sort=alt.EncodingSortField(field="Periodo", op="min", order='ascending'),
                         title='Período'),
                 y=alt.Y('Costos_Var_Interanual:Q', title='Variación Interanual ($)', axis=alt.Axis(format='$,.0f')), # Usar formato $, directamente
                 tooltip=[
@@ -678,7 +766,7 @@ if uploaded_file is not None:
             ).properties(
                 # title='Variación Interanual de Costos por Período' # Título opcional
             ).interactive()
-            
+
             # Añadir etiquetas de valor sobre las barras
             text_labels = chart_interanual.mark_text(
                 align='center',
@@ -688,7 +776,7 @@ if uploaded_file is not None:
             ).encode(
                 text=alt.Text('Costos_Var_Interanual:Q', format='$,.0f') # Formato $, para las etiquetas
             )
-            
+
             st.altair_chart((chart_interanual + text_labels), use_container_width=True)
 
             # --- Tabla ---
@@ -699,15 +787,15 @@ if uploaded_file is not None:
             )
             # Aplicar formato de moneda a la columna de variación
             table_interanual_display = table_interanual.style.format({'Variación ($)': lambda x: f"${format_number_es(x)}"})
-                                                
-            st.dataframe(table_interanual_display.set_properties(**{'text-align': 'right'}, subset=['Variación ($)']).hide(axis="index"), 
+
+            st.dataframe(table_interanual_display.set_properties(**{'text-align': 'right'}, subset=['Variación ($)']).hide(axis="index"),
                          use_container_width=True)
-                         
+
             generate_download_buttons(table_interanual, 'Costos_Var_Interanual', '_interanual')
         else:
             st.info("No hay datos de variación interanual (excluyendo 2024) para mostrar con los filtros seleccionados, o la columna 'Costos_Var_Interanual' no existe.")
 
-    
+
     with tab_variacion_mensual:
         st.subheader("Variación Mensual (Próximamente)")
         st.info("Esta sección aún no está implementada. Volveré pronto con nuevas características!")
@@ -715,47 +803,52 @@ if uploaded_file is not None:
     with tab_detalle_indicadores:
         st.subheader("Detalle de Indicadores")
         st.markdown("##### Valores por Período")
-        
+
         # Seleccionar y renombrar columnas para mostrar
-        cols_to_show = ['Periodo', 'Eficiencia_Total_raw', 'Eficiencia_Operativa_raw', 'Eficiencia_Gestion_raw', 'Total_Inversiones_raw']
-        display_cols = {
+        # Usamos los nombres estándar calculados/esperados
+        cols_to_show_standard = ['Periodo', 'Eficiencia_Total_raw', 'Eficiencia_Operativa_raw', 'Eficiencia_Gestion_raw', 'Total_Inversiones_raw']
+        display_cols_standard = {
             'Periodo': 'Período',
             'Eficiencia_Total_raw': 'Eficiencia Total',
             'Eficiencia_Operativa_raw': 'Eficiencia Operativa',
             'Eficiencia_Gestion_raw': 'Eficiencia Gestión',
             'Total_Inversiones_raw': 'Total Inversiones'
         }
-        
+
         # Filtrar columnas existentes en el DataFrame
-        existing_cols = [col for col in cols_to_show if col in filtered_df.columns]
-        df_indicadores_display = filtered_df[existing_cols].copy()
-        
+        existing_cols_standard = [col for col in cols_to_show_standard if col in filtered_df.columns]
+        df_indicadores_display = filtered_df[existing_cols_standard].copy()
+
         # Renombrar columnas según el mapeo
-        df_indicadores_display.rename(columns={k:v for k,v in display_cols.items() if k in existing_cols}, inplace=True)
+        df_indicadores_display.rename(columns={k:v for k,v in display_cols_standard.items() if k in existing_cols_standard}, inplace=True)
 
         # Ordenar por Periodo y formatear fecha
         if 'Período' in df_indicadores_display.columns:
              df_indicadores_display = df_indicadores_display.sort_values(by='Período')
              df_indicadores_display['Período'] = df_indicadores_display['Período'].dt.strftime('%b-%Y')
-        
-        # Formatear columnas numéricas como moneda
-        numeric_display_cols = [display_cols[k] for k in existing_cols if k != 'Periodo']
-        formatters = {col: lambda x: f"${format_number_es(x)}" for col in numeric_display_cols}
-        
+
+        # Formatear columnas numéricas como moneda (o número simple si prefieres)
+        # numeric_display_cols_standard = [display_cols_standard[k] for k in existing_cols_standard if k != 'Periodo']
+        # Usar los nombres finales después del rename para el formateo
+        numeric_display_cols_final = [col for col in df_indicadores_display.columns if col != 'Período']
+        formatters = {col: lambda x: f"{format_number_es(x)}" for col in numeric_display_cols_final} # Formato numérico
+
         # Mostrar DataFrame formateado
         st.dataframe(
-            df_indicadores_display.style.format(formatters).set_properties(**{'text-align': 'right'}, subset=numeric_display_cols).hide(axis="index"),
+            df_indicadores_display.style.format(formatters).set_properties(**{'text-align': 'right'}, subset=numeric_display_cols_final).hide(axis="index"),
             use_container_width=True
         )
-        
+
         # Botones de descarga (usar el DataFrame *antes* de aplicar el formato de string para exportar números correctamente)
-        df_download = filtered_df[existing_cols].copy()
+        df_download = filtered_df[existing_cols_standard].copy()
         if 'Periodo' in df_download.columns:
             df_download = df_download.sort_values(by='Periodo')
-            df_download['Periodo'] = df_download['Periodo'].dt.strftime('%Y-%m-%d') # Formato estándar para exportar
-        df_download.rename(columns={k:v for k,v in display_cols.items() if k in existing_cols}, inplace=True)
+            # Exportar fecha en formato YYYY-MM-DD para compatibilidad
+            df_download['Periodo'] = df_download['Periodo'].dt.strftime('%Y-%m-%d')
+        df_download.rename(columns={k:v for k,v in display_cols_standard.items() if k in existing_cols_standard}, inplace=True)
         generate_download_buttons(df_download, 'Detalle_Indicadores', '_detalle')
 
 
 else:
-    st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+    st.info("Por favor, cargue un archivo Excel o CSV para comenzar el análisis.")
+
