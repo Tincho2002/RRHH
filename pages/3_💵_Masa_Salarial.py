@@ -341,52 +341,129 @@ if old_selections != st.session_state.ms_selections:
 df_filtered = apply_filters(df, st.session_state.ms_selections)
 
 
-# --- INICIO: CORRECCIÓN DE LÓGICA DE MÉTRICAS ---
-# --- METRICS PRINCIPALES ---
-total_masa_salarial = df_filtered['Total Mensual'].sum()
+# =============================================================================
+# --- INICIO: LÓGICA DE MÉTRICAS CON DELTA ---
+# =============================================================================
 
-# Initialize variables
-cantidad_empleados_total = 0
-costo_medio_convenio = 0
-costo_medio_fc = 0
-latest_month_name = "N/A"
+# 1. Identificar el mes actual y el mes anterior basado en la selección
+all_months_sorted = get_sorted_unique_options(df, 'Mes')
+selected_months = st.session_state.ms_selections.get('Mes', [])
+sorted_selected_months = [m for m in all_months_sorted if m in selected_months]
 
-if not df_filtered.empty:
-    # --- Headcount para la tarjeta "Empleados Únicos" (se mantiene como la del último mes) ---
-    # Lógica robusta para obtener el último mes de los datos filtrados
-    latest_month_num = df_filtered.sort_values('Mes_Num', ascending=False)['Mes_Num'].iloc[0]
-    df_latest_month = df_filtered[df_filtered['Mes_Num'] == latest_month_num]
+latest_month_name = None
+previous_month_name = None
+
+if sorted_selected_months:
+    # Si el usuario seleccionó meses, usamos el último y penúltimo de su selección
+    latest_month_name = sorted_selected_months[-1]
+    if len(sorted_selected_months) > 1:
+        previous_month_name = sorted_selected_months[-2]
+else:
+    # Si no hay selección de mes, usamos el último mes de los datos filtrados
+    if not df_filtered.empty:
+        all_months_nums_sorted_in_df = sorted(df['Mes_Num'].unique())
+        latest_month_num_fallback = df_filtered.sort_values('Mes_Num', ascending=False)['Mes_Num'].iloc[0]
+        latest_month_name = df[df['Mes_Num'] == latest_month_num_fallback]['Mes'].iloc[0]
+        
+        # Intentamos encontrar el mes anterior en los datos generales
+        if latest_month_num_fallback in all_months_nums_sorted_in_df:
+            latest_index_fallback = all_months_nums_sorted_in_df.index(latest_month_num_fallback)
+            if latest_index_fallback > 0:
+                previous_month_num_fallback = all_months_nums_sorted_in_df[latest_index_fallback - 1]
+                previous_month_name = df[df['Mes_Num'] == previous_month_num_fallback]['Mes'].iloc[0]
+
+# 2. Crear DataFrames base para el mes actual y el anterior
+# (filtramos por todo MENOS el mes)
+selections_without_month = st.session_state.ms_selections.copy()
+selections_without_month.pop('Mes', [])
+df_metrics_base = apply_filters(df, selections_without_month)
+
+df_current = pd.DataFrame()
+df_previous = pd.DataFrame()
+
+if latest_month_name:
+    df_current = df_metrics_base[df_metrics_base['Mes'] == latest_month_name]
+if previous_month_name:
+    df_previous = df_metrics_base[df_metrics_base['Mes'] == previous_month_name]
+
+# Si no se seleccionó ningún mes, df_current estará vacío.
+# Lo poblamos con el último mes de df_metrics_base (que es todos los meses filtrados)
+if df_current.empty and not df_metrics_base.empty and not sorted_selected_months:
+     df_current = df_metrics_base[df_metrics_base['Mes'] == latest_month_name]
+
+
+# 3. Función auxiliar para calcular las 4 métricas para un DataFrame de un mes
+def calculate_monthly_metrics(df_month):
+    if df_month.empty:
+        return {'total_masa': 0, 'empleados': 0, 'costo_medio_conv': 0, 'costo_medio_fc': 0}
     
-    if not df_latest_month.empty:
-        latest_month_name = df_latest_month['Mes'].iloc[0]
+    total_masa = df_month['Total Mensual'].sum()
+    empleados = df_month['Legajo'].nunique()
     
-    cantidad_empleados_total = df_latest_month['Legajo'].nunique()
+    # Usamos 'Nivel' == 'FC' para definir F. Convenio. Todo lo demás es Convenio.
+    is_fc = df_month['Nivel'] == 'FC'
+    df_fc = df_month[is_fc]
+    df_convenio = df_month[~is_fc]
 
-    # --- LÓGICA DEFINITIVA PARA COSTO MEDIO ---
-    # 1. Separar los dataframes por grupo, USANDO LA COLUMNA 'Nivel'
-    is_fc = df_filtered['Nivel'] == 'FC'
-    df_fc = df_filtered[is_fc]
-    df_convenio = df_filtered[~is_fc] # Convenio es todo lo que no es FC
-
-    # 2. Calcular la masa salarial total para cada grupo
     total_masa_convenio = df_convenio['Total Mensual'].sum()
     total_masa_fc = df_fc['Total Mensual'].sum()
+    
+    dotacion_convenio = df_convenio['Legajo'].nunique()
+    dotacion_fc = df_fc['Legajo'].nunique()
+    
+    # Calculamos el costo medio *de ese mes*
+    costo_medio_conv = total_masa_convenio / dotacion_convenio if dotacion_convenio > 0 else 0
+    costo_medio_fc = total_masa_fc / dotacion_fc if dotacion_fc > 0 else 0
+    
+    return {
+        'total_masa': total_masa,
+        'empleados': empleados,
+        'costo_medio_conv': costo_medio_conv,
+        'costo_medio_fc': costo_medio_fc
+    }
 
-    # 3. Calcular el denominador correcto: la suma de empleados únicos contados CADA MES.
-    dotacion_mes_a_mes_convenio = df_convenio.groupby('Mes_Num')['Legajo'].nunique().sum()
-    dotacion_mes_a_mes_fc = df_fc.groupby('Mes_Num')['Legajo'].nunique().sum()
+# 4. Calcular métricas para ambos períodos
+metrics_current = calculate_monthly_metrics(df_current)
+metrics_previous = calculate_monthly_metrics(df_previous)
 
-    # 4. Calcular el costo medio real y estable
-    costo_medio_convenio = total_masa_convenio / dotacion_mes_a_mes_convenio if dotacion_mes_a_mes_convenio > 0 else 0
-    costo_medio_fc = total_masa_fc / dotacion_mes_a_mes_fc if dotacion_mes_a_mes_fc > 0 else 0
+# 5. Función auxiliar para calcular el string del delta
+def get_delta_pct_str(current, previous):
+    if previous > 0:
+        delta = ((current - previous) / previous) * 100
+    elif current > 0:
+        delta = 100.0
+    else:
+        delta = 0.0
+    
+    # No mostrar delta si no hay cambio
+    if delta == 0 or pd.isna(delta):
+        return None
+    
+    return f"{delta:.1f}%"
 
-# Display Metrics
+# 6. Calcular los 4 deltas
+delta_total = get_delta_pct_str(metrics_current['total_masa'], metrics_previous['total_masa'])
+delta_empleados = get_delta_pct_str(metrics_current['empleados'], metrics_previous['empleados'])
+delta_costo_conv = get_delta_pct_str(metrics_current['costo_medio_conv'], metrics_previous['costo_medio_conv'])
+delta_costo_fc = get_delta_pct_str(metrics_current['costo_medio_fc'], metrics_previous['costo_medio_fc'])
+
+# 7. Definir etiquetas dinámicas para los KPIs
+display_month_name = latest_month_name if latest_month_name else "N/A"
+label_total_masa = f"Masa Salarial ({display_month_name})"
+label_empleados = f"Empleados Únicos ({display_month_name})"
+label_costo_conv = f"Costo Medio Convenio ({display_month_name})"
+label_costo_fc = f"Costo Medio F. Convenio ({display_month_name})"
+
+# 8. Mostrar Métricas con Deltas
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Masa Salarial Total (Período)", f"${format_number_es(total_masa_salarial)}")
-col2.metric(f"Empleados Únicos ({latest_month_name})", f"{format_integer_es(cantidad_empleados_total)}")
-col3.metric("Costo Medio Convenio", f"${format_number_es(costo_medio_convenio)}")
-col4.metric("Costo Medio F. Convenio", f"${format_number_es(costo_medio_fc)}")
-# --- FIN: CORRECCIÓN DE LÓGICA DE MÉTRICAS ---
+col1.metric(label_total_masa, f"${format_number_es(metrics_current['total_masa'])}", delta=delta_total)
+col2.metric(label_empleados, f"{format_integer_es(metrics_current['empleados'])}", delta=delta_empleados)
+col3.metric(label_costo_conv, f"${format_number_es(metrics_current['costo_medio_conv'])}", delta=delta_costo_conv)
+col4.metric(label_costo_fc, f"${format_number_es(metrics_current['costo_medio_fc'])}", delta=delta_costo_fc)
+
+# =============================================================================
+# --- FIN: LÓGICA DE MÉTRICAS CON DELTA ---
+# =============================================================================
 
 
 st.markdown("---")
@@ -399,6 +476,7 @@ tab_evolucion, tab_distribucion, tab_conceptos, tab_tabla = st.tabs(["Evolución
 with tab_evolucion:
     st.subheader("Evolución Mensual de la Masa Salarial")
     col_chart1, col_table1 = st.columns([2, 1])
+    # Usamos df_filtered aquí para mostrar la evolución de los meses seleccionados
     masa_mensual = df_filtered.groupby('Mes').agg({'Total Mensual': 'sum', 'Mes_Num': 'first'}).reset_index().sort_values('Mes_Num')
     
     y_domain = [0, 1]
@@ -748,4 +826,3 @@ with tab_tabla:
         st.info("No hay datos que coincidan con los filtros seleccionados.")
 
 # --- FIN ---
-
