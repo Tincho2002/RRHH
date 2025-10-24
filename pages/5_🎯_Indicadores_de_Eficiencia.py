@@ -6,6 +6,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from io import BytesIO
+import numpy as np # <--- AÑADIDO PARA MANEJAR inf
 
 # Configuración de la página para que ocupe todo el ancho
 st.set_page_config(layout="wide", page_title="Visualizador de Eficiencia")
@@ -158,20 +159,79 @@ def plot_line(df_plot, columns, yaxis_title):
 def calc_variation(df, columns, tipo='mensual'):
     """
     Calcula la variación mensual o interanual de las columnas seleccionadas.
+    MODIFICADO: La lógica interanual ahora usa un merge para manejar
+    datos no continuos (filtrados).
     """
-    df_var = df[['Período', 'Período_fmt'] + columns].copy().sort_values('Período')
-    df_val = pd.DataFrame()
-    df_pct = pd.DataFrame()
-    df_val['Período_fmt'] = df_var['Período_fmt']
-    df_pct['Período_fmt'] = df_var['Período_fmt']
+    
+    # --- MODIFICACIÓN ---
+    # Asegurarnos de tener Año y Mes para el cálculo interanual
+    df_var = df[['Período', 'Período_fmt', 'Año', 'Mes'] + columns].copy().sort_values('Período')
+    # --- FIN MODIFICACIÓN ---
+    
+    # --- MODIFICACIÓN: Inicialización movida DENTRO de los bloques if/else ---
+    # df_val = pd.DataFrame()
+    # df_pct = pd.DataFrame()
+    # df_val['Período_fmt'] = df_var['Período_fmt']
+    # df_pct['Período_fmt'] = df_var['Período_fmt']
+    # --- FIN MODIFICACIÓN ---
 
-    for col in columns:
-        shift_period = 12 if tipo == 'interanual' else 1
-        df_val[col] = df_var[col].diff(periods=shift_period)
-        df_pct[col] = (df_val[col] / df_var[col].shift(shift_period)) * 100
+    if tipo == 'interanual':
+        # --- NUEVA LÓGICA INTERANUAL (ROBUSTA) ---
+        
+        # 1. Separar datos del año anterior
+        df_last_year = df_var.copy()
+        df_last_year['Año'] = df_last_year['Año'] + 1 # "Adelantamos" un año para el merge
+        
+        # 2. Renombrar columnas del año anterior para evitar conflicto
+        rename_cols = {col: f"{col}_prev" for col in columns}
+        df_last_year.rename(columns=rename_cols, inplace=True)
+        
+        # 3. Cruzar datos actuales con los del año anterior usando Año y Mes
+        #    MODIFICACIÓN: Usamos reset_index/set_index para preservar el orden original de df_var
+        df_merged = pd.merge(
+            df_var.reset_index(), # Guardar el índice original
+            df_last_year[['Año', 'Mes'] + list(rename_cols.values())],
+            on=['Año', 'Mes'],
+            how='left'
+        ).set_index('index').sort_index() # Restaurar el orden original
+        
+        # 4. Inicializar df_val y df_pct DESPUÉS del merge, basados en df_merged
+        df_val = pd.DataFrame(index=df_merged.index)
+        df_pct = pd.DataFrame(index=df_merged.index)
+        df_val['Período'] = df_merged['Período']
+        df_val['Período_fmt'] = df_merged['Período_fmt']
+        df_pct['Período'] = df_merged['Período']
+        df_pct['Período_fmt'] = df_merged['Período_fmt']
+        
+        # 5. Calcular la variación
+        for col in columns:
+            col_prev = f"{col}_prev"
+            # Hacemos la resta/división
+            df_val[col] = df_merged[col] - df_merged[col_prev]
+            df_pct[col] = (df_val[col] / df_merged[col_prev]) * 100
+            # --- NUEVA LÍNEA: Reemplazar infinitos (división por cero) por NaN ---
+            df_pct[col] = df_pct[col].replace([np.inf, -np.inf], np.nan)
+        
+        # --- FIN NUEVA LÓGICA ---
+    else: # tipo == 'mensual'
+        # --- MODIFICACIÓN: Adaptar esta rama a la nueva inicialización ---
+        df_val = pd.DataFrame(index=df_var.index)
+        df_pct = pd.DataFrame(index=df_var.index)
+        df_val['Período'] = df_var['Período']
+        df_val['Período_fmt'] = df_var['Período_fmt']
+        df_pct['Período'] = df_var['Período']
+        df_pct['Período_fmt'] = df_var['Período_fmt']
+        # --- FIN MODIFICACIÓN ---
 
-    df_val['Período'] = df_var['Período']
-    df_pct['Período'] = df_var['Período']
+        for col in columns:
+            shift_period = 1
+            df_val[col] = df_var[col].diff(periods=shift_period)
+            df_pct[col] = (df_val[col] / df_var[col].shift(shift_period)) * 100
+
+    # --- MODIFICACIÓN: Estas líneas ya no son necesarias al final ---
+    # df_val['Período'] = df_var['Período']
+    # df_pct['Período'] = df_var['Período']
+    # --- FIN MODIFICACIÓN ---
 
     return df_val, df_pct
 
@@ -344,6 +404,43 @@ def show_kpi_cards(df, var_list):
         
         col_index += 1
 
+# --- NUEVA FUNCIÓN DE FILTRADO (REEMPLAZA A LA JERÁRQUICA) ---
+def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_dict):
+    """
+    Aplica el filtro de tiempo único basado en el modo seleccionado.
+    """
+    
+    # Si el filtro seleccionado está "vacío" (es decir, el usuario no ha tocado
+    # el multiselect, y tiene *todas* las opciones seleccionadas por defecto),
+    # entonces no aplicamos ningún filtro de tiempo.
+    
+    if filter_mode == 'Período Específico':
+        if len(filter_selection) < len(all_options_dict['all_periodos_especificos']):
+            return df_to_filter[df_to_filter['Período_fmt'].isin(filter_selection)].copy()
+            
+    elif filter_mode == 'Mes':
+        # Convertir nombres de mes (ej: 'Ene') a números (ej: 1)
+        selected_months_nums = [k for k,v in all_options_dict['months_map'].items() if v in filter_selection]
+        if len(selected_months_nums) < len(all_options_dict['month_options']):
+            return df_to_filter[df_to_filter['Mes'].isin(selected_months_nums)].copy()
+
+    elif filter_mode == 'Bimestre':
+        if len(filter_selection) < len(all_options_dict['all_bimestres']):
+            return df_to_filter[df_to_filter['Bimestre'].isin(filter_selection)].copy()
+            
+    elif filter_mode == 'Trimestre':
+        if len(filter_selection) < len(all_options_dict['all_trimestres']):
+            return df_to_filter[df_to_filter['Trimestre'].isin(filter_selection)].copy()
+            
+    elif filter_mode == 'Semestre':
+        if len(filter_selection) < len(all_options_dict['all_semestres']):
+            return df_to_filter[df_to_filter['Semestre'].isin(filter_selection)].copy()
+            
+    # Si no se cumple ninguna condición (ej: modo es 'Mes' pero todos los meses
+    # están seleccionados), devolvemos el dataframe sin filtrar por tiempo.
+    return df_to_filter.copy()
+# --- FIN NUEVA FUNCIÓN ---
+
 # ----------------- Inicio de la App -----------------
 
 st.title("Visualizador de Eficiencia")
@@ -424,6 +521,16 @@ all_trimestres = sorted(df['Trimestre'].unique())
 all_semestres = sorted(df['Semestre'].unique())
 # Ordenar los períodos específicos cronológicamente
 all_periodos_especificos = list(df.sort_values('Período')['Período_fmt'].unique())
+
+# Diccionario con todas las listas de opciones para la función de filtro
+all_options_dict = {
+    'all_periodos_especificos': all_periodos_especificos,
+    'month_options': month_options,
+    'all_bimestres': all_bimestres,
+    'all_trimestres': all_trimestres,
+    'all_semestres': all_semestres,
+    'months_map': month_map
+}
 # --- FIN ---
 
 
@@ -431,69 +538,86 @@ all_periodos_especificos = list(df.sort_values('Período')['Período_fmt'].uniqu
 st.sidebar.header("Filtros Generales")
 
 # --- NUEVO: Botón de Reseteo ---
+# Ahora el reseteo también resetea el modo de filtro
 def reset_filters():
     st.session_state.selected_years = all_years
-    st.session_state.selected_months_names = month_options
-    st.session_state.selected_bimestres = all_bimestres
-    st.session_state.selected_trimestres = all_trimestres
-    st.session_state.selected_semestres = all_semestres
-    st.session_state.selected_periodos_especificos = all_periodos_especificos
+    st.session_state.filter_mode = 'Mes' # Vuelve a 'Mes' por defecto
+    # Reseteamos las selecciones específicas
+    st.session_state.sel_mes = month_options
+    st.session_state.sel_bim = all_bimestres
+    st.session_state.sel_tri = all_trimestres
+    st.session_state.sel_sem = all_semestres
+    st.session_state.sel_per = all_periodos_especificos
 
 st.sidebar.button("🔄 Resetear Filtros", on_click=reset_filters, use_container_width=True)
 st.sidebar.markdown("---")
-# --- FIN NUEVO ---
 
-# --- MODIFICACIÓN: Inicializar Session State para evitar warning ---
+# --- MODIFICACIÓN: Inicializar Session State ---
 if 'selected_years' not in st.session_state:
     reset_filters()
 # --- FIN MODIFICACIÓN ---
 
-# --- MODIFICADO: Filtros usan st.session_state (sin 'default') ---
+# Filtro de Año (sigue igual)
 selected_years = st.sidebar.multiselect(
     "Años:", 
     all_years, 
     key='selected_years'
 )
-selected_months_names = st.sidebar.multiselect(
-    "Meses:", 
-    month_options, 
-    key='selected_months_names'
-)
-selected_months = [k for k,v in month_map.items() if v in selected_months_names]
 
-selected_bimestres = st.sidebar.multiselect(
-    "Bimestres:", 
-    all_bimestres, 
-    key='selected_bimestres'
-)
-selected_trimestres = st.sidebar.multiselect(
-    "Trimestres:", 
-    all_trimestres, 
-    key='selected_trimestres'
-)
-selected_semestres = st.sidebar.multiselect(
-    "Semestres:", 
-    all_semestres, 
-    key='selected_semestres'
-)
 st.sidebar.markdown("---")
-selected_periodos_especificos = st.sidebar.multiselect(
-    "Período Específico (Mes-Año):", 
-    all_periodos_especificos, 
-    key='selected_periodos_especificos'
+# --- INICIO: NUEVA LÓGICA DE FILTRO DE TIEMPO EN CASCADA ---
+
+# 1. Selector de MODO
+filter_mode = st.sidebar.radio(
+    "Filtrar por:",
+    ['Mes', 'Bimestre', 'Trimestre', 'Semestre', 'Período Específico'],
+    key='filter_mode',
+    horizontal=True
 )
-# --- FIN MODIFICADO ---
+
+# 2. Un multiselect DINÁMICO que depende del modo
+filter_selection = [] # Variable para guardar la selección
+
+if filter_mode == 'Mes':
+    filter_selection = st.sidebar.multiselect(
+        "Meses:",
+        month_options,
+        key='sel_mes'
+    )
+elif filter_mode == 'Bimestre':
+    filter_selection = st.sidebar.multiselect(
+        "Bimestres:",
+        all_bimestres,
+        key='sel_bim'
+    )
+elif filter_mode == 'Trimestre':
+    filter_selection = st.sidebar.multiselect(
+        "Trimestres:",
+        all_trimestres,
+        key='sel_tri'
+    )
+elif filter_mode == 'Semestre':
+    filter_selection = st.sidebar.multiselect(
+        "Semestres:",
+        all_semestres,
+        key='sel_sem'
+    )
+elif filter_mode == 'Período Específico':
+    filter_selection = st.sidebar.multiselect(
+        "Período Específico (Mes-Año):",
+        all_periodos_especificos,
+        key='sel_per'
+    )
+# --- FIN: NUEVA LÓGICA DE FILTRO DE TIEMPO ---
 
 
-# --- Lógica de filtro (usa valores de los widgets) ---
-dff = df[
-    df['Año'].isin(selected_years) &
-    df['Mes'].isin(selected_months) &
-    df['Bimestre'].isin(selected_bimestres) &
-    df['Trimestre'].isin(selected_trimestres) &
-    df['Semestre'].isin(selected_semestres) &
-    df['Período_fmt'].isin(selected_periodos_especificos)
-].copy()
+# --- LÓGICA DE FILTRADO (AHORA SIMPLIFICADA) ---
+        
+# Este dataframe 'dff' se usa para los gráficos de EVOLUCIÓN
+# 1. Base: Siempre filtrar por Año
+df_filtered_by_year = df[df['Año'].isin(selected_years)].copy()
+# 2. Aplicar el filtro de tiempo único
+dff = apply_time_filter(df_filtered_by_year, filter_mode, filter_selection, all_options_dict)
 # --- FIN ---
 
 dff = dff.sort_values('Período')
@@ -520,24 +644,59 @@ with tab1:
     if selected_k_vars:
         st.subheader("Evolución de Costos")
         fig = plot_line(dff, selected_k_vars, "$K (Costos)")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="evol_k") # <--- KEY AÑADIDA
         table_k = dff[['Período', 'Período_fmt'] + selected_k_vars].copy()
         show_table(table_k, "Costos_Datos", show_totals=True)
         st.markdown("---")
 
+        # --- LÓGICA DE FILTRO PARA VARIACIÓN ---
+        # Para las variaciones, aplicamos el filtro de tiempo al DataFrame *original* (df)
+        # para asegurarnos de tener todos los años para comparar.
+        # df_for_variation_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+        # --- FIN ---
+
         st.subheader("Variaciones Mensuales")
         tipo_var_mes = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k")
-        df_val_mes, df_pct_mes = calc_variation(dff, selected_k_vars,'mensual')
+
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        if filter_mode == 'Período Específico':
+            # For 'Período Específico', we only pass the selected periods.
+            # 'calc_variation(..., 'mensual')' will then compare them.
+            df_for_var_mes_k = df[df['Período_fmt'].isin(filter_selection)].copy()
+        else:
+            # For other modes, we pass all matching periods from all years
+            df_for_var_mes_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+        # --- FIN NUEVA LÓGICA ---
+
+        df_val_mes, df_pct_mes = calc_variation(df_for_var_mes_k, selected_k_vars,'mensual')
         is_pct_mes_k = (tipo_var_mes == 'Porcentaje')
         df_var_mes = df_pct_mes if is_pct_mes_k else df_val_mes
         fig_var_mes = plot_bar(df_var_mes, selected_k_vars, "Variación Mensual ($K)" if tipo_var_mes=='Valores' else "Variación Mensual (%)")
-        st.plotly_chart(fig_var_mes, use_container_width=True)
+        st.plotly_chart(fig_var_mes, use_container_width=True, key="var_mes_k") # <--- KEY AÑADIDA
         show_table(df_var_mes, "Costos_Var_Mensual", is_percentage=is_pct_mes_k)
         st.markdown("---")
 
         st.subheader("Variaciones Interanuales")
-        tipo_var_anio = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k")
-        df_val_anio, df_pct_anio = calc_variation(dff, selected_k_vars,'interanual')
+        tipo_var_anio = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k") # <--- LÍNEA CORREGIDA (AÑADIDA)
+        
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        if filter_mode == 'Período Específico':
+            # For Interanual, we MUST find the matching periods from the previous year.
+            try:
+                selected_periods = pd.to_datetime(filter_selection, format='%b-%y')
+                compare_periods = [p - pd.DateOffset(years=1) for p in selected_periods]
+                all_relevant_periods = selected_periods.union(compare_periods)
+                all_relevant_fmt = all_relevant_periods.strftime('%b-%y').tolist()
+                df_for_var_anio_k = df[df['Período_fmt'].isin(all_relevant_fmt)].copy()
+            except Exception as e:
+                st.error(f"Error procesando períodos específicos: {e}")
+                df_for_var_anio_k = pd.DataFrame(columns=df.columns) # Dataframe vacío
+        else:
+            df_for_var_anio_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+        # --- FIN NUEVA LÓGICA ---
+        
+        # AHORA df_val_anio y df_pct_anio se calculan con la nueva lógica
+        df_val_anio, df_pct_anio = calc_variation(df_for_var_anio_k, selected_k_vars,'interanual')
         is_pct_anio_k = (tipo_var_anio == 'Porcentaje')
         df_var_anio_raw = df_pct_anio if is_pct_anio_k else df_val_anio
         
@@ -549,7 +708,8 @@ with tab1:
         # --- FIN MODIFICACIÓN ---
 
         fig_var_anio = plot_bar(df_var_anio, selected_k_vars, "Variación Interanual ($K)" if tipo_var_anio=='Valores' else "Variación Interanual (%)")
-        st.plotly_chart(fig_var_anio, use_container_width=True)
+        st.plotly_chart(fig_var_anio, use_container_width=True, key="var_anio_k") # <--- KEY AÑADIDA
+
         show_table(df_var_anio, "Costos_Var_Interanual", is_percentage=is_pct_anio_k)
 
 # ----------------- Pestaña de Cantidades -----------------
@@ -571,24 +731,55 @@ with tab2:
     if selected_qty_vars:
         st.subheader("Evolución de Cantidades")
         fig = plot_line(dff, selected_qty_vars, "Cantidades (hs/ds)")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="evol_qty") # <--- KEY AÑADIDA
         table_qty = dff[['Período', 'Período_fmt'] + selected_qty_vars].copy()
         show_table(table_qty, "Cantidades_Datos", show_totals=True)
         st.markdown("---")
 
+        # --- LÓGICA DE FILTRO PARA VARIACIÓN ---
+        # (Se replica la misma lógica de Tab 1)
+        # df_for_variation_qty = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+        # --- FIN ---
+
         st.subheader("Variaciones Mensuales")
-        tipo_var_mes_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_qty")
-        df_val_mes_qty, df_pct_mes_qty = calc_variation(dff, selected_qty_vars,'mensual')
+        tipo_var_mes_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_qty") # <--- ESTA LÍNEA FALTABA
+        
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        if filter_mode == 'Período Específico':
+            df_for_var_mes_qty = df[df['Período_fmt'].isin(filter_selection)].copy()
+        else:
+            df_for_var_mes_qty = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+        # --- FIN NUEVA LÓGICA ---
+
+        # AHORA df_val_mes_qty y df_pct_mes_qty se calculan con la nueva lógica
+        df_val_mes_qty, df_pct_mes_qty = calc_variation(df_for_var_mes_qty, selected_qty_vars,'mensual')
         is_pct_mes_qty = (tipo_var_mes_qty == 'Porcentaje')
         df_var_mes_qty = df_pct_mes_qty if is_pct_mes_qty else df_val_mes_qty
         fig_var_mes_qty = plot_bar(df_var_mes_qty, selected_qty_vars, "Variación Mensual (Cantidad)" if tipo_var_mes_qty=='Valores' else "Variación Mensual (%)")
-        st.plotly_chart(fig_var_mes_qty, use_container_width=True)
+        st.plotly_chart(fig_var_mes_qty, use_container_width=True, key="var_mes_qty") # <--- KEY AÑADIDA
         show_table(df_var_mes_qty, "Cantidades_Var_Mensual", is_percentage=is_pct_mes_qty)
         st.markdown("---")
 
         st.subheader("Variaciones Interanuales")
-        tipo_var_anio_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_qty")
-        df_val_anio_qty, df_pct_anio_qty = calc_variation(dff, selected_qty_vars,'interanual')
+        tipo_var_anio_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_qty") # <--- LÍNEA CORREGIDA (AÑADIDA)
+        
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        if filter_mode == 'Período Específico':
+            try:
+                selected_periods = pd.to_datetime(filter_selection, format='%b-%y')
+                compare_periods = [p - pd.DateOffset(years=1) for p in selected_periods]
+                all_relevant_periods = selected_periods.union(compare_periods)
+                all_relevant_fmt = all_relevant_periods.strftime('%b-%y').tolist()
+                df_for_var_anio_qty = df[df['Período_fmt'].isin(all_relevant_fmt)].copy()
+            except Exception as e:
+                st.error(f"Error procesando períodos específicos: {e}")
+                df_for_var_anio_qty = pd.DataFrame(columns=df.columns) # Dataframe vacío
+        else:
+            df_for_var_anio_qty = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+        # --- FIN NUEVA LÓGICA ---
+
+        # AHORA df_val_anio_qty y df_pct_anio_qty se calculan con la nueva lógica
+        df_val_anio_qty, df_pct_anio_qty = calc_variation(df_for_var_anio_qty, selected_qty_vars,'interanual')
         is_pct_anio_qty = (tipo_var_anio_qty == 'Porcentaje')
         df_var_anio_qty_raw = df_pct_anio_qty if is_pct_anio_qty else df_val_anio_qty
         
@@ -600,6 +791,5 @@ with tab2:
         # --- FIN MODIFICACIÓN ---
 
         fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Mensual (%)")
-        st.plotly_chart(fig_var_anio_qty, use_container_width=True)
+        st.plotly_chart(fig_var_anio_qty, use_container_width=True, key="var_anio_qty") # <--- KEY AÑADIDA
         show_table(df_var_anio_qty, "Cantidades_Var_Interanual", is_percentage=is_pct_anio_qty)
-
