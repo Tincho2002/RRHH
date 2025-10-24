@@ -143,7 +143,8 @@ def plot_line(df_plot, columns, yaxis_title):
     fig = go.Figure()
     for col in columns:
         # Elige el formateador. Todas las 'ds_' (incluida 'ds_Total_Guardias') usarán int.
-        formatter = format_number_int if col.startswith('ds_') else format_number
+        # MODIFICADO: Abarcar 'hs_' y 'ds_'
+        formatter = format_number_int if col.startswith(('ds_', 'hs_')) else format_number
 
         fig.add_trace(go.Scatter(
             x=df_plot['Período_fmt'],
@@ -156,18 +157,110 @@ def plot_line(df_plot, columns, yaxis_title):
     fig.update_layout(title=yaxis_title, template='plotly_white', xaxis_title='Período', yaxis_title=yaxis_title)
     return fig
 
+# --- NUEVA FUNCIÓN PARA GRÁFICO COMBINADO (Intento 5 - Multiselect) ---
+def plot_combined_chart(df_plot, primary_cols, secondary_cols, primary_title, secondary_title):
+    """
+    Genera un gráfico combinado con ejes multiselect.
+    """
+    fig = go.Figure()
+
+    # --- Configuración del Layout (Base) ---
+    layout_args = {
+        'title': "Evolución Combinada",
+        'template': 'plotly_white',
+        'xaxis_title': 'Período',
+        'yaxis': {
+            'title': primary_title,
+            'side': 'left',
+            'showgrid': False
+        },
+        'legend': {'orientation': 'h', 'yanchor': 'bottom', 'y': 1.02, 'xanchor': 'right', 'x': 1},
+        'barmode': 'group' # Agrupar barras si hay varias
+    }
+
+    # --- Eje Secundario (Barras) - PRIMERO ---
+    # Filtrar "Ninguna" si está presente junto con otras selecciones
+    secondary_cols_filtered = [col for col in secondary_cols if col != "Ninguna"]
+    
+    if secondary_cols_filtered:
+        # --- Cálculo de rango manual para auto-escala (para MÚLTIPLES columnas) ---
+        all_sec_values = pd.Series(dtype=float)
+        for col in secondary_cols_filtered:
+            all_sec_values = pd.concat([all_sec_values, df_plot[col].dropna()])
+
+        sec_values = all_sec_values
+        sec_min = 0
+        sec_max = 1
+        
+        if not sec_values.empty:
+            data_min = sec_values.min()
+            data_max = sec_values.max()
+            data_range = data_max - data_min
+            
+            if data_range == 0:
+                padding = abs(data_max * 0.1) if data_max != 0 else 1.0
+            else:
+                padding = data_range * 0.1
+            
+            sec_min = data_min - padding
+            sec_max = data_max + padding
+            
+            if data_min >= 0 and sec_min < 0:
+                sec_min = 0
+
+        layout_args['yaxis2'] = {
+            'title': secondary_title,
+            'side': 'right',
+            'overlaying': 'y',
+            'showgrid': False,
+            'range': [sec_min, sec_max]
+        }
+        
+        # Dibujar cada columna secundaria
+        for col in secondary_cols_filtered:
+            formatter_secondary = format_number_int if col.startswith(('ds_', 'hs_')) else format_number
+            fig.add_trace(go.Bar(
+                x=df_plot['Período_fmt'],
+                y=df_plot[col],
+                name=col,
+                text=[formatter_secondary(v) for v in df_plot[col]],
+                textposition='outside',
+                yaxis='y2',
+                opacity=0.7
+            ))
+    # --- FIN EJE SECUNDARIO ---
+
+    # --- Eje Primario (Línea) - SEGUNDO ---
+    if primary_cols:
+        for col in primary_cols:
+            formatter_primary = format_number_int if col.startswith(('ds_', 'hs_')) else format_number
+            fig.add_trace(go.Scatter(
+                x=df_plot['Período_fmt'],
+                y=df_plot[col],
+                name=col,
+                mode='lines+markers+text',
+                text=[formatter_primary(v) for v in df_plot[col]],
+                textposition='top center',
+                yaxis='y1'
+            ))
+    # --- FIN EJE PRIMARIO ---
+    
+    fig.update_layout(**layout_args)
+    return fig
+# --- FIN NUEVA FUNCIÓN ---
+
 def calc_variation(df, columns, tipo='mensual'):
     """
     Calcula la variación mensual o interanual de las columnas seleccionadas.
     MODIFICADO: La lógica interanual ahora usa un merge para manejar
     datos no continuos (filtrados).
     """
-    
+
     # --- MODIFICACIÓN ---
     # Asegurarnos de tener Año y Mes para el cálculo interanual
     df_var = df[['Período', 'Período_fmt', 'Año', 'Mes'] + columns].copy().sort_values('Período')
     # --- FIN MODIFICACIÓN ---
-    
+
     # --- MODIFICACIÓN: Inicialización movida DENTRO de los bloques if/else ---
     # df_val = pd.DataFrame()
     # df_pct = pd.DataFrame()
@@ -177,15 +270,15 @@ def calc_variation(df, columns, tipo='mensual'):
 
     if tipo == 'interanual':
         # --- NUEVA LÓGICA INTERANUAL (ROBUSTA) ---
-        
+
         # 1. Separar datos del año anterior
         df_last_year = df_var.copy()
         df_last_year['Año'] = df_last_year['Año'] + 1 # "Adelantamos" un año para el merge
-        
+
         # 2. Renombrar columnas del año anterior para evitar conflicto
         rename_cols = {col: f"{col}_prev" for col in columns}
         df_last_year.rename(columns=rename_cols, inplace=True)
-        
+
         # 3. Cruzar datos actuales con los del año anterior usando Año y Mes
         #    MODIFICACIÓN: Usamos reset_index/set_index para preservar el orden original de df_var
         df_merged = pd.merge(
@@ -194,7 +287,7 @@ def calc_variation(df, columns, tipo='mensual'):
             on=['Año', 'Mes'],
             how='left'
         ).set_index('index').sort_index() # Restaurar el orden original
-        
+
         # 4. Inicializar df_val y df_pct DESPUÉS del merge, basados en df_merged
         df_val = pd.DataFrame(index=df_merged.index)
         df_pct = pd.DataFrame(index=df_merged.index)
@@ -202,7 +295,7 @@ def calc_variation(df, columns, tipo='mensual'):
         df_val['Período_fmt'] = df_merged['Período_fmt']
         df_pct['Período'] = df_merged['Período']
         df_pct['Período_fmt'] = df_merged['Período_fmt']
-        
+
         # 5. Calcular la variación
         for col in columns:
             col_prev = f"{col}_prev"
@@ -211,7 +304,7 @@ def calc_variation(df, columns, tipo='mensual'):
             df_pct[col] = (df_val[col] / df_merged[col_prev]) * 100
             # --- NUEVA LÍNEA: Reemplazar infinitos (división por cero) por NaN ---
             df_pct[col] = df_pct[col].replace([np.inf, -np.inf], np.nan)
-        
+
         # --- FIN NUEVA LÓGICA ---
     else: # tipo == 'mensual'
         # --- MODIFICACIÓN: Adaptar esta rama a la nueva inicialización ---
@@ -242,7 +335,8 @@ def plot_bar(df_plot, columns, yaxis_title):
     fig = go.Figure()
     for col in columns:
         # Elige el formateador. Todas las 'ds_' (incluida 'ds_Total_Guardias') usarán int.
-        formatter = format_number_int if col.startswith('ds_') else format_number
+        # MODIFICADO: Abarcar 'hs_' y 'ds_'
+        formatter = format_number_int if col.startswith(('ds_', 'hs_')) else format_number
 
         fig.add_trace(go.Bar(
             x=df_plot['Período_fmt'],
@@ -281,7 +375,8 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
         if is_percentage:
             df_formatted[col] = df_formatted[col].apply(format_percentage)
         # Todas las 'ds_' (incluida 'ds_Total_Guardias') usarán int.
-        elif col.startswith('ds_'):
+        # MODIFICADO: Abarcar 'hs_' y 'ds_'
+        elif col.startswith(('ds_', 'hs_')):
             df_formatted[col] = df_formatted[col].apply(format_number_int)
         else:
             df_formatted[col] = df_formatted[col].apply(format_number)
@@ -320,7 +415,7 @@ def show_kpi_cards(df, var_list):
 
     # 2. Definir layout (5 columnas)
     cols = st.columns(5)
-    
+
     # Mapeo de nombres amigables (label)
     label_map = {
         '$K_50%': 'Costo HE 50%',
@@ -348,9 +443,9 @@ def show_kpi_cards(df, var_list):
     for var in var_list:
         total_2024 = df_2024.get(var, 0)
         total_2025 = df_2025.get(var, 0)
-        
+
         delta_abs = total_2025 - total_2024
-        
+
         if total_2024 > 0 and not pd.isna(total_2024):
             delta_pct = (delta_abs / total_2024) * 100
         elif (total_2024 == 0 or pd.isna(total_2024)) and total_2025 > 0:
@@ -361,7 +456,7 @@ def show_kpi_cards(df, var_list):
         # --- Formato con prefijo/sufijo ---
         is_int = var.startswith('ds_') or var.startswith('hs_')
         formatter_val = format_number_int if is_int else format_number
-        
+
         val_str = formatter_val(total_2025)
         delta_abs_str = formatter_val(abs(delta_abs)) # Usamos abs() para el color
         delta_pct_fmt = format_percentage(delta_pct) # format_percentage ya añade el " %"
@@ -388,7 +483,7 @@ def show_kpi_cards(df, var_list):
         # Asignar a la columna correcta
         current_col = cols[col_index % 5]
         label = label_map.get(var, var) # Usar nombre amigable
-        
+
         # --- MODIFICACIÓN: Construir y renderizar tarjeta HTML ---
         html_card = f"""
         <div class="custom-metric-card">
@@ -401,7 +496,7 @@ def show_kpi_cards(df, var_list):
         """
         current_col.markdown(html_card, unsafe_allow_html=True)
         # --- FIN MODIFICACIÓN ---
-        
+
         col_index += 1
 
 # --- NUEVA FUNCIÓN DE FILTRADO (REEMPLAZA A LA JERÁRQUICA) ---
@@ -409,15 +504,15 @@ def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_d
     """
     Aplica el filtro de tiempo único basado en el modo seleccionado.
     """
-    
+
     # Si el filtro seleccionado está "vacío" (es decir, el usuario no ha tocado
     # el multiselect, y tiene *todas* las opciones seleccionadas por defecto),
     # entonces no aplicamos ningún filtro de tiempo.
-    
+
     if filter_mode == 'Período Específico':
         if len(filter_selection) < len(all_options_dict['all_periodos_especificos']):
             return df_to_filter[df_to_filter['Período_fmt'].isin(filter_selection)].copy()
-            
+
     elif filter_mode == 'Mes':
         # Convertir nombres de mes (ej: 'Ene') a números (ej: 1)
         selected_months_nums = [k for k,v in all_options_dict['months_map'].items() if v in filter_selection]
@@ -427,15 +522,15 @@ def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_d
     elif filter_mode == 'Bimestre':
         if len(filter_selection) < len(all_options_dict['all_bimestres']):
             return df_to_filter[df_to_filter['Bimestre'].isin(filter_selection)].copy()
-            
+
     elif filter_mode == 'Trimestre':
         if len(filter_selection) < len(all_options_dict['all_trimestres']):
             return df_to_filter[df_to_filter['Trimestre'].isin(filter_selection)].copy()
-            
+
     elif filter_mode == 'Semestre':
         if len(filter_selection) < len(all_options_dict['all_semestres']):
             return df_to_filter[df_to_filter['Semestre'].isin(filter_selection)].copy()
-            
+
     # Si no se cumple ninguna condición (ej: modo es 'Mes' pero todos los meses
     # están seleccionados), devolvemos el dataframe sin filtrar por tiempo.
     return df_to_filter.copy()
@@ -457,11 +552,11 @@ CSS_STYLE = """
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     border: 1px solid #e0e0e0;
     /* Damos una altura mínima para alinear las tarjetas */
-    min-height: 150px; 
+    min-height: 150px;
     /* Asegurar que el padding se respete al 100% */
-    box-sizing: border-box; 
+    box-sizing: border-box;
     margin-bottom: 10px; /* Espacio por si se apilan en móvil */
-    
+
     /* --- MODIFICACIÓN: Centrar contenido --- */
     text-align: center;
 }
@@ -559,8 +654,8 @@ if 'selected_years' not in st.session_state:
 
 # Filtro de Año (sigue igual)
 selected_years = st.sidebar.multiselect(
-    "Años:", 
-    all_years, 
+    "Años:",
+    all_years,
     key='selected_years'
 )
 
@@ -612,7 +707,7 @@ elif filter_mode == 'Período Específico':
 
 
 # --- LÓGICA DE FILTRADO (AHORA SIMPLIFICADA) ---
-        
+
 # Este dataframe 'dff' se usa para los gráficos de EVOLUCIÓN
 # 1. Base: Siempre filtrar por Año
 df_filtered_by_year = df[df['Año'].isin(selected_years)].copy()
@@ -638,13 +733,58 @@ with tab1:
     st.markdown("---")
     # --- FIN SECCIÓN TARJETAS ---
 
-    st.subheader("Análisis de Costos ($K)") 
-    selected_k_vars = st.multiselect("Variables de Costos ($K):", k_columns, default=[k_columns[0]] if k_columns else [])
+    st.subheader("Análisis de Costos ($K)")
+    
+    # --- MODIFICACIÓN: Dos multiselect en columnas ---
+    col1_k, col2_k = st.columns(2)
+    with col1_k:
+        primary_k_vars = st.multiselect(
+            "Eje Principal (Línea):", 
+            k_columns, 
+            default=[k_columns[0]] if k_columns else [], 
+            key="primary_k"
+        )
+    with col2_k:
+        options_k_secondary = ["Ninguna"] + k_columns
+        secondary_k_vars = st.multiselect(
+            "Eje Secundario (Columnas):", 
+            options_k_secondary, 
+            default=["Ninguna"], 
+            key="secondary_k"
+        )
+    
+    # Construir la lista 'selected_k_vars' para las tablas y variaciones
+    selected_k_vars = list(primary_k_vars) # Empezar con las primarias
+    secondary_k_vars_filtered = [col for col in secondary_k_vars if col != "Ninguna"]
+    
+    if secondary_k_vars_filtered:
+        for col in secondary_k_vars_filtered:
+            if col not in selected_k_vars: # Añadir solo si no está duplicada
+                selected_k_vars.append(col)
+    
+    # Definir qué pasar al gráfico (si "Ninguna" está sola, pasarla)
+    secondary_k_vars_plot = secondary_k_vars
+    if "Ninguna" in secondary_k_vars and len(secondary_k_vars) > 1:
+        secondary_k_vars_plot = secondary_k_vars_filtered # Quitar "Ninguna" si hay otras
+    # --- FIN MODIFICACIÓN ---
+
 
     if selected_k_vars:
         st.subheader("Evolución de Costos")
-        fig = plot_line(dff, selected_k_vars, "$K (Costos)")
+        
+        # --- MODIFICACIÓN: Llamar a la nueva función de gráfico ---
+        fig = plot_combined_chart(
+            dff, 
+            primary_k_vars, # Pasar lista
+            secondary_k_vars_plot, # Pasar lista filtrada
+            f"$K (Línea)", 
+            f"$K (Columnas)"
+        )
+        # --- FIN MODIFICACIÓN ---
+        
         st.plotly_chart(fig, use_container_width=True, key="evol_k") # <--- KEY AÑADIDA
+        
+        # El resto del código usa 'selected_k_vars' (que ahora es nuestra lista de 1 o 2 variables)
         table_k = dff[['Período', 'Período_fmt'] + selected_k_vars].copy()
         show_table(table_k, "Costos_Datos", show_totals=True)
         st.markdown("---")
@@ -678,7 +818,7 @@ with tab1:
 
         st.subheader("Variaciones Interanuales")
         tipo_var_anio = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k") # <--- LÍNEA CORREGIDA (AÑADIDA)
-        
+
         # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
         if filter_mode == 'Período Específico':
             # For Interanual, we MUST find the matching periods from the previous year.
@@ -694,12 +834,12 @@ with tab1:
         else:
             df_for_var_anio_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
         # --- FIN NUEVA LÓGICA ---
-        
+
         # AHORA df_val_anio y df_pct_anio se calculan con la nueva lógica
         df_val_anio, df_pct_anio = calc_variation(df_for_var_anio_k, selected_k_vars,'interanual')
         is_pct_anio_k = (tipo_var_anio == 'Porcentaje')
         df_var_anio_raw = df_pct_anio if is_pct_anio_k else df_val_anio
-        
+
         # --- MODIFICACIÓN: Excluir 2024 de Variaciones Interanuales ---
         if 'Período' in df_var_anio_raw.columns:
             df_var_anio = df_var_anio_raw[df_var_anio_raw['Período'].dt.year != 2024].copy()
@@ -725,13 +865,57 @@ with tab2:
     st.markdown("---")
     # --- FIN SECCIÓN TARJETAS ---
 
-    st.subheader("Análisis de Cantidades (hs / ds)") 
-    selected_qty_vars = st.multiselect("Variables de Cantidad (hs / ds):", qty_columns, default=[qty_columns[0]] if qty_columns else [])
+    st.subheader("Análisis de Cantidades (hs / ds)")
+    
+    # --- MODIFICACIÓN: Dos multiselect en columnas ---
+    col1_q, col2_q = st.columns(2)
+    with col1_q:
+        primary_qty_vars = st.multiselect(
+            "Eje Principal (Línea):", 
+            qty_columns, 
+            default=[qty_columns[0]] if qty_columns else [], 
+            key="primary_qty"
+        )
+    with col2_q:
+        options_q_secondary = ["Ninguna"] + qty_columns
+        secondary_qty_vars = st.multiselect(
+            "Eje Secundario (Columnas):", 
+            options_q_secondary, 
+            default=["Ninguna"], 
+            key="secondary_qty"
+        )
+
+    # Construir la lista 'selected_qty_vars' para las tablas y variaciones
+    selected_qty_vars = list(primary_qty_vars) # Empezar con las primarias
+    secondary_qty_vars_filtered = [col for col in secondary_qty_vars if col != "Ninguna"]
+
+    if secondary_qty_vars_filtered:
+        for col in secondary_qty_vars_filtered:
+            if col not in selected_qty_vars: # Añadir solo si no está duplicada
+                selected_qty_vars.append(col)
+                
+    # Definir qué pasar al gráfico (si "Ninguna" está sola, pasarla)
+    secondary_qty_vars_plot = secondary_qty_vars
+    if "Ninguna" in secondary_qty_vars and len(secondary_qty_vars) > 1:
+        secondary_qty_vars_plot = secondary_qty_vars_filtered # Quitar "Ninguna" si hay otras
+    # --- FIN MODIFICACIÓN ---
 
     if selected_qty_vars:
         st.subheader("Evolución de Cantidades")
-        fig = plot_line(dff, selected_qty_vars, "Cantidades (hs/ds)")
+        
+        # --- MODIFICACIÓN: Llamar a la nueva función de gráfico ---
+        fig = plot_combined_chart(
+            dff, 
+            primary_qty_vars, # Pasar lista
+            secondary_qty_vars_plot, # Pasar lista filtrada
+            f"Cantidades (Línea)", 
+            f"Cantidades (Columnas)"
+        )
+        # --- FIN MODIFICACIÓN ---
+        
         st.plotly_chart(fig, use_container_width=True, key="evol_qty") # <--- KEY AÑADIDA
+        
+        # El resto del código usa 'selected_qty_vars' (que ahora es nuestra lista de 1 o 2 variables)
         table_qty = dff[['Período', 'Período_fmt'] + selected_qty_vars].copy()
         show_table(table_qty, "Cantidades_Datos", show_totals=True)
         st.markdown("---")
@@ -743,7 +927,7 @@ with tab2:
 
         st.subheader("Variaciones Mensuales")
         tipo_var_mes_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_qty") # <--- ESTA LÍNEA FALTABA
-        
+
         # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
         if filter_mode == 'Período Específico':
             df_for_var_mes_qty = df[df['Período_fmt'].isin(filter_selection)].copy()
@@ -762,7 +946,7 @@ with tab2:
 
         st.subheader("Variaciones Interanuales")
         tipo_var_anio_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_qty") # <--- LÍNEA CORREGIDA (AÑADIDA)
-        
+
         # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
         if filter_mode == 'Período Específico':
             try:
@@ -782,7 +966,7 @@ with tab2:
         df_val_anio_qty, df_pct_anio_qty = calc_variation(df_for_var_anio_qty, selected_qty_vars,'interanual')
         is_pct_anio_qty = (tipo_var_anio_qty == 'Porcentaje')
         df_var_anio_qty_raw = df_pct_anio_qty if is_pct_anio_qty else df_val_anio_qty
-        
+
         # --- MODIFICACIÓN: Excluir 2024 de Variaciones Interanuales ---
         if 'Período' in df_var_anio_qty_raw.columns:
             df_var_anio_qty = df_var_anio_qty_raw[df_var_anio_qty_raw['Período'].dt.year != 2024].copy()
