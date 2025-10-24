@@ -7,6 +7,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np # <--- AÑADIDO PARA MANEJAR inf
+import traceback # Para mostrar errores detallados
 
 # Configuración de la página para que ocupe todo el ancho
 st.set_page_config(layout="wide", page_title="Visualizador de Eficiencia")
@@ -19,66 +20,172 @@ def load_data(uploaded_file):
     Carga los datos desde un archivo Excel, procesa las fechas,
     CALCULA TOTALES DE HORAS EXTRAS Y DÍAS DE GUARDIA, y extrae
     nombres de columnas, años y meses.
+    
+    MODIFICADO: Ahora carga 'eficiencia' y 'masa_salarial' en
+    dataframes separados, sin fusionarlos.
     """
     if uploaded_file is None:
-        return pd.DataFrame(), [], [], [], {}
+        # Devuelve tuplas vacías extra para los nuevos datos
+        return pd.DataFrame(), pd.DataFrame(), [], [], [], {}, [], []
 
-    df = pd.read_excel(uploaded_file)
+    # Leer todas las hojas
+    excel_file = pd.ExcelFile(uploaded_file)
+    sheet_names = excel_file.sheet_names
 
-    # ===============================================================
-    # CÁLCULO DE TOTALES
-    # ===============================================================
+    # Inicializar dataframes
+    df_eficiencia = pd.DataFrame()
+    df_indicadores = pd.DataFrame()
+    
+    # Listas de columnas (inicializar vacías)
+    k_cols = []
+    qty_cols = []
+    years = []
+    months_map = {}
+    k_indicador_cols = []
+    qty_indicador_cols = []
 
-    # --- 1. Total Horas Extras (HE) ---
-    he_costo_cols = ['$K_50%', '$K_100%']
-    he_qty_cols = ['hs_50%', 'hs_100%']
+    # --- Cargar Hoja 'eficiencia' ---
+    if 'eficiencia' in sheet_names:
+        try:
+            # Asumimos que la hoja eficiencia siempre tiene header en fila 1 (header=0)
+            df_eficiencia = pd.read_excel(excel_file, sheet_name='eficiencia', header=0)
+            
+            # --- Procesamiento de df_eficiencia ---
+            # ===============================================================
+            # CÁLCULO DE TOTALES
+            # ===============================================================
+            he_costo_cols = ['$K_50%', '$K_100%']
+            he_qty_cols = ['hs_50%', 'hs_100%']
 
-    if all(col in df.columns for col in he_costo_cols):
-        df['$K_Total_HE'] = df[he_costo_cols].fillna(0).sum(axis=1)
+            if all(col in df_eficiencia.columns for col in he_costo_cols):
+                df_eficiencia['$K_Total_HE'] = df_eficiencia[he_costo_cols].fillna(0).sum(axis=1)
 
-    if all(col in df.columns for col in he_qty_cols):
-        df['hs_Total_HE'] = df[he_qty_cols].fillna(0).sum(axis=1)
+            if all(col in df_eficiencia.columns for col in he_qty_cols):
+                df_eficiencia['hs_Total_HE'] = df_eficiencia[he_qty_cols].fillna(0).sum(axis=1)
 
-    # ===============================================================
-    # MODIFICACIÓN: Cálculo de Guardias corregido (5 componentes)
-    # ===============================================================
+            # --- 2. Total Guardias (GTO, GTI, 2T, 3T, TD) ---
+            guardia_costo_cols = ['$K_Guardias_2T', '$K_Guardias_3T', '$K_GTO', '$K_GTI', '$K_TD']
+            guardia_qty_cols = ['ds_Guardias_2T', 'ds_Guardias_3T', 'ds_GTO', 'ds_GTI', 'ds_TD']
 
-    # --- 2. Total Guardias (GTO, GTI, 2T, 3T, TD) ---
+            if all(col in df_eficiencia.columns for col in guardia_costo_cols):
+                df_eficiencia['$K_Total_Guardias'] = df_eficiencia[guardia_costo_cols].fillna(0).sum(axis=1)
 
-    # Lista de columnas de COSTOS de guardia
-    guardia_costo_cols = ['$K_Guardias_2T', '$K_Guardias_3T', '$K_GTO', '$K_GTI', '$K_TD']
-    # Lista de columnas de CANTIDAD (días) de guardia
-    guardia_qty_cols = ['ds_Guardias_2T', 'ds_Guardias_3T', 'ds_GTO', 'ds_GTI', 'ds_TD']
+            if all(col in df_eficiencia.columns for col in guardia_qty_cols):
+                df_eficiencia['ds_Total_Guardias'] = df_eficiencia[guardia_qty_cols].fillna(0).sum(axis=1)
+            # ===============================================================
 
-    # Se crea $K_Total_Guardias (para la Pestaña 1)
-    if all(col in df.columns for col in guardia_costo_cols):
-        df['$K_Total_Guardias'] = df[guardia_costo_cols].fillna(0).sum(axis=1)
-
-    # Se crea ds_Total_Guardias (para la Pestaña 2)
-    if all(col in df.columns for col in guardia_qty_cols):
-        df['ds_Total_Guardias'] = df[guardia_qty_cols].fillna(0).sum(axis=1)
-    # ===============================================================
-
-    df['Período'] = pd.to_datetime(df['Período'])
-    df['Año'] = df['Período'].dt.year
-    df['Mes'] = df['Período'].dt.month
-    df['Período_fmt'] = df['Período'].dt.strftime('%b-%y')  # Formato ej: Ene-25
-
-    # --- NUEVO: Columnas de Agrupación Temporal ---
-    df['Bimestre'] = (df['Mes'] - 1) // 2 + 1
-    df['Trimestre'] = (df['Mes'] - 1) // 3 + 1
-    df['Semestre'] = (df['Mes'] - 1) // 6 + 1
-    # --- FIN NUEVO ---
+            # Intentar convertir 'Período' a datetime
+            try:
+                 df_eficiencia['Período'] = pd.to_datetime(df_eficiencia['Período'])
+            except Exception as e_fecha_ef:
+                 st.error(f"Error al convertir 'Período' en hoja 'eficiencia': {e_fecha_ef}")
+                 # Si falla la conversión de fecha principal, retornar vacío
+                 return pd.DataFrame(), pd.DataFrame(), [], [], [], {}, [], []
 
 
-    # Estas listas AHORA incluirán TODOS los totales nuevos
-    k_cols = sorted([c for c in df.columns if c.startswith('$K_')])
-    qty_cols = sorted([c for c in df.columns if c.startswith('hs_') or c.startswith('ds_')])
+            df_eficiencia['Año'] = df_eficiencia['Período'].dt.year
+            df_eficiencia['Mes'] = df_eficiencia['Período'].dt.month
+            df_eficiencia['Período_fmt'] = df_eficiencia['Período'].dt.strftime('%b-%y')  # Formato ej: Ene-25
 
-    years = sorted(df['Año'].unique(), reverse=True)
-    months_map = {1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',7:'Jul',8:'Ago',9:'Sep',10:'Oct',11:'Nov',12:'Dic'}
+            # --- Columnas de Agrupación Temporal ---
+            df_eficiencia['Bimestre'] = (df_eficiencia['Mes'] - 1) // 2 + 1
+            df_eficiencia['Trimestre'] = (df_eficiencia['Mes'] - 1) // 3 + 1
+            df_eficiencia['Semestre'] = (df_eficiencia['Mes'] - 1) // 6 + 1
+            
+            # Listas de columnas para Tab 1 y Tab 2 (solo de la hoja eficiencia)
+            k_cols = sorted([c for c in df_eficiencia.columns if c.startswith('$K_')])
+            qty_cols = sorted([c for c in df_eficiencia.columns if c.startswith('hs_') or c.startswith('ds_')])
 
-    return df, k_cols, qty_cols, years, months_map
+            # Filtros (basados en eficiencia)
+            years = sorted(df_eficiencia['Año'].unique(), reverse=True)
+            months_map = {1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',7:'Jul',8:'Ago',9:'Sep',10:'Oct',11:'Nov',12:'Dic'}
+        
+        except Exception as e_ef:
+            st.error(f"Error general al procesar la hoja 'eficiencia': {e_ef}")
+            return pd.DataFrame(), pd.DataFrame(), [], [], [], {}, [], []
+
+    else:
+        st.error("Error: No se encontró la hoja 'eficiencia' en el archivo Excel.")
+        # Retorna dataframes vacíos si la hoja principal falta
+        return pd.DataFrame(), pd.DataFrame(), [], [], [], {}, [], []
+
+
+    # --- Cargar Hoja 'masa_salarial' ---
+    if 'masa_salarial' in sheet_names:
+        try:
+            # Leer cabecera de la fila 1 (índice 0)
+            df_indicadores = pd.read_excel(excel_file, sheet_name='masa_salarial', header=0)
+            
+            # Limpiar espacios en nombres de columnas
+            df_indicadores.columns = df_indicadores.columns.str.strip()
+            
+            # --- Procesamiento robusto de fechas para 'masa_salarial' ---
+            if 'Período' in df_indicadores.columns:
+                
+                # Crear una copia para intentar la conversión
+                periodo_original = df_indicadores['Período'].copy()
+                
+                # 1. Intentar formato directo '%b-%y' (ej: Ene-24)
+                try:
+                    df_indicadores['Período'] = pd.to_datetime(periodo_original, format='%b-%y', errors='raise')
+                except (ValueError, TypeError):
+                    # 2. Si falla, intentar reemplazar meses en español y luego '%b-%y'
+                    try:
+                        mes_map_es = {
+                            'ene': 'Jan', 'feb': 'Feb', 'mar': 'Mar', 'abr': 'Apr',
+                            'may': 'May', 'jun': 'Jun', 'jul': 'Jul', 'ago': 'Aug',
+                            'sep': 'Sep', 'oct': 'Oct', 'nov': 'Nov', 'dic': 'Dec'
+                        }
+                        per_str = periodo_original.astype(str).str.lower()
+                        for k, v in mes_map_es.items():
+                            per_str = per_str.str.replace(k, v)
+                        df_indicadores['Período'] = pd.to_datetime(per_str, format='%b-%y', errors='raise')
+                    except (ValueError, TypeError):
+                         # 3. Si falla de nuevo, intentar que Pandas infiera (último recurso)
+                         try:
+                             df_indicadores['Período'] = pd.to_datetime(periodo_original, errors='raise')
+                         except (ValueError, TypeError) as e_fecha_ind:
+                             st.error(f"Error CRÍTICO al convertir 'Período' en 'masa_salarial' tras varios intentos: {e_fecha_ind}")
+                             st.warning("La pestaña 'Indicadores' no funcionará correctamente.")
+                             # Mantener df_indicadores pero sin columna de fecha válida
+                             df_indicadores = df_indicadores.drop(columns=['Período'], errors='ignore') 
+                             # Continuar sin las columnas de fecha calculadas
+                             
+                # --- Añadir columnas de fecha SOLO SI la conversión fue exitosa ---
+                if pd.api.types.is_datetime64_any_dtype(df_indicadores.get('Período')):
+                    df_indicadores['Año'] = df_indicadores['Período'].dt.year
+                    df_indicadores['Mes'] = df_indicadores['Período'].dt.month
+                    df_indicadores['Período_fmt'] = df_indicadores['Período'].dt.strftime('%b-%y')
+                    df_indicadores['Bimestre'] = (df_indicadores['Mes'] - 1) // 2 + 1
+                    df_indicadores['Trimestre'] = (df_indicadores['Mes'] - 1) // 3 + 1
+                    df_indicadores['Semestre'] = (df_indicadores['Mes'] - 1) // 6 + 1
+                else:
+                    # Si 'Período' no es datetime, añadir columnas vacías o NaN para evitar errores
+                    for col in ['Año', 'Mes', 'Período_fmt', 'Bimestre', 'Trimestre', 'Semestre']:
+                        df_indicadores[col] = pd.NA
+
+            else:
+                st.error("Error: La columna 'Período' no se encontró en la hoja 'masa_salarial'.")
+                df_indicadores = pd.DataFrame() # Resetear si falta la columna clave
+
+
+            # Definir las listas de columnas para la Tab 3
+            # --- CORRECCIÓN: Asegurar $ ---
+            k_indicador_cols_def = ['Msalarial_$K', 'HExtras_$K', 'Guardias_$K']
+            qty_indicador_cols_def = ['HE_hs', 'Guardias_ds', 'Dotación']
+            
+            # Filtrar por las columnas que SÍ existen en el df_indicadores
+            k_indicador_cols = [c for c in k_indicador_cols_def if c in df_indicadores.columns]
+            qty_indicador_cols = [c for c in qty_indicador_cols_def if c in df_indicadores.columns]
+
+        except Exception as e:
+            st.error(f"Error general al procesar la hoja 'masa_salarial':")
+            st.error(traceback.format_exc()) # Muestra el error completo
+            # Continuar con df_indicadores vacío si falla
+            df_indicadores = pd.DataFrame()
+
+    # Retornar ambos dataframes por separado
+    return df_eficiencia, df_indicadores, k_cols, qty_cols, years, months_map, k_indicador_cols, qty_indicador_cols
 
 
 def format_number(x):
@@ -143,7 +250,6 @@ def plot_line(df_plot, columns, yaxis_title):
     fig = go.Figure()
     for col in columns:
         # Elige el formateador. Todas las 'ds_' (incluida 'ds_Total_Guardias') usarán int.
-        # MODIFICADO: Abarcar 'hs_' y 'ds_'
         formatter = format_number_int if col.startswith(('ds_', 'hs_')) else format_number
 
         fig.add_trace(go.Scatter(
@@ -182,67 +288,88 @@ def plot_combined_chart(df_plot, primary_cols, secondary_cols, primary_title, se
     # Filtrar "Ninguna" si está presente junto con otras selecciones
     secondary_cols_filtered = [col for col in secondary_cols if col != "Ninguna"]
     
-    if secondary_cols_filtered:
+    # Asegurarse que df_plot no esté vacío y tenga las columnas necesarias
+    if secondary_cols_filtered and not df_plot.empty and 'Período_fmt' in df_plot.columns:
         # --- Cálculo de rango manual para auto-escala (para MÚLTIPLES columnas) ---
         all_sec_values = pd.Series(dtype=float)
+        valid_secondary_cols = [] # Guardar columnas que sí existen
         for col in secondary_cols_filtered:
-            all_sec_values = pd.concat([all_sec_values, df_plot[col].dropna()])
+            if col in df_plot.columns: # Asegurarse que la columna existe
+                all_sec_values = pd.concat([all_sec_values, df_plot[col].dropna()])
+                valid_secondary_cols.append(col) # Añadir a la lista de válidas
 
-        sec_values = all_sec_values
-        sec_min = 0
-        sec_max = 1
-        
-        if not sec_values.empty:
-            data_min = sec_values.min()
-            data_max = sec_values.max()
-            data_range = data_max - data_min
+        if valid_secondary_cols: # Solo continuar si hay columnas secundarias válidas
+            sec_values = all_sec_values
+            sec_min = 0
+            sec_max = 1
             
-            if data_range == 0:
-                padding = abs(data_max * 0.1) if data_max != 0 else 1.0
-            else:
-                padding = data_range * 0.1
+            if not sec_values.empty:
+                data_min = sec_values.min()
+                data_max = sec_values.max()
+                data_range = data_max - data_min
+                
+                if data_range == 0 or pd.isna(data_range):
+                    # Si no hay rango (ej. un solo punto o todos iguales)
+                    padding = abs(data_max * 0.1) if data_max != 0 else 1.0
+                else:
+                    padding = data_range * 0.1 # 10% de padding
+                
+                # Aplicar padding
+                sec_min = data_min - padding
+                sec_max = data_max + padding
+                
+                # Evitar que el eje baje de 0 si todos los datos son positivos
+                if data_min >= 0 and sec_min < 0:
+                    sec_min = 0
             
-            sec_min = data_min - padding
-            sec_max = data_max + padding
+            # Aplicar el layout del eje Y2
+            layout_args['yaxis2'] = {
+                'title': secondary_title,
+                'side': 'right',
+                'overlaying': 'y',
+                'showgrid': False,
+                'range': [sec_min, sec_max] # Usar rango calculado
+            }
             
-            if data_min >= 0 and sec_min < 0:
-                sec_min = 0
-
-        layout_args['yaxis2'] = {
-            'title': secondary_title,
-            'side': 'right',
-            'overlaying': 'y',
-            'showgrid': False,
-            'range': [sec_min, sec_max]
-        }
-        
-        # Dibujar cada columna secundaria
-        for col in secondary_cols_filtered:
-            formatter_secondary = format_number_int if col.startswith(('ds_', 'hs_')) else format_number
-            fig.add_trace(go.Bar(
-                x=df_plot['Período_fmt'],
-                y=df_plot[col],
-                name=col,
-                text=[formatter_secondary(v) for v in df_plot[col]],
-                textposition='outside',
-                yaxis='y2',
-                opacity=0.7
-            ))
+            # Dibujar cada columna secundaria VÁLIDA
+            for col in valid_secondary_cols: 
+                # --- MODIFICACIÓN FORMATTER ---
+                is_int_col = col.startswith(('ds_', 'hs_')) or col in ['HE_hs', 'Guardias_ds', 'Dotación']
+                formatter_secondary = format_number_int if is_int_col else format_number
+                # --- FIN MODIFICACIÓN ---
+                fig.add_trace(go.Bar(
+                    x=df_plot['Período_fmt'],
+                    y=df_plot[col],
+                    name=col,
+                    text=[formatter_secondary(v) for v in df_plot[col]],
+                    textposition='outside',
+                    yaxis='y2',
+                    opacity=0.7
+                ))
     # --- FIN EJE SECUNDARIO ---
 
     # --- Eje Primario (Línea) - SEGUNDO ---
-    if primary_cols:
+    if primary_cols and not df_plot.empty and 'Período_fmt' in df_plot.columns:
+        valid_primary_cols = []
         for col in primary_cols:
-            formatter_primary = format_number_int if col.startswith(('ds_', 'hs_')) else format_number
-            fig.add_trace(go.Scatter(
-                x=df_plot['Período_fmt'],
-                y=df_plot[col],
-                name=col,
-                mode='lines+markers+text',
-                text=[formatter_primary(v) for v in df_plot[col]],
-                textposition='top center',
-                yaxis='y1'
-            ))
+            if col in df_plot.columns: # Asegurarse que la columna existe
+                valid_primary_cols.append(col)
+
+        if valid_primary_cols: # Solo dibujar si hay columnas primarias válidas
+            for col in valid_primary_cols:
+                # --- MODIFICACIÓN FORMATTER ---
+                is_int_col = col.startswith(('ds_', 'hs_')) or col in ['HE_hs', 'Guardias_ds', 'Dotación']
+                formatter_primary = format_number_int if is_int_col else format_number
+                # --- FIN MODIFICACIÓN ---
+                fig.add_trace(go.Scatter(
+                    x=df_plot['Período_fmt'],
+                    y=df_plot[col],
+                    name=col,
+                    mode='lines+markers+text',
+                    text=[formatter_primary(v) for v in df_plot[col]],
+                    textposition='top center',
+                    yaxis='y1'
+                ))
     # --- FIN EJE PRIMARIO ---
     
     fig.update_layout(**layout_args)
@@ -258,14 +385,13 @@ def calc_variation(df, columns, tipo='mensual'):
 
     # --- MODIFICACIÓN ---
     # Asegurarnos de tener Año y Mes para el cálculo interanual
-    df_var = df[['Período', 'Período_fmt', 'Año', 'Mes'] + columns].copy().sort_values('Período')
-    # --- FIN MODIFICACIÓN ---
-
-    # --- MODIFICACIÓN: Inicialización movida DENTRO de los bloques if/else ---
-    # df_val = pd.DataFrame()
-    # df_pct = pd.DataFrame()
-    # df_val['Período_fmt'] = df_var['Período_fmt']
-    # df_pct['Período_fmt'] = df_var['Período_fmt']
+    # Asegurarnos de que columns no esté vacío y exista en df
+    columns_to_process = [col for col in columns if col in df.columns]
+    if not columns_to_process or df.empty or 'Período' not in df.columns:
+        # Si no hay columnas válidas, devolver dataframes vacíos
+        return pd.DataFrame(), pd.DataFrame()
+        
+    df_var = df[['Período', 'Período_fmt', 'Año', 'Mes'] + columns_to_process].copy().sort_values('Período')
     # --- FIN MODIFICACIÓN ---
 
     if tipo == 'interanual':
@@ -276,11 +402,10 @@ def calc_variation(df, columns, tipo='mensual'):
         df_last_year['Año'] = df_last_year['Año'] + 1 # "Adelantamos" un año para el merge
 
         # 2. Renombrar columnas del año anterior para evitar conflicto
-        rename_cols = {col: f"{col}_prev" for col in columns}
+        rename_cols = {col: f"{col}_prev" for col in columns_to_process}
         df_last_year.rename(columns=rename_cols, inplace=True)
 
         # 3. Cruzar datos actuales con los del año anterior usando Año y Mes
-        #    MODIFICACIÓN: Usamos reset_index/set_index para preservar el orden original de df_var
         df_merged = pd.merge(
             df_var.reset_index(), # Guardar el índice original
             df_last_year[['Año', 'Mes'] + list(rename_cols.values())],
@@ -297,12 +422,11 @@ def calc_variation(df, columns, tipo='mensual'):
         df_pct['Período_fmt'] = df_merged['Período_fmt']
 
         # 5. Calcular la variación
-        for col in columns:
+        for col in columns_to_process:
             col_prev = f"{col}_prev"
             # Hacemos la resta/división
             df_val[col] = df_merged[col] - df_merged[col_prev]
             df_pct[col] = (df_val[col] / df_merged[col_prev]) * 100
-            # --- NUEVA LÍNEA: Reemplazar infinitos (división por cero) por NaN ---
             df_pct[col] = df_pct[col].replace([np.inf, -np.inf], np.nan)
 
         # --- FIN NUEVA LÓGICA ---
@@ -316,15 +440,10 @@ def calc_variation(df, columns, tipo='mensual'):
         df_pct['Período_fmt'] = df_var['Período_fmt']
         # --- FIN MODIFICACIÓN ---
 
-        for col in columns:
+        for col in columns_to_process:
             shift_period = 1
             df_val[col] = df_var[col].diff(periods=shift_period)
             df_pct[col] = (df_val[col] / df_var[col].shift(shift_period)) * 100
-
-    # --- MODIFICACIÓN: Estas líneas ya no son necesarias al final ---
-    # df_val['Período'] = df_var['Período']
-    # df_pct['Período'] = df_var['Período']
-    # --- FIN MODIFICACIÓN ---
 
     return df_val, df_pct
 
@@ -333,18 +452,20 @@ def plot_bar(df_plot, columns, yaxis_title):
     Genera un gráfico de barras con etiquetas de datos fuera de las barras.
     """
     fig = go.Figure()
-    for col in columns:
-        # Elige el formateador. Todas las 'ds_' (incluida 'ds_Total_Guardias') usarán int.
-        # MODIFICADO: Abarcar 'hs_' y 'ds_'
-        formatter = format_number_int if col.startswith(('ds_', 'hs_')) else format_number
+    # Asegurar que el df no esté vacío y tenga la columna X
+    if not df_plot.empty and 'Período_fmt' in df_plot.columns:
+        for col in columns:
+            if col in df_plot.columns: # Asegurarse de que la columna Y existe
+                # MODIFICADO: Abarcar 'hs_' y 'ds_'
+                formatter = format_number_int if col.startswith(('ds_', 'hs_')) else format_number
 
-        fig.add_trace(go.Bar(
-            x=df_plot['Período_fmt'],
-            y=df_plot[col],
-            name=col,
-            text=[formatter(v) for v in df_plot[col]],
-            textposition='outside'
-        ))
+                fig.add_trace(go.Bar(
+                    x=df_plot['Período_fmt'],
+                    y=df_plot[col],
+                    name=col,
+                    text=[formatter(v) for v in df_plot[col]],
+                    textposition='outside'
+                ))
     fig.update_layout(title=yaxis_title, template='plotly_white', xaxis_title='Período', yaxis_title=yaxis_title)
     fig.update_traces(texttemplate='%{text}', textangle=0)
     return fig
@@ -355,13 +476,41 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
     Opcionalmente, añade una fila de totales.
     Acepta un flag 'is_percentage' para formatear con %.
     """
-    df_sorted = df_table.sort_values(by='Período', ascending=False).reset_index(drop=True)
-    df_display = df_sorted.drop(columns=['Período'])
+    # Usar 'Período_fmt' si 'Período' (datetime) no existe, común en tablas de variación
+    sort_col = 'Período' if 'Período' in df_table.columns else 'Período_fmt'
+    
+    if df_table.empty or sort_col not in df_table.columns:
+        st.warning(f"Tabla '{nombre}' no se puede mostrar: datos vacíos o falta columna de período.")
+        return
+
+    # Si estamos usando Período_fmt para ordenar, necesitamos convertirlo temporalmente a fecha
+    if sort_col == 'Período_fmt':
+        try:
+            df_table['_temp_sort_date'] = pd.to_datetime(df_table['Período_fmt'], format='%b-%y')
+            df_sorted = df_table.sort_values(by='_temp_sort_date', ascending=False).drop(columns=['_temp_sort_date'])
+        except ValueError:
+            # Si falla la conversión, ordenar alfabéticamente como fallback
+            df_sorted = df_table.sort_values(by='Período_fmt', ascending=False)
+    else: # Ordenar por la columna 'Período' datetime
+         df_sorted = df_table.sort_values(by='Período', ascending=False)
+         
+    df_sorted = df_sorted.reset_index(drop=True)
+    
+    # Eliminar la columna datetime 'Período' si existe, para mostrar solo 'Período_fmt'
+    df_display = df_sorted.drop(columns=['Período'], errors='ignore')
+    
+    # Renombrar 'Período_fmt' a 'Período' para la visualización
     df_display.rename(columns={'Período_fmt': 'Período'}, inplace=True)
 
+    # Reordenar columnas para que 'Período' (fmt) esté primero
     if 'Período' in df_display.columns:
         cols = ['Período'] + [col for col in df_display.columns if col != 'Período']
         df_display = df_display[cols]
+    else:
+        # Si ni 'Período' ni 'Período_fmt' existen después de todo, no mostrar tabla
+        st.warning(f"Tabla '{nombre}' no se puede mostrar: falta columna de período formateada.")
+        return
+
 
     if show_totals:
         totals_row = {col: df_display[col].sum() for col in df_display.select_dtypes(include='number').columns}
@@ -374,9 +523,8 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
     for col in df_formatted.select_dtypes(include='number').columns:
         if is_percentage:
             df_formatted[col] = df_formatted[col].apply(format_percentage)
-        # Todas las 'ds_' (incluida 'ds_Total_Guardias') usarán int.
-        # MODIFICADO: Abarcar 'hs_' y 'ds_'
-        elif col.startswith(('ds_', 'hs_')):
+        # MODIFICADO: Abarcar 'hs_' y 'ds_' y nuevas columnas
+        elif col.startswith(('ds_', 'hs_')) or col in ['HE_hs', 'Guardias_ds', 'Dotación']:
             df_formatted[col] = df_formatted[col].apply(format_number_int)
         else:
             df_formatted[col] = df_formatted[col].apply(format_number)
@@ -410,8 +558,19 @@ def show_kpi_cards(df, var_list):
     Usa el DataFrame *original* (df) para ignorar los filtros de mes/año.
     """
     # 1. Calcular totales
-    df_2024 = df[df['Año'] == 2024][var_list].sum()
-    df_2025 = df[df['Año'] == 2025][var_list].sum()
+    # Asegurarse de que el dataframe no esté vacío y tenga 'Año'
+    if df.empty or 'Año' not in df.columns:
+        st.warning("No se pueden calcular KPIs (datos base vacíos o incompletos).")
+        return
+        
+    # Filtrar solo las columnas var_list que SÍ existen en el df
+    vars_existentes = [v for v in var_list if v in df.columns]
+    if not vars_existentes:
+        st.warning("Ninguna de las variables KPI especificadas existe en los datos.")
+        return
+
+    df_2024 = df[df['Año'] == 2024][vars_existentes].sum()
+    df_2025 = df[df['Año'] == 2025][vars_existentes].sum()
 
     # 2. Definir layout (5 columnas)
     cols = st.columns(5)
@@ -440,7 +599,7 @@ def show_kpi_cards(df, var_list):
 
     # 3. Iterar y crear métricas
     col_index = 0
-    for var in var_list:
+    for var in vars_existentes: # Iterar solo sobre las que existen
         total_2024 = df_2024.get(var, 0)
         total_2025 = df_2025.get(var, 0)
 
@@ -504,31 +663,36 @@ def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_d
     """
     Aplica el filtro de tiempo único basado en el modo seleccionado.
     """
+    
+    # Si el dataframe de entrada está vacío o no tiene columnas de fecha, devolverlo
+    if df_to_filter.empty or not all(c in df_to_filter.columns for c in ['Año', 'Mes', 'Bimestre', 'Trimestre', 'Semestre', 'Período_fmt']):
+        return df_to_filter
 
     # Si el filtro seleccionado está "vacío" (es decir, el usuario no ha tocado
     # el multiselect, y tiene *todas* las opciones seleccionadas por defecto),
     # entonces no aplicamos ningún filtro de tiempo.
 
     if filter_mode == 'Período Específico':
-        if len(filter_selection) < len(all_options_dict['all_periodos_especificos']):
+        # Asegurarse que all_periodos_especificos no esté vacío antes de comparar longitudes
+        if all_options_dict.get('all_periodos_especificos') and len(filter_selection) < len(all_options_dict['all_periodos_especificos']):
             return df_to_filter[df_to_filter['Período_fmt'].isin(filter_selection)].copy()
 
     elif filter_mode == 'Mes':
         # Convertir nombres de mes (ej: 'Ene') a números (ej: 1)
         selected_months_nums = [k for k,v in all_options_dict['months_map'].items() if v in filter_selection]
-        if len(selected_months_nums) < len(all_options_dict['month_options']):
+        if all_options_dict.get('month_options') and len(selected_months_nums) < len(all_options_dict['month_options']):
             return df_to_filter[df_to_filter['Mes'].isin(selected_months_nums)].copy()
 
     elif filter_mode == 'Bimestre':
-        if len(filter_selection) < len(all_options_dict['all_bimestres']):
+         if all_options_dict.get('all_bimestres') and len(filter_selection) < len(all_options_dict['all_bimestres']):
             return df_to_filter[df_to_filter['Bimestre'].isin(filter_selection)].copy()
 
     elif filter_mode == 'Trimestre':
-        if len(filter_selection) < len(all_options_dict['all_trimestres']):
+         if all_options_dict.get('all_trimestres') and len(filter_selection) < len(all_options_dict['all_trimestres']):
             return df_to_filter[df_to_filter['Trimestre'].isin(filter_selection)].copy()
 
     elif filter_mode == 'Semestre':
-        if len(filter_selection) < len(all_options_dict['all_semestres']):
+        if all_options_dict.get('all_semestres') and len(filter_selection) < len(all_options_dict['all_semestres']):
             return df_to_filter[df_to_filter['Semestre'].isin(filter_selection)].copy()
 
     # Si no se cumple ninguna condición (ej: modo es 'Mes' pero todos los meses
@@ -602,20 +766,28 @@ if uploaded_file is None:
     st.info("Por favor, cargue un archivo Excel para comenzar.")
     st.stop()
 
-# df, k_columns, y qty_columns ahora contendrán los nuevos totales
-df, k_columns, qty_columns, all_years, month_map = load_data(uploaded_file)
+# --- MODIFICACIÓN: Capturar dataframes separados ---
+df_eficiencia, df_indicadores, k_columns, qty_columns, all_years, month_map, k_indicador_cols, qty_indicador_cols = load_data(uploaded_file)
+# --- FIN MODIFICACIÓN ---
+
+# 'df' ahora se refiere a df_eficiencia para el resto de la app (Tabs 1, 2 y filtros)
+df = df_eficiencia
+df_indicadores_empty = df_indicadores.empty
+
 
 if df.empty:
-    st.error("El archivo cargado está vacío o no se pudo procesar.")
+    # El error específico ya se muestra en load_data si falla 'eficiencia'
     st.stop()
 
 # --- Definir listas de opciones "default" (todos seleccionados) ---
-month_options = list(month_map.values())
-all_bimestres = sorted(df['Bimestre'].unique())
-all_trimestres = sorted(df['Trimestre'].unique())
-all_semestres = sorted(df['Semestre'].unique())
+# Estas listas se basan en 'df' (eficiencia)
+month_options = list(month_map.values()) if month_map else []
+all_bimestres = sorted(df['Bimestre'].unique()) if 'Bimestre' in df.columns else []
+all_trimestres = sorted(df['Trimestre'].unique()) if 'Trimestre' in df.columns else []
+all_semestres = sorted(df['Semestre'].unique()) if 'Semestre' in df.columns else []
 # Ordenar los períodos específicos cronológicamente
-all_periodos_especificos = list(df.sort_values('Período')['Período_fmt'].unique())
+all_periodos_especificos = list(df.sort_values('Período')['Período_fmt'].unique()) if 'Período' in df.columns and 'Período_fmt' in df.columns else []
+
 
 # Diccionario con todas las listas de opciones para la función de filtro
 all_options_dict = {
@@ -635,27 +807,29 @@ st.sidebar.header("Filtros Generales")
 # --- NUEVO: Botón de Reseteo ---
 # Ahora el reseteo también resetea el modo de filtro
 def reset_filters():
-    st.session_state.selected_years = all_years
+    # Solo resetear si las listas de opciones no están vacías
+    st.session_state.selected_years = all_years if all_years else []
     st.session_state.filter_mode = 'Mes' # Vuelve a 'Mes' por defecto
     # Reseteamos las selecciones específicas
-    st.session_state.sel_mes = month_options
-    st.session_state.sel_bim = all_bimestres
-    st.session_state.sel_tri = all_trimestres
-    st.session_state.sel_sem = all_semestres
-    st.session_state.sel_per = all_periodos_especificos
+    st.session_state.sel_mes = month_options if month_options else []
+    st.session_state.sel_bim = all_bimestres if all_bimestres else []
+    st.session_state.sel_tri = all_trimestres if all_trimestres else []
+    st.session_state.sel_sem = all_semestres if all_semestres else []
+    st.session_state.sel_per = all_periodos_especificos if all_periodos_especificos else []
+
 
 st.sidebar.button("🔄 Resetear Filtros", on_click=reset_filters, use_container_width=True)
 st.sidebar.markdown("---")
 
 # --- MODIFICACIÓN: Inicializar Session State ---
 if 'selected_years' not in st.session_state:
-    reset_filters()
+    reset_filters() # Llamar a la función que maneja listas vacías
 # --- FIN MODIFICACIÓN ---
 
 # Filtro de Año (sigue igual)
 selected_years = st.sidebar.multiselect(
     "Años:",
-    all_years,
+    all_years if all_years else [], # Pasar lista vacía si no hay años
     key='selected_years'
 )
 
@@ -673,52 +847,61 @@ filter_mode = st.sidebar.radio(
 # 2. Un multiselect DINÁMICO que depende del modo
 filter_selection = [] # Variable para guardar la selección
 
-if filter_mode == 'Mes':
-    filter_selection = st.sidebar.multiselect(
-        "Meses:",
-        month_options,
-        key='sel_mes'
-    )
-elif filter_mode == 'Bimestre':
-    filter_selection = st.sidebar.multiselect(
-        "Bimestres:",
-        all_bimestres,
-        key='sel_bim'
-    )
-elif filter_mode == 'Trimestre':
-    filter_selection = st.sidebar.multiselect(
-        "Trimestres:",
-        all_trimestres,
-        key='sel_tri'
-    )
-elif filter_mode == 'Semestre':
-    filter_selection = st.sidebar.multiselect(
-        "Semestres:",
-        all_semestres,
-        key='sel_sem'
-    )
-elif filter_mode == 'Período Específico':
-    filter_selection = st.sidebar.multiselect(
-        "Período Específico (Mes-Año):",
-        all_periodos_especificos,
-        key='sel_per'
-    )
+# Mostrar multiselect solo si las opciones correspondientes existen
+if filter_mode == 'Mes' and month_options:
+    filter_selection = st.sidebar.multiselect("Meses:", month_options, key='sel_mes')
+elif filter_mode == 'Bimestre' and all_bimestres:
+    filter_selection = st.sidebar.multiselect("Bimestres:", all_bimestres, key='sel_bim')
+elif filter_mode == 'Trimestre' and all_trimestres:
+    filter_selection = st.sidebar.multiselect("Trimestres:", all_trimestres, key='sel_tri')
+elif filter_mode == 'Semestre' and all_semestres:
+    filter_selection = st.sidebar.multiselect("Semestres:", all_semestres, key='sel_sem')
+elif filter_mode == 'Período Específico' and all_periodos_especificos:
+    filter_selection = st.sidebar.multiselect("Período Específico (Mes-Año):", all_periodos_especificos, key='sel_per')
 # --- FIN: NUEVA LÓGICA DE FILTRO DE TIEMPO ---
 
 
 # --- LÓGICA DE FILTRADO (AHORA SIMPLIFICADA) ---
 
-# Este dataframe 'dff' se usa para los gráficos de EVOLUCIÓN
-# 1. Base: Siempre filtrar por Año
-df_filtered_by_year = df[df['Año'].isin(selected_years)].copy()
+# Este dataframe 'dff' se usa para los gráficos de EVOLUCIÓN (Tabs 1 y 2)
+# 1. Base: Siempre filtrar por Año (si hay años seleccionados)
+if selected_years and 'Año' in df.columns:
+    df_filtered_by_year = df[df['Año'].isin(selected_years)].copy()
+else:
+    df_filtered_by_year = df.copy() # O df vacío si falló la carga
+
 # 2. Aplicar el filtro de tiempo único
 dff = apply_time_filter(df_filtered_by_year, filter_mode, filter_selection, all_options_dict)
+# Ordenar solo si el df no está vacío y tiene la columna
+if not dff.empty and 'Período' in dff.columns:
+    dff = dff.sort_values('Período')
 # --- FIN ---
 
-dff = dff.sort_values('Período')
+# --- NUEVO: Lógica de filtrado para df_indicadores (Tab 3) ---
+dff_indicadores = pd.DataFrame() # Init empty
+if not df_indicadores_empty:
+    # Asegurarse de que df_indicadores tenga las columnas de filtro
+    if all(col in df_indicadores.columns for col in ['Año', 'Mes', 'Bimestre', 'Trimestre', 'Semestre', 'Período_fmt']):
+        # Aplicar los MISMOS filtros a df_indicadores
+        if selected_years:
+            df_ind_filtered_by_year = df_indicadores[df_indicadores['Año'].isin(selected_years)].copy()
+        else:
+            df_ind_filtered_by_year = df_indicadores.copy()
+            
+        dff_indicadores = apply_time_filter(df_ind_filtered_by_year, filter_mode, filter_selection, all_options_dict)
+        # Ordenar solo si el df resultante no está vacío y tiene la columna
+        if not dff_indicadores.empty and 'Período' in dff_indicadores.columns:
+             dff_indicadores = dff_indicadores.sort_values('Período')
+    else:
+        st.sidebar.warning("Columnas de filtro ('Año', 'Mes', 'Período_fmt', etc.) no encontradas o inválidas en 'masa_salarial'. No se puede filtrar Tab 3.")
+        dff_indicadores = df_indicadores.copy() # Usar df sin filtrar como fallback? O dejar vacío?
+# --- FIN NUEVO ---
+
 
 # ----------------- Pestañas de la aplicación -----------------
-tab1, tab2 = st.tabs(["$K (Costos)", "Cantidades (hs / ds)"])
+# --- MODIFICACIÓN: Añadir tab3 ---
+tab1, tab2, tab3 = st.tabs(["$K (Costos)", "Cantidades (hs / ds)", "Indicadores"])
+# --- FIN MODIFICACIÓN ---
 
 # ----------------- Pestaña de Costos -----------------
 with tab1:
@@ -728,7 +911,7 @@ with tab1:
         '$K_50%', '$K_100%', '$K_Total_HE', '$K_TD', '$K_GTO', # Fila 1
         '$K_GTI', '$K_Guardias_2T', '$K_Guardias_3T', '$K_Total_Guardias' # Fila 2
     ]
-    # Usamos 'df' (el original) para calcular totales sin afectar por filtros
+    # Usamos 'df' (el original de eficiencia) para calcular totales
     show_kpi_cards(df, costo_vars_list)
     st.markdown("---")
     # --- FIN SECCIÓN TARJETAS ---
@@ -769,10 +952,11 @@ with tab1:
     # --- FIN MODIFICACIÓN ---
 
 
-    if selected_k_vars:
+    if not dff.empty and selected_k_vars: # Asegurar que dff no esté vacío
         st.subheader("Evolución de Costos")
         
         # --- MODIFICACIÓN: Llamar a la nueva función de gráfico ---
+        # Usa 'dff' (eficiencia filtrado)
         fig = plot_combined_chart(
             dff, 
             primary_k_vars, # Pasar lista
@@ -782,29 +966,23 @@ with tab1:
         )
         # --- FIN MODIFICACIÓN ---
         
-        st.plotly_chart(fig, use_container_width=True, key="evol_k") # <--- KEY AÑADIDA
-        
-        # El resto del código usa 'selected_k_vars' (que ahora es nuestra lista de 1 o 2 variables)
-        table_k = dff[['Período', 'Período_fmt'] + selected_k_vars].copy()
+        st.plotly_chart(fig, use_container_width=True, key="evol_k") 
+        # Asegurarse que las columnas existan antes de seleccionar
+        cols_for_table_k = ['Período', 'Período_fmt'] + [c for c in selected_k_vars if c in dff.columns]
+        table_k = dff[cols_for_table_k].copy()
         show_table(table_k, "Costos_Datos", show_totals=True)
         st.markdown("---")
-
-        # --- LÓGICA DE FILTRO PARA VARIACIÓN ---
-        # Para las variaciones, aplicamos el filtro de tiempo al DataFrame *original* (df)
-        # para asegurarnos de tener todos los años para comparar.
-        # df_for_variation_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
-        # --- FIN ---
 
         st.subheader("Variaciones Mensuales")
         tipo_var_mes = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k")
 
         # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        df_for_var_mes_k = pd.DataFrame()
         if filter_mode == 'Período Específico':
-            # For 'Período Específico', we only pass the selected periods.
-            # 'calc_variation(..., 'mensual')' will then compare them.
-            df_for_var_mes_k = df[df['Período_fmt'].isin(filter_selection)].copy()
+            # Filtrar df original (eficiencia)
+            df_for_var_mes_k = df[df['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df.columns else pd.DataFrame()
         else:
-            # For other modes, we pass all matching periods from all years
+            # Usa 'df' (eficiencia)
             df_for_var_mes_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
         # --- FIN NUEVA LÓGICA ---
 
@@ -812,45 +990,53 @@ with tab1:
         is_pct_mes_k = (tipo_var_mes == 'Porcentaje')
         df_var_mes = df_pct_mes if is_pct_mes_k else df_val_mes
         fig_var_mes = plot_bar(df_var_mes, selected_k_vars, "Variación Mensual ($K)" if tipo_var_mes=='Valores' else "Variación Mensual (%)")
-        st.plotly_chart(fig_var_mes, use_container_width=True, key="var_mes_k") # <--- KEY AÑADIDA
+        st.plotly_chart(fig_var_mes, use_container_width=True, key="var_mes_k") 
         show_table(df_var_mes, "Costos_Var_Mensual", is_percentage=is_pct_mes_k)
         st.markdown("---")
 
         st.subheader("Variaciones Interanuales")
-        tipo_var_anio = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k") # <--- LÍNEA CORREGIDA (AÑADIDA)
+        tipo_var_anio = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k") 
 
         # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
-        if filter_mode == 'Período Específico':
-            # For Interanual, we MUST find the matching periods from the previous year.
+        df_for_var_anio_k = pd.DataFrame()
+        if filter_mode == 'Período Específico' and 'Período_fmt' in df.columns:
             try:
-                selected_periods = pd.to_datetime(filter_selection, format='%b-%y')
-                compare_periods = [p - pd.DateOffset(years=1) for p in selected_periods]
-                all_relevant_periods = selected_periods.union(compare_periods)
-                all_relevant_fmt = all_relevant_periods.strftime('%b-%y').tolist()
-                df_for_var_anio_k = df[df['Período_fmt'].isin(all_relevant_fmt)].copy()
+                # Convertir selección a datetime para calcular año anterior
+                selected_periods = pd.to_datetime(filter_selection, format='%b-%y', errors='coerce').dropna()
+                if not selected_periods.empty:
+                    compare_periods = selected_periods - pd.DateOffset(years=1)
+                    all_relevant_periods = selected_periods.union(compare_periods)
+                    all_relevant_fmt = all_relevant_periods.strftime('%b-%y').tolist()
+                    df_for_var_anio_k = df[df['Período_fmt'].isin(all_relevant_fmt)].copy()
+                else:
+                    st.warning("No se pudieron procesar los períodos específicos seleccionados para la variación interanual.")
             except Exception as e:
-                st.error(f"Error procesando períodos específicos: {e}")
-                df_for_var_anio_k = pd.DataFrame(columns=df.columns) # Dataframe vacío
-        else:
+                st.error(f"Error procesando períodos específicos para variación interanual: {e}")
+        elif filter_mode != 'Período Específico':
+            # Usa 'df' (eficiencia)
             df_for_var_anio_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
         # --- FIN NUEVA LÓGICA ---
 
-        # AHORA df_val_anio y df_pct_anio se calculan con la nueva lógica
         df_val_anio, df_pct_anio = calc_variation(df_for_var_anio_k, selected_k_vars,'interanual')
         is_pct_anio_k = (tipo_var_anio == 'Porcentaje')
         df_var_anio_raw = df_pct_anio if is_pct_anio_k else df_val_anio
 
         # --- MODIFICACIÓN: Excluir 2024 de Variaciones Interanuales ---
-        if 'Período' in df_var_anio_raw.columns:
+        if not df_var_anio_raw.empty and 'Período' in df_var_anio_raw.columns:
             df_var_anio = df_var_anio_raw[df_var_anio_raw['Período'].dt.year != 2024].copy()
         else:
             df_var_anio = df_var_anio_raw.copy()
         # --- FIN MODIFICACIÓN ---
 
         fig_var_anio = plot_bar(df_var_anio, selected_k_vars, "Variación Interanual ($K)" if tipo_var_anio=='Valores' else "Variación Interanual (%)")
-        st.plotly_chart(fig_var_anio, use_container_width=True, key="var_anio_k") # <--- KEY AÑADIDA
+        st.plotly_chart(fig_var_anio, use_container_width=True, key="var_anio_k") 
 
         show_table(df_var_anio, "Costos_Var_Interanual", is_percentage=is_pct_anio_k)
+    elif not selected_k_vars:
+         st.info("Seleccione al menos una variable de Costos ($K) para visualizar.")
+    # else: # dff está vacío
+    #     st.info("No hay datos de Costos para los filtros seleccionados.")
+
 
 # ----------------- Pestaña de Cantidades -----------------
 with tab2:
@@ -860,7 +1046,7 @@ with tab2:
         'hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', 'ds_GTO', # Fila 1
         'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T', 'ds_Total_Guardias' # Fila 2
     ]
-    # Usamos 'df' (el original) para calcular totales sin afectar por filtros
+    # Usamos 'df' (el original de eficiencia) para calcular totales
     show_kpi_cards(df, qty_vars_list)
     st.markdown("---")
     # --- FIN SECCIÓN TARJETAS ---
@@ -900,10 +1086,11 @@ with tab2:
         secondary_qty_vars_plot = secondary_qty_vars_filtered # Quitar "Ninguna" si hay otras
     # --- FIN MODIFICACIÓN ---
 
-    if selected_qty_vars:
+    if not dff.empty and selected_qty_vars: # Asegurar que dff no esté vacío
         st.subheader("Evolución de Cantidades")
         
         # --- MODIFICACIÓN: Llamar a la nueva función de gráfico ---
+        # Usa 'dff' (eficiencia filtrado)
         fig = plot_combined_chart(
             dff, 
             primary_qty_vars, # Pasar lista
@@ -913,67 +1100,169 @@ with tab2:
         )
         # --- FIN MODIFICACIÓN ---
         
-        st.plotly_chart(fig, use_container_width=True, key="evol_qty") # <--- KEY AÑADIDA
-        
-        # El resto del código usa 'selected_qty_vars' (que ahora es nuestra lista de 1 o 2 variables)
-        table_qty = dff[['Período', 'Período_fmt'] + selected_qty_vars].copy()
+        st.plotly_chart(fig, use_container_width=True, key="evol_qty") 
+        # Asegurarse que las columnas existan antes de seleccionar
+        cols_for_table_q = ['Período', 'Período_fmt'] + [c for c in selected_qty_vars if c in dff.columns]
+        table_qty = dff[cols_for_table_q].copy()
         show_table(table_qty, "Cantidades_Datos", show_totals=True)
         st.markdown("---")
 
-        # --- LÓGICA DE FILTRO PARA VARIACIÓN ---
-        # (Se replica la misma lógica de Tab 1)
-        # df_for_variation_qty = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
-        # --- FIN ---
-
         st.subheader("Variaciones Mensuales")
-        tipo_var_mes_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_qty") # <--- ESTA LÍNEA FALTABA
+        tipo_var_mes_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_qty") 
 
         # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        df_for_var_mes_qty = pd.DataFrame()
         if filter_mode == 'Período Específico':
-            df_for_var_mes_qty = df[df['Período_fmt'].isin(filter_selection)].copy()
+             # Filtrar df original (eficiencia)
+            df_for_var_mes_qty = df[df['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df.columns else pd.DataFrame()
         else:
+            # Usa 'df' (eficiencia)
             df_for_var_mes_qty = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
         # --- FIN NUEVA LÓGICA ---
 
-        # AHORA df_val_mes_qty y df_pct_mes_qty se calculan con la nueva lógica
         df_val_mes_qty, df_pct_mes_qty = calc_variation(df_for_var_mes_qty, selected_qty_vars,'mensual')
         is_pct_mes_qty = (tipo_var_mes_qty == 'Porcentaje')
         df_var_mes_qty = df_pct_mes_qty if is_pct_mes_qty else df_val_mes_qty
         fig_var_mes_qty = plot_bar(df_var_mes_qty, selected_qty_vars, "Variación Mensual (Cantidad)" if tipo_var_mes_qty=='Valores' else "Variación Mensual (%)")
-        st.plotly_chart(fig_var_mes_qty, use_container_width=True, key="var_mes_qty") # <--- KEY AÑADIDA
+        st.plotly_chart(fig_var_mes_qty, use_container_width=True, key="var_mes_qty") 
         show_table(df_var_mes_qty, "Cantidades_Var_Mensual", is_percentage=is_pct_mes_qty)
         st.markdown("---")
 
         st.subheader("Variaciones Interanuales")
-        tipo_var_anio_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_qty") # <--- LÍNEA CORREGIDA (AÑADIDA)
+        tipo_var_anio_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_qty") 
 
         # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
-        if filter_mode == 'Período Específico':
+        df_for_var_anio_qty = pd.DataFrame()
+        if filter_mode == 'Período Específico' and 'Período_fmt' in df.columns:
             try:
-                selected_periods = pd.to_datetime(filter_selection, format='%b-%y')
-                compare_periods = [p - pd.DateOffset(years=1) for p in selected_periods]
-                all_relevant_periods = selected_periods.union(compare_periods)
-                all_relevant_fmt = all_relevant_periods.strftime('%b-%y').tolist()
-                df_for_var_anio_qty = df[df['Período_fmt'].isin(all_relevant_fmt)].copy()
+                # Convertir selección a datetime para calcular año anterior
+                selected_periods = pd.to_datetime(filter_selection, format='%b-%y', errors='coerce').dropna()
+                if not selected_periods.empty:
+                    compare_periods = selected_periods - pd.DateOffset(years=1)
+                    all_relevant_periods = selected_periods.union(compare_periods)
+                    all_relevant_fmt = all_relevant_periods.strftime('%b-%y').tolist()
+                    df_for_var_anio_qty = df[df['Período_fmt'].isin(all_relevant_fmt)].copy()
+                else:
+                    st.warning("No se pudieron procesar los períodos específicos seleccionados para la variación interanual.")
+
             except Exception as e:
-                st.error(f"Error procesando períodos específicos: {e}")
-                df_for_var_anio_qty = pd.DataFrame(columns=df.columns) # Dataframe vacío
-        else:
+                st.error(f"Error procesando períodos específicos para variación interanual: {e}")
+        elif filter_mode != 'Período Específico':
+            # Usa 'df' (eficiencia)
             df_for_var_anio_qty = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
         # --- FIN NUEVA LÓGICA ---
 
-        # AHORA df_val_anio_qty y df_pct_anio_qty se calculan con la nueva lógica
+
         df_val_anio_qty, df_pct_anio_qty = calc_variation(df_for_var_anio_qty, selected_qty_vars,'interanual')
         is_pct_anio_qty = (tipo_var_anio_qty == 'Porcentaje')
         df_var_anio_qty_raw = df_pct_anio_qty if is_pct_anio_qty else df_val_anio_qty
 
         # --- MODIFICACIÓN: Excluir 2024 de Variaciones Interanuales ---
-        if 'Período' in df_var_anio_qty_raw.columns:
+        if not df_var_anio_qty_raw.empty and 'Período' in df_var_anio_qty_raw.columns:
             df_var_anio_qty = df_var_anio_qty_raw[df_var_anio_qty_raw['Período'].dt.year != 2024].copy()
         else:
             df_var_anio_qty = df_var_anio_qty_raw.copy()
         # --- FIN MODIFICACIÓN ---
 
         fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Mensual (%)")
-        st.plotly_chart(fig_var_anio_qty, use_container_width=True, key="var_anio_qty") # <--- KEY AÑADIDA
+        st.plotly_chart(fig_var_anio_qty, use_container_width=True, key="var_anio_qty") 
         show_table(df_var_anio_qty, "Cantidades_Var_Interanual", is_percentage=is_pct_anio_qty)
+    elif not selected_qty_vars:
+        st.info("Seleccione al menos una variable de Cantidad (hs / ds) para visualizar.")
+    # else: # dff está vacío
+    #     st.info("No hay datos de Cantidades para los filtros seleccionados.")
+
+
+# ----------------- NUEVA PESTAÑA DE INDICADORES -----------------
+with tab3:
+    st.subheader("Análisis de Indicadores (Hoja: masa_salarial)")
+
+    # Verificar si los datos de indicadores se cargaron y si hay columnas para mostrar
+    if df_indicadores_empty:
+        # El error ya se muestra en load_data si falla la carga
+        pass # No mostrar nada más aquí
+    elif dff_indicadores.empty and (not df_indicadores_empty):
+         st.info("Los datos de 'Indicadores' existen pero no coinciden con los filtros seleccionados (Año, Mes, etc.).")
+    elif not k_indicador_cols and not qty_indicador_cols:
+         st.warning("No se encontraron las columnas esperadas ('Msalarial_$K', 'HE_hs', etc.) en la hoja 'masa_salarial'.")
+    else: # Si hay datos y columnas
+        # --- Gráfico 1: Indicadores de Costos ($K) ---
+        if k_indicador_cols: # Solo mostrar si hay columnas de costo
+            st.subheader("Indicadores de Costos ($K)")
+            
+            col1_k_ind, col2_k_ind = st.columns(2)
+            with col1_k_ind:
+                primary_k_ind_vars = st.multiselect(
+                    "Eje Principal ($K - Línea):", 
+                    k_indicador_cols, 
+                    default=[k_indicador_cols[0]] if k_indicador_cols else [], 
+                    key="primary_k_ind"
+                )
+            with col2_k_ind:
+                options_k_ind_secondary = ["Ninguna"] + k_indicador_cols
+                secondary_k_ind_vars = st.multiselect(
+                    "Eje Secundario ($K - Columnas):", 
+                    options_k_ind_secondary, 
+                    default=["Ninguna"], 
+                    key="secondary_k_ind"
+                )
+            
+            # Lógica para filtrar "Ninguna"
+            secondary_k_ind_vars_plot = secondary_k_ind_vars
+            if "Ninguna" in secondary_k_ind_vars and len(secondary_k_ind_vars) > 1:
+                secondary_k_ind_vars_plot = [col for col in secondary_k_ind_vars if col != "Ninguna"]
+            
+            # --- MODIFICADO: Usar dff_indicadores ---
+            if not dff_indicadores.empty:
+                fig_k_ind = plot_combined_chart(
+                    dff_indicadores, 
+                    primary_k_ind_vars, 
+                    secondary_k_ind_vars_plot, 
+                    "$K (Línea)", 
+                    "$K (Columnas)"
+                )
+                st.plotly_chart(fig_k_ind, use_container_width=True, key="evol_k_ind")
+            else:
+                 st.info("No hay datos de Indicadores de Costo para los filtros seleccionados.")
+
+
+            st.markdown("---")
+
+        # --- Gráfico 2: Indicadores de Cantidad (hs / ds / dotación) ---
+        if qty_indicador_cols: # Solo mostrar si hay columnas de cantidad
+            st.subheader("Indicadores de Cantidad (hs / ds / dotación)")
+            
+            col1_q_ind, col2_q_ind = st.columns(2)
+            with col1_q_ind:
+                primary_q_ind_vars = st.multiselect(
+                    "Eje Principal (Cant. - Línea):", 
+                    qty_indicador_cols, 
+                    default=[qty_indicador_cols[0]] if qty_indicador_cols else [], 
+                    key="primary_q_ind"
+                )
+            with col2_q_ind:
+                options_q_ind_secondary = ["Ninguna"] + qty_indicador_cols
+                secondary_q_ind_vars = st.multiselect(
+                    "Eje Secundario (Cant. - Columnas):", 
+                    options_q_ind_secondary, 
+                    default=["Ninguna"], 
+                    key="secondary_q_ind"
+                )
+
+            # Lógica para filtrar "Ninguna"
+            secondary_q_ind_vars_plot = secondary_q_ind_vars
+            if "Ninguna" in secondary_q_ind_vars and len(secondary_q_ind_vars) > 1:
+                secondary_q_ind_vars_plot = [col for col in secondary_q_ind_vars if col != "Ninguna"]
+
+            # --- MODIFICADO: Usar dff_indicadores ---
+            if not dff_indicadores.empty:
+                fig_q_ind = plot_combined_chart(
+                    dff_indicadores, 
+                    primary_q_ind_vars, 
+                    secondary_q_ind_vars_plot, 
+                    "Cantidades (Línea)", 
+                    "Cantidades (Columnas)"
+                )
+                st.plotly_chart(fig_q_ind, use_container_width=True, key="evol_q_ind")
+            else:
+                 st.info("No hay datos de Indicadores de Cantidad para los filtros seleccionados.")
