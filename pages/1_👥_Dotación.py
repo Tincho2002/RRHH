@@ -1,4 +1,3 @@
-%%writefile visualizador_app.py
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -960,3 +959,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
