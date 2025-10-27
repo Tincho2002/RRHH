@@ -1,3 +1,4 @@
+%%writefile visualizador_app.py
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -15,7 +16,8 @@ from PIL import Image, ImageDraw
 
 
 # --- Configuración de la página y Estilos CSS ---
-st.set_page_config(layout="wide", page_title="Dotacion: 2025", page_icon="👥")
+# MODIFICADO: Título de la página genérico
+st.set_page_config(layout="wide", page_title="Dotacion", page_icon="👥")
 
 # --- CSS Personalizado para un Estilo Profesional y RESPONSIVE ---
 st.markdown("""
@@ -37,9 +39,6 @@ div.stDownloadButton button {
     border-radius: 0.5rem;
     border: none;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-div.stDownloadButton button:hover {
-    background-color: #218838;
 }
 
 /* --- ESTILOS PARA BORDES REDONDEADOS Y ZÓCALOS --- */
@@ -149,19 +148,58 @@ def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns:
         unique_values = dataframe[column_name].dropna().unique().tolist()
         unique_values = [v for v in unique_values if v != 'no disponible']
+        
         if column_name == 'Rango Antiguedad':
             order = ['de 0 a 5 años', 'de 5 a 10 años', 'de 11 a 15 años', 'de 16 a 20 años', 'de 21 a 25 años', 'de 26 a 30 años', 'de 31 a 35 años', 'más de 35 años']
             present_values = [val for val in order if val in unique_values]
             other_values = [val for val in unique_values if val not in order]
             return present_values + sorted(other_values)
+        
         elif column_name == 'Rango Edad':
             order = ['de 0 a 19 años', 'de 19 a 25 años', 'de 26 a 30 años', 'de 31 a 35 años', 'de 36 a 40 años', 'de 41 a 45 años', 'de 46 a 50 años', 'de 51 a 55 años', 'de 56 a 60 años', 'de 61 a 65 años', 'más de 65 años']
             present_values = [val for val in order if val in unique_values]
             other_values = [val for val in unique_values if val not in order]
             return present_values + sorted(other_values)
+        
+        # --- MODIFICADO: Nueva lógica de ordenamiento para Período ---
         elif column_name == 'Periodo':
-            month_order = {'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12}
-            return sorted(unique_values, key=lambda x: month_order.get(x, 99))
+            # Mapa para meses abreviados
+            month_order_map = {
+                'Ene': 1, 'Feb': 2, 'Mar': 3, 'Abr': 4, 'May': 5, 'Jun': 6,
+                'Jul': 7, 'Ago': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dic': 12
+            }
+            # Mapa para meses completos (fallback)
+            old_month_order = {
+                'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4, 'Mayo': 5, 'Junio': 6, 
+                'Julio': 7, 'Agosto': 8, 'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+            }
+
+            def get_periodo_sort_key(periodo_str):
+                periodo_str_cap = periodo_str.capitalize()
+                parts = periodo_str_cap.split('-')
+                
+                if len(parts) == 2:
+                    # Formato 'Mes-Año' (ej: 'Dic-23')
+                    month_str, year_str = parts
+                    month = month_order_map.get(month_str, 99)
+                    year = int(f"20{year_str}") # '23' -> 2023
+                    return (year, month)
+                else:
+                    # Formato antiguo (ej: 'Enero')
+                    month = old_month_order.get(periodo_str_cap, 99)
+                    # Asumimos 2025 para datos antiguos sin año, como en la lógica original
+                    return (2025, month) 
+
+            return sorted(unique_values, key=get_periodo_sort_key)
+        
+        # --- AÑADIDO: Lógica de ordenamiento para Año ---
+        elif column_name == 'Año':
+            try:
+                # Ordenar numéricamente (ej: 2023, 2024, 2025)
+                return sorted(unique_values, key=lambda x: int(x) if x.isdigit() else 9999)
+            except:
+                return sorted(unique_values) # Fallback a orden alfabético
+        
         return sorted(unique_values)
     return []
     
@@ -185,7 +223,14 @@ def load_coords_from_url(url):
 def load_and_clean_data(uploaded_file):
     df_excel = pd.DataFrame()
     try:
+        # Asumimos que la hoja sigue llamándose 'Dotacion_25' o el usuario usará un archivo con esa hoja
         df_excel = pd.read_excel(uploaded_file, sheet_name='Dotacion_25', engine='openpyxl')
+        
+        # --- AÑADIDO (PUNTO 3): Eliminar columnas "Unnamed" ---
+        if not df_excel.empty:
+            df_excel = df_excel.loc[:, ~df_excel.columns.astype(str).str.startswith('Unnamed:')]
+        # --- FIN DE LA MODIFICACIÓN ---
+
     except Exception as e:
         st.error(f"ERROR CRÍTICO: No se pudo leer la hoja 'Dotacion_25' del archivo cargado. Mensaje: {e}")
         return pd.DataFrame()
@@ -242,21 +287,57 @@ def load_and_clean_data(uploaded_file):
             else: df_excel['Rango Edad'] = 'no disponible'
         else: df_excel['Rango Edad'] = 'no disponible'
     
+    # --- MODIFICADO: Nueva lógica para 'Periodo' y creación de 'Año' ---
     if 'Periodo' in df_excel.columns:
-        try:
-            temp_periodo = pd.to_datetime(df_excel['Periodo'], errors='coerce')
-            if temp_periodo.notna().any():
-                spanish_months_map = {1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
-                df_excel['Periodo'] = temp_periodo.dt.month.map(spanish_months_map).astype(str)
-            else: df_excel['Periodo'] = df_excel['Periodo'].astype(str).str.strip().str.capitalize()
-        except Exception: df_excel['Periodo'] = df_excel['Periodo'].astype(str).str.strip().str.capitalize()
+        # 1. Intentar convertir Periodo a datetime
+        # Esto manejará fechas como '2023-12-01'
+        temp_dates = pd.to_datetime(df_excel['Periodo'], errors='coerce')
+        
+        # 2. Definir mapa de meses
+        mapa_meses = {
+            1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun',
+            7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'
+        }
+        
+        # 3. Formatear la columna 'Periodo'
+        # Si es una fecha válida (ej: 2023-12-01), la formatea a 'Dic-23'
+        # Si no es una fecha (ej: 'Enero' o 'Dic-23' ya), la limpia y la mantiene
+        df_excel['Periodo'] = np.where(
+            temp_dates.notna(),
+            temp_dates.dt.month.map(mapa_meses) + '-' + temp_dates.dt.strftime('%y'),
+            df_excel['Periodo'].astype(str).str.strip().str.capitalize()
+        )
+
+        # 4. Crear la columna 'Año' basada en el 'Periodo' (ahora formateado)
+        def get_year_from_periodo(periodo_str):
+            match = re.search(r'(\d{2})$', periodo_str) # Busca 'XX' al final (ej: 'Dic-23')
+            if match:
+                year_suffix = match.group(1)
+                if year_suffix == '23': return '2023'
+                if year_suffix == '24': return '2024'
+                if year_suffix == '25': return '2025'
+            
+            # Fallback para meses antiguos (asumiendo 2025 como en la lógica original)
+            old_months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+            if periodo_str in old_months:
+                 return '2025'
+            return 'no disponible'
+        
+        df_excel['Año'] = df_excel['Periodo'].apply(get_year_from_periodo)
+    
+    else:
+        df_excel['Periodo'] = 'no disponible'
+        df_excel['Año'] = 'no disponible'
+    # --- FIN DE LA MODIFICACIÓN ---
 
     if 'CECO' in df_excel.columns:
         df_excel['CECO'] = pd.to_numeric(df_excel['CECO'], errors='coerce')
         df_excel.dropna(subset=['CECO'], inplace=True)
         df_excel['CECO'] = df_excel['CECO'].astype(int).astype(str)
 
-    text_cols_for_filters_charts = ['LEGAJO','Gerencia', 'Relación', 'Sexo', 'Función', 'Distrito', 'Ministerio', 'Rango Antiguedad', 'Rango Edad', 'Periodo', 'Nivel', 'CECO']
+    # --- MODIFICADO: Añadir 'Año' a la lista de columnas a normalizar ---
+    text_cols_for_filters_charts = ['LEGAJO','Gerencia', 'Relación', 'Sexo', 'Función', 'Distrito', 'Ministerio', 'Rango Antiguedad', 'Rango Edad', 'Periodo', 'Nivel', 'CECO', 'Año']
+    
     for col in text_cols_for_filters_charts:
         if col not in df_excel.columns: df_excel[col] = 'no disponible'
         df_excel[col] = df_excel[col].astype(str).replace(['None', 'nan', ''], 'no disponible').str.strip()
@@ -266,7 +347,8 @@ def load_and_clean_data(uploaded_file):
     return df_excel
     
 # --- INICIO DE LA APLICACIÓN ---
-st.title("👥 Dotación 2025")
+# MODIFICADO: Título principal genérico
+st.title("👥 Dotación")
 st.write("Estructura y distribución geográfica y por gerencia de personal")
 
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de dotación", type=["xlsx"])
@@ -286,13 +368,24 @@ if uploaded_file is not None:
 
     st.sidebar.header('Filtros del Dashboard')
     
-    # *** LEGAJO ADICIONADO AL CONFIG DE FILTROS (misma funcionalidad que CECO) ***
+    # --- MODIFICADO: Añadido 'Año' al diccionario de filtros ---
     filter_cols_config = {
-        'Periodo': 'Periodo', 'Gerencia': 'Gerencia', 'Relación': 'Relación', 'Función': 'Función',
-        'Distrito': 'Distrito', 'Ministerio': 'Ministerio', 'Rango Antiguedad': 'Antigüedad',
-        'Rango Edad': 'Edad', 'Sexo': 'Sexo', 'Nivel': 'Nivel', 'CECO': 'Centro de Costo',
-        'LEGAJO': 'Legajo'  # agregado aquí para que aparezca en el sidebar
+        'Año': 'Año',                   # AÑADIDO
+        'Periodo': 'Periodo', 
+        'Gerencia': 'Gerencia', 
+        'Relación': 'Relación', 
+        'Función': 'Función',
+        'Distrito': 'Distrito', 
+        'Ministerio': 'Ministerio', 
+        'Rango Antiguedad': 'Antigüedad',
+        'Rango Edad': 'Edad', 
+        'Sexo': 'Sexo', 
+        'Nivel': 'Nivel', 
+        'CECO': 'Centro de Costo',
+        'LEGAJO': 'Legajo'
     }
+    # --- FIN DE LA MODIFICACIÓN ---
+    
     # Conservamos el orden tal cual está en dict (Python 3.7+ mantiene inserción)
     filter_cols = list(filter_cols_config.keys())
 
@@ -312,6 +405,7 @@ if uploaded_file is not None:
 
     old_selections = {k: list(v) for k, v in st.session_state.selections.items()}
 
+    # Este bucle ahora creará automáticamente el filtro 'Año'
     for col, title in filter_cols_config.items():
         available_options = get_available_options(df, st.session_state.selections, col)
         current_selection = [sel for sel in st.session_state.selections.get(col, []) if sel in available_options]
@@ -334,6 +428,7 @@ if uploaded_file is not None:
     st.markdown("---")
     
     period_to_display = None
+    # La lista 'all_periodos_sorted' ahora usará la nueva función de ordenamiento
     all_periodos_sorted = get_sorted_unique_options(df, 'Periodo') # Master sorted list
     selected_periodos = st.session_state.selections.get('Periodo', [])
     
@@ -367,10 +462,19 @@ if uploaded_file is not None:
         def get_delta_string(current_val, prev_val):
             if prev_val > 0:
                 delta_pct = ((current_val - prev_val) / prev_val) * 100
+            elif current_val > 0:
+                delta_pct = 100.0 # Crecimiento infinito si prev es 0 y current > 0
             else:
-                delta_pct = 100.0 if current_val > 0 else 0.0
+                delta_pct = 0.0 # Sin cambios si ambos son 0
+                
             color = 'green' if delta_pct >= 0 else 'red'
             arrow = '▲' if delta_pct >= 0 else '▼'
+            # Evitar mostrar -0.0%
+            if -0.05 < delta_pct < 0.05:
+                delta_pct = 0.0
+                color = 'grey' # Opcional: color neutro para 0%
+                arrow = '▬'    # Opcional: símbolo neutro
+                
             return f'<div class="delta {color}">{arrow} {delta_pct:.1f}%</div>'
 
         if previous_period:
@@ -403,6 +507,7 @@ if uploaded_file is not None:
             }}
             .summary-main-kpi .delta.green {{ color: #2ca02c; }}
             .summary-main-kpi .delta.red {{ color: #d62728; }}
+            .summary-main-kpi .delta.grey {{ color: #7f7f7f; }} /* Color neutro */
 
             .summary-breakdown {{ display: flex; flex-direction: column; gap: 15px; flex-grow: 2; }}
             .summary-row {{ display: flex; justify-content: space-around; align-items: center; }}
@@ -418,6 +523,7 @@ if uploaded_file is not None:
             }}
             .summary-sub-kpi .delta.green {{ color: #2ca02c; }}
             .summary-sub-kpi .delta.red {{ color: #d62728; }}
+            .summary-sub-kpi .delta.grey {{ color: #7f7f7f; }} /* Color neutro */
 
             @media (max-width: 768px) {{
                 .summary-container {{
@@ -534,20 +640,38 @@ if uploaded_file is not None:
             st.metric(label="Total de Empleados (filtrado)", value=format_integer_es(len(filtered_df)))
             st.subheader('Dotación por Periodo (Total)')
             col_table_periodo, col_chart_periodo = st.columns([1, 2])
+            
+            # Los datos se agrupan por 'Periodo'
             periodo_counts = filtered_df.groupby('Periodo').size().reset_index(name='Cantidad')
+            # Se aplica el ordenamiento categórico usando la lista ya ordenada
             periodo_counts['Periodo'] = pd.Categorical(periodo_counts['Periodo'], categories=all_periodos_sorted, ordered=True)
             periodo_counts = periodo_counts.sort_values('Periodo').reset_index(drop=True)
+            
+            # --- MODIFICADO (PUNTO 1): Usar 'sorted_selected_periods' para el eje X ---
+            # Solo filtramos el DF del gráfico, la tabla de la izquierda puede mostrar todo
+            periodo_counts_chart = periodo_counts[periodo_counts['Periodo'].isin(sorted_selected_periods)]
+
             with col_chart_periodo:
-                line_periodo = alt.Chart(periodo_counts).mark_line(point=True).encode(x=alt.X('Periodo', sort=all_periodos_sorted, title='Periodo'), y=alt.Y('Cantidad', title='Cantidad Total de Empleados', scale=alt.Scale(zero=False)), tooltip=['Periodo', alt.Tooltip('Cantidad', format=',.0f')])
+                # El gráfico usará 'sorted_selected_periods' para el eje X
+                line_periodo = alt.Chart(periodo_counts_chart).mark_line(point=True).encode(
+                    x=alt.X('Periodo', sort=sorted_selected_periods, title='Periodo'), 
+                    y=alt.Y('Cantidad', title='Cantidad Total de Empleados', scale=alt.Scale(zero=False)), 
+                    tooltip=['Periodo', alt.Tooltip('Cantidad', format=',.0f')]
+                )
                 text_periodo = line_periodo.mark_text(align='center', baseline='bottom', dy=-10, color='black').encode(text='Cantidad:Q')
                 st.altair_chart((line_periodo + text_periodo), use_container_width=True)
             with col_table_periodo:
                 st.dataframe(periodo_counts.style.format({"Cantidad": format_integer_es}))
                 generate_download_buttons(periodo_counts, 'dotacion_total_por_periodo', key_suffix="_resumen1")
+            
             st.markdown('---')
             st.subheader('Distribución Comparativa por Sexo')
             col_table_sexo, col_chart_sexo = st.columns([1, 2])
-            sexo_pivot = filtered_df.groupby(['Periodo', 'Sexo']).size().unstack(fill_value=0).reindex(all_periodos_sorted, fill_value=0).reset_index()
+            
+            # --- MODIFICADO (PUNTO 1): Usar 'sorted_selected_periods' para el reindex ---
+            # El pivoteo y reindexación con 'sorted_selected_periods' asegura el orden cronológico
+            sexo_pivot = filtered_df.groupby(['Periodo', 'Sexo']).size().unstack(fill_value=0).reindex(sorted_selected_periods, fill_value=0).reset_index()
+
             with col_chart_sexo:
                 if not sexo_pivot.empty:
                     fig_sexo = make_subplots(specs=[[{"secondary_y": True}]])
@@ -558,16 +682,24 @@ if uploaded_file is not None:
                     if 'Femenino' in sexo_pivot.columns:
                         fig_sexo.add_trace(go.Scatter(x=sexo_pivot['Periodo'], y=sexo_pivot['Femenino'], name='Femenino', mode='lines+markers+text', text=sexo_pivot['Femenino'], textposition='top center', line=dict(color='#ed7d31')), secondary_y=True)
                         fig_sexo.update_yaxes(title_text="Cantidad Femenino", secondary_y=True, showgrid=True)
+                    
+                    # --- MODIFICADO (PUNTO 1): Usar 'sorted_selected_periods' para el eje X ---
+                    fig_sexo.update_xaxes(categoryorder='array', categoryarray=sorted_selected_periods)
+                    
                     fig_sexo.update_layout(title_text="Distribución Comparativa por Sexo", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     st.plotly_chart(fig_sexo, use_container_width=True, key="sexo_chart")
             with col_table_sexo:
                 sexo_pivot['Total'] = sexo_pivot.get('Masculino', 0) + sexo_pivot.get('Femenino', 0)
                 st.dataframe(sexo_pivot.style.format(formatter=format_integer_es, subset=[c for c in ['Masculino', 'Femenino', 'Total'] if c in sexo_pivot.columns]))
                 generate_download_buttons(sexo_pivot, 'distribucion_sexo_por_periodo', key_suffix="_resumen2")
+            
             st.markdown('---')
             st.subheader('Distribución Comparativa por Relación')
             col_table_rel, col_chart_rel = st.columns([1, 2])
-            rel_pivot = filtered_df.groupby(['Periodo', 'Relación']).size().unstack(fill_value=0).reindex(all_periodos_sorted, fill_value=0).reset_index()
+            
+            # --- MODIFICADO (PUNTO 1): Usar 'sorted_selected_periods' para el reindex ---
+            rel_pivot = filtered_df.groupby(['Periodo', 'Relación']).size().unstack(fill_value=0).reindex(sorted_selected_periods, fill_value=0).reset_index()
+            
             with col_chart_rel:
                 if not rel_pivot.empty:
                     fig_rel = make_subplots(specs=[[{"secondary_y": True}]])
@@ -578,24 +710,43 @@ if uploaded_file is not None:
                     if 'FC' in rel_pivot.columns:
                         fig_rel.add_trace(go.Scatter(x=rel_pivot['Periodo'], y=rel_pivot['FC'], name='FC', mode='lines+markers+text', text=rel_pivot['FC'], textposition='top center', line=dict(color='#ffc000')), secondary_y=True)
                         fig_rel.update_yaxes(title_text="Cantidad FC", secondary_y=True, showgrid=True)
+                    
+                    # --- MODIFICADO (PUNTO 1): Usar 'sorted_selected_periods' para el eje X ---
+                    fig_rel.update_xaxes(categoryorder='array', categoryarray=sorted_selected_periods)
+                    
                     fig_rel.update_layout(title_text="Distribución Comparativa por Relación", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     st.plotly_chart(fig_rel, use_container_width=True, key="rel_chart")
             with col_table_rel:
                 rel_pivot['Total'] = rel_pivot.get('Convenio', 0) + rel_pivot.get('FC', 0)
                 st.dataframe(rel_pivot.style.format(formatter=format_integer_es, subset=[c for c in ['Convenio', 'FC', 'Total'] if c in rel_pivot.columns]))
                 generate_download_buttons(rel_pivot, 'distribucion_relacion_por_periodo', key_suffix="_resumen3")
+            
             st.markdown('---')
             st.subheader('Variación Mensual de Dotación')
             col_table_var, col_chart_var = st.columns([1, 2])
-            var_counts = filtered_df.groupby('Periodo').size().reindex(all_periodos_sorted, fill_value=0).reset_index(name='Cantidad_Actual')
-            var_counts['Variacion_Cantidad'] = var_counts['Cantidad_Actual'].diff()
-            var_counts['Variacion_%'] = (var_counts['Variacion_Cantidad'] / var_counts['Cantidad_Actual'].shift(1) * 100).replace([np.inf, -np.inf], 0)
+            
+            # --- MODIFICADO (PUNTO 1): Usar 'sorted_selected_periods' para el reindex ---
+            # Primero obtenemos todos los datos para los cálculos
+            var_counts_full = filtered_df.groupby('Periodo').size().reindex(all_periodos_sorted, fill_value=0).reset_index(name='Cantidad_Actual')
+            var_counts_full['Variacion_Cantidad'] = var_counts_full['Cantidad_Actual'].diff()
+            var_counts_full['Variacion_%'] = (var_counts_full['Variacion_Cantidad'] / var_counts_full['Cantidad_Actual'].shift(1) * 100).replace([np.inf, -np.inf], 0)
+            
+            # Filtramos solo los seleccionados para la tabla y el gráfico
+            var_counts = var_counts_full[var_counts_full['Periodo'].isin(sorted_selected_periods)]
             var_counts['label'] = var_counts.apply(lambda r: f"{format_integer_es(r['Variacion_Cantidad'])} ({format_percentage_es(r['Variacion_%'], 2)})" if pd.notna(r['Variacion_Cantidad']) and r.name > 0 else "", axis=1)
+
             with col_table_var:
                 st.dataframe(var_counts.style.format({"Cantidad_Actual": format_integer_es, "Variacion_Cantidad": format_integer_es, "Variacion_%": lambda x: format_percentage_es(x, 2)}))
                 generate_download_buttons(var_counts, 'variacion_mensual_total', key_suffix="_resumen4")
             with col_chart_var:
-                chart_var = alt.Chart(var_counts.iloc[1:]).mark_bar().encode(x=alt.X('Periodo', sort=all_periodos_sorted), y=alt.Y('Variacion_Cantidad', title='Variación'), color=alt.condition(alt.datum.Variacion_Cantidad > 0, alt.value("green"), alt.value("red")), tooltip=['Periodo', 'Variacion_Cantidad', alt.Tooltip('Variacion_%', format='.2f')])
+                
+                # --- MODIFICADO (PUNTO 1): Usar 'sorted_selected_periods' para el eje X ---
+                chart_var = alt.Chart(var_counts.iloc[1:]).mark_bar().encode(
+                    x=alt.X('Periodo', sort=sorted_selected_periods), 
+                    y=alt.Y('Variacion_Cantidad', title='Variación'), 
+                    color=alt.condition(alt.datum.Variacion_Cantidad > 0, alt.value("green"), alt.value("red")), 
+                    tooltip=['Periodo', 'Variacion_Cantidad', alt.Tooltip('Variacion_%', format='.2f')]
+                )
                 text_var = chart_var.mark_text(align='center', baseline='middle', dy=alt.expr("datum.Variacion_Cantidad > 0 ? -10 : 15"), color='white').encode(text='label:N')
                 st.altair_chart(chart_var + text_var, use_container_width=True)
 
@@ -728,6 +879,7 @@ if uploaded_file is not None:
         st.header('Análisis de Edad y Antigüedad por Periodo')
         if filtered_df.empty or not selected_periodos: st.warning("No hay datos para mostrar con los filtros seleccionados.")
         else:
+            # 'sorted_selected_periods' ya tiene el orden cronológico correcto
             periodo_a_mostrar_edad = st.selectbox('Selecciona un Periodo:', sorted_selected_periods, index=len(sorted_selected_periods) - 1 if sorted_selected_periods else 0, key='periodo_selector_edad')
             df_periodo_edad = filtered_df[filtered_df['Periodo'] == periodo_a_mostrar_edad]
             st.subheader(f'Distribución por Edad para {periodo_a_mostrar_edad}'); col_table_edad, col_chart_edad = st.columns([1, 2])
@@ -739,7 +891,16 @@ if uploaded_file is not None:
             with col_table_edad:
                 edad_table = df_periodo_edad.groupby(['Rango Edad', 'Relación']).size().unstack(fill_value=0)
                 edad_table['Total'] = edad_table.sum(axis=1)
-                st.dataframe(edad_table.style.format(format_integer_es))
+                
+                # --- AÑADIDO (PUNTO 2): Fila de Total para Edad ---
+                try:
+                    total_row_edad = edad_table.sum().to_frame().T
+                    total_row_edad.index = ['**TOTAL**']
+                    edad_table_display = pd.concat([edad_table, total_row_edad])
+                except Exception:
+                    edad_table_display = edad_table # Fallback por si hay error
+                
+                st.dataframe(edad_table_display.style.format(format_integer_es))
                 generate_download_buttons(edad_table.reset_index(), f'distribucion_edad_{periodo_a_mostrar_edad}', key_suffix="_edad")
             st.markdown('---')
             st.subheader(f'Distribución por Antigüedad para {periodo_a_mostrar_edad}'); col_table_ant, col_chart_ant = st.columns([1, 2])
@@ -751,7 +912,16 @@ if uploaded_file is not None:
             with col_table_ant:
                 antiguedad_table = df_periodo_edad.groupby(['Rango Antiguedad', 'Relación']).size().unstack(fill_value=0)
                 antiguedad_table['Total'] = antiguedad_table.sum(axis=1)
-                st.dataframe(antiguedad_table.style.format(format_integer_es))
+                
+                # --- AÑADIDO (PUNTO 2): Fila de Total para Antigüedad ---
+                try:
+                    total_row_ant = antiguedad_table.sum().to_frame().T
+                    total_row_ant.index = ['**TOTAL**']
+                    antiguedad_table_display = pd.concat([antiguedad_table, total_row_ant])
+                except Exception:
+                    antiguedad_table_display = antiguedad_table # Fallback
+                
+                st.dataframe(antiguedad_table_display.style.format(format_integer_es))
                 generate_download_buttons(antiguedad_table.reset_index(), f'distribucion_antiguedad_{periodo_a_mostrar_edad}', key_suffix="_antiguedad")
 
     with tab_desglose:
@@ -769,7 +939,15 @@ if uploaded_file is not None:
                 st.altair_chart(chart + text_labels, use_container_width=True)
             with col_table_cat:
                 table_data = df_periodo_desglose.groupby(cat_seleccionada).size().reset_index(name='Cantidad').sort_values('Cantidad', ascending=False)
-                st.dataframe(table_data.style.format({"Cantidad": format_integer_es}))
+                
+                # --- AÑADIDO (PUNTO 2): Fila de Total para Desglose ---
+                try:
+                    total_row_desglose = pd.DataFrame({cat_seleccionada: ['**TOTAL**'], 'Cantidad': [table_data['Cantidad'].sum()]})
+                    table_data_display = pd.concat([table_data, total_row_desglose], ignore_index=True)
+                except Exception:
+                    table_data_display = table_data # Fallback
+                
+                st.dataframe(table_data_display.style.format({"Cantidad": format_integer_es}))
                 generate_download_buttons(table_data, f'dotacion_{cat_seleccionada.lower()}_{periodo_a_mostrar_desglose}', key_suffix="_desglose")
 
     with tab_brutos:
@@ -782,5 +960,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
