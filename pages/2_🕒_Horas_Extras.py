@@ -392,7 +392,7 @@ st.title("⏰ Horas Extras 2025")
 st.subheader('Análisis Interactivo de Costos y Cantidades de Horas Extras')
 
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Horas Extras", type=["xlsx"])
-COORDS_URL = "https://raw.githubusercontent.com/Tincho2002/dotacion_assa_2025/main/coordenadas.csv"
+COORDS_URL = "https://raw.githubusercontent.com/Tincho2002/RRHH/main/coordenadas.csv"
 
 if uploaded_file is not None:
     with st.spinner('Procesando archivo...'):
