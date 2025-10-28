@@ -3,7 +3,8 @@ import streamlit as st
 # Se agrega 'layout="wide"' a la configuración de la página.
 st.set_page_config(
     page_title="Portal de RRHH",
-    page_icon="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg", # URL pública del logo
+    # --- URL CORREGIDA ---
+    page_icon="https://cdn.jsdelivr.net/gh/Tincho2002/RRHH@main/assets/logo_assa.jpg", # URL pública del logo (vía CDN)
     layout="wide"
 )
 
@@ -173,7 +174,8 @@ st.html("""
             splash.appendChild(droplet);
         }
     </script>
-    <img id="splash-logo" src="https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg" width="500">
+    
+    <img id="splash-logo" src="https://cdn.jsdelivr.net/gh/Tincho2002/RRHH@main/assets/logo_assa.jpg" width="500">
     <h1 id="splash-title">Portal de Análisis de RRHH</h1>
 </div>
 """)
@@ -224,7 +226,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # PASO 2: Renderizar la estructura HTML del encabezado.
-logo_url = "https://raw.githubusercontent.com/Tincho2002/RRHH/main/assets/logo_assa.jpg"
+
+# --- URL CORREGIDA ---
+logo_url = "https://cdn.jsdelivr.net/gh/Tincho2002/RRHH@main/assets/logo_assa.jpg"
+
 st.markdown(f"""
 <div class="header-container">
     <img src="{logo_url}" class="header-logo logo-left">
@@ -275,7 +280,6 @@ st.markdown("""
         <p>Analiza la dinámica de ingresos y egresos, y la composición detallada de la dotación.</p>
         <div class="access-icon">🔗</div>
     </a>
-    <!-- --- NUEVA TARJETA AÑADIDA --- -->
     <a href="/Indicadores_de_Eficiencia" target="_self" class="app-card card-eficiencia">
         <div class="card-title">🎯 Indicadores de Eficiencia</div>
         <p>Mide el rendimiento y la productividad a través de KPIs clave.</p>
