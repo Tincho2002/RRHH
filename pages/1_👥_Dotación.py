@@ -353,7 +353,7 @@ st.write("Estructura y distribución geográfica y por gerencia de personal")
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de dotación", type=["xlsx"])
 st.markdown("---")
 
-COORDS_URL = "https://raw.githubusercontent.com/Tincho2002/dotacion_assa_2025/main/coordenadas.csv"
+COORDS_URL = "https://raw.githubusercontent.com/Tincho2002/RRHH/main/coordenadas.csv"
 df_coords = load_coords_from_url(COORDS_URL)
 
 if uploaded_file is not None:
@@ -959,4 +959,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
