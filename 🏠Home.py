@@ -252,7 +252,8 @@ st.markdown(f"""
     <img src="{logo_url}" class="header-logo logo-left">
     <div class="header-text">
         <h1 style='color:#555;'>Bienvenido a la Aplicación de RRHH</h1>
-        <h3 style='color:#555;'>Portal de Análisis de Capital Humano - Aguas Santafesinas S.A.</h3>
+        <h3 style='color:#555;'>Portal de Análisis de Capital Humano</h3>
+        <h3 style='color:#555;'>Aguas Santafesinas S.A.</h3>
     </div>
     <img src="{logo_url}" class="header-logo logo-right">
 </div>
@@ -312,5 +313,6 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
 
