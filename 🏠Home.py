@@ -28,7 +28,10 @@ st.markdown("""
     align-items: center;
     color: white;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    animation: hideSplash 1.5s ease-out 3.5s forwards;
+    
+    /* --- 👇 CAMBIO AQUÍ 👇 --- */
+    /* Usamos la nueva animación 'slideUpSplash', con retraso reducido a 2.5s y duración de 1s */
+    animation: slideUpSplash 1s ease-out 2.5s forwards;
 }
 
 #splash-logo {
@@ -41,10 +44,18 @@ st.markdown("""
     animation: fadeInSlide 1.5s 1s ease-out forwards;
 }
 
-@keyframes hideSplash {
-    from { opacity: 1; }
-    to { opacity: 0; visibility: hidden; }
+/* --- 👇 CAMBIO AQUÍ 👇 --- */
+/* Renombramos 'hideSplash' y cambiamos la lógica para que se deslice hacia arriba */
+@keyframes slideUpSplash {
+    from { 
+        transform: translateY(0); 
+    }
+    to { 
+        transform: translateY(-100vh); /* Se desliza 100% hacia arriba */
+        visibility: hidden; 
+    }
 }
+
 
 @keyframes fadeInScale {
     from { opacity: 0; transform: scale(0.8); }
@@ -71,7 +82,10 @@ st.markdown("""
 /* --- Estilos del Contenido Principal --- */
 #main-content {
     opacity: 0; /* Inicia oculto */
-    animation: showContent 1.5s ease-in 3.5s forwards;
+    
+    /* --- 👇 CAMBIO AQUÍ 👇 --- */
+    /* Reducimos el retraso a 2.5s para que coincida con la cortina */
+    animation: showContent 1.5s ease-in 2.5s forwards;
 }
 
 @keyframes showContent {
@@ -84,7 +98,10 @@ st.markdown("""
 [data-testid="stHeader"] {
     opacity: 0; /* Inician ocultos */
     transform: translateY(-20px); /* Un pequeño efecto de deslizamiento hacia abajo */
-    animation: showUI 0.75s ease-out 3.5s forwards;
+    
+    /* --- 👇 CAMBIO AQUÍ 👇 --- */
+    /* Reducimos el retraso a 2.5s */
+    animation: showUI 0.75s ease-out 2.5s forwards;
 }
 
 @keyframes showUI {
@@ -295,3 +312,4 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
