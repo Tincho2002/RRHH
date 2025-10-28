@@ -123,8 +123,8 @@ st.markdown("""
 
 .app-card {
     flex: 1;
-    min-width: 260px;
-    max-width: 350px;
+    min-width: 300px; /* 👈 Aumentado para forzar 3 por fila */
+    max-width: 400px; /* 👈 Aumentado para darles más espacio para "crecer" */
     padding: 20px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -312,4 +312,5 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
+
 
