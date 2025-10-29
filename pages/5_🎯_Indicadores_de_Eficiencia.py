@@ -1,5 +1,5 @@
 # ===============================================================
-# Visualizador de Eficiencia - V Corregida y Mejorada
+# Visualizador de Eficiencia - V Corregida y Mejorada (con Tab 3 Completa)
 # ===============================================================
 
 import streamlit as st
@@ -18,7 +18,7 @@ st.set_page_config(layout="wide", page_title="Visualizador de Eficiencia")
 def load_data(uploaded_file):
     """
     Carga los datos desde un archivo Excel, procesa las fechas,
-    CALCULA TOTALES DE HORAS EXTRAS Y DÍAS DE GUARDIA, y extrae
+    CALCULA TOTALES DE HORAS EXTRAS Y DÍAS de GUARDIA, y extrae
     nombres de columnas, años y meses.
 
     MODIFICADO: Ahora carga 'eficiencia' y 'masa_salarial' en
@@ -193,7 +193,7 @@ def load_data(uploaded_file):
            'Período' in df_eficiencia.columns and \
            pd.api.types.is_datetime64_any_dtype(df_indicadores['Período']) and \
            pd.api.types.is_datetime64_any_dtype(df_eficiencia['Período']):
-            
+           
             try:
                 # Extraer solo 'Período' y 'Dotación' de indicadores
                 df_dotacion = df_indicadores[['Período', 'Dotación']].copy()
@@ -502,7 +502,7 @@ def plot_bar(df_plot, columns, yaxis_title):
         for col in columns:
             if col in df_plot.columns: # Asegurarse de que la columna Y existe
                 # --- MODIFICADO: Añadir 'Dotación' al formateo de enteros ---
-                is_int_col = col.startswith(('ds_', 'hs_')) or col == 'Dotación'
+                is_int_col = col.startswith(('ds_', 'hs_')) or col in ['HE_hs', 'Guardias_ds', 'Dotación']
                 formatter = format_number_int if is_int_col else format_number
 
                 fig.add_trace(go.Bar(
@@ -1225,7 +1225,7 @@ with tab2:
     #    st.info("No hay datos de Cantidades para los filtros seleccionados.")
 
 
-# ----------------- NUEVA PESTAÑA DE INDICADORES -----------------
+# ----------------- NUEVA PESTAÑA DE INDICADORES (MODIFICADA) -----------------
 with tab3:
     st.subheader("Análisis de Indicadores (Hoja: masa_salarial)")
 
@@ -1258,8 +1258,17 @@ with tab3:
                     default=["Ninguna"],
                     key="secondary_k_ind"
                 )
+            
+            # --- AÑADIDO: Construir lista combinada para tablas (Goal 3) ---
+            selected_k_ind_vars = list(primary_k_ind_vars)
+            secondary_k_ind_vars_filtered = [col for col in secondary_k_ind_vars if col != "Ninguna"]
+            if secondary_k_ind_vars_filtered:
+                for col in secondary_k_ind_vars_filtered:
+                    if col not in selected_k_ind_vars:
+                        selected_k_ind_vars.append(col)
+            # --- FIN AÑADIDO ---
 
-            # Lógica para filtrar "Ninguna"
+            # Lógica para filtrar "Ninguna" (para el gráfico)
             secondary_k_ind_vars_plot = secondary_k_ind_vars
             if "Ninguna" in secondary_k_ind_vars and len(secondary_k_ind_vars) > 1:
                 secondary_k_ind_vars_plot = [col for col in secondary_k_ind_vars if col != "Ninguna"]
@@ -1274,6 +1283,72 @@ with tab3:
                     "$K (Columnas)"
                 )
                 st.plotly_chart(fig_k_ind, use_container_width=True, key="evol_k_ind")
+
+                # --- AÑADIDO: Tabla de datos para Evolución de Costos (Goal 3 y 4) ---
+                if selected_k_ind_vars: # Solo mostrar si hay algo seleccionado
+                    cols_for_table_k_ind = ['Período', 'Período_fmt'] + [c for c in selected_k_ind_vars if c in dff_indicadores.columns]
+                    table_k_ind = dff_indicadores[cols_for_table_k_ind].copy()
+                    show_table(table_k_ind, "Indicadores_Costos_Datos", show_totals=True) # show_totals=True es Goal 4
+                # --- FIN AÑADIDO ---
+                
+                # --- AÑADIDO: Variaciones Mensuales (Goal 1, 2, 3, 4) ---
+                if selected_k_ind_vars: # Solo si hay variables
+                    st.subheader("Variaciones Mensuales (Indicadores Costo)")
+                    tipo_var_mes_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k_ind")
+                    
+                    # Usar df_indicadores (original) para calcular la variación
+                    df_for_var_mes_k_ind = pd.DataFrame()
+                    if filter_mode == 'Período Específico':
+                        df_for_var_mes_k_ind = df_indicadores[df_indicadores['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_indicadores.columns else pd.DataFrame()
+                    else:
+                        df_for_var_mes_k_ind = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
+
+                    df_val_mes_k_ind, df_pct_mes_k_ind = calc_variation(df_for_var_mes_k_ind, selected_k_ind_vars,'mensual')
+                    is_pct_mes_k_ind = (tipo_var_mes_k_ind == 'Porcentaje')
+                    df_var_mes_k_ind = df_pct_mes_k_ind if is_pct_mes_k_ind else df_val_mes_k_ind
+                    fig_var_mes_k_ind = plot_bar(df_var_mes_k_ind, selected_k_ind_vars, "Variación Mensual ($K)" if tipo_var_mes_k_ind=='Valores' else "Variación Mensual (%)")
+                    st.plotly_chart(fig_var_mes_k_ind, use_container_width=True, key="var_mes_k_ind")
+                    # Goal 3 & 4: Añadir tabla con totales
+                    show_table(df_var_mes_k_ind, "Indicadores_Costos_Var_Mensual", is_percentage=is_pct_mes_k_ind, show_totals=True) 
+                # --- FIN AÑADIDO ---
+
+                # --- AÑADIDO: Variaciones Interanuales (Goal 1, 2, 3, 4) ---
+                if selected_k_ind_vars: # Solo si hay variables
+                    st.subheader("Variaciones Interanuales (Indicadores Costo)")
+                    tipo_var_anio_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k_ind")
+
+                    # Usar df_indicadores (original) para calcular la variación
+                    df_for_var_anio_k_ind = pd.DataFrame()
+                    if filter_mode == 'Período Específico' and 'Período_fmt' in df_indicadores.columns:
+                        try:
+                            selected_periods_ind = pd.to_datetime(filter_selection, format='%b-%y', errors='coerce').dropna()
+                            if not selected_periods_ind.empty:
+                                compare_periods_ind = selected_periods_ind - pd.DateOffset(years=1)
+                                all_relevant_periods_ind = selected_periods_ind.union(compare_periods_ind)
+                                all_relevant_fmt_ind = all_relevant_periods_ind.strftime('%b-%y').tolist()
+                                df_for_var_anio_k_ind = df_indicadores[df_indicadores['Período_fmt'].isin(all_relevant_fmt_ind)].copy()
+                            else:
+                                st.warning("No se pudieron procesar los períodos específicos seleccionados para la variación interanual.")
+                        except Exception as e:
+                            st.error(f"Error procesando períodos específicos para variación interanual: {e}")
+                    elif filter_mode != 'Período Específico':
+                        df_for_var_anio_k_ind = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
+
+                    df_val_anio_k_ind, df_pct_anio_k_ind = calc_variation(df_for_var_anio_k_ind, selected_k_ind_vars,'interanual')
+                    is_pct_anio_k_ind = (tipo_var_anio_k_ind == 'Porcentaje')
+                    df_var_anio_k_ind_raw = df_pct_anio_k_ind if is_pct_anio_k_ind else df_val_anio_k_ind
+
+                    if not df_var_anio_k_ind_raw.empty and 'Período' in df_var_anio_k_ind_raw.columns:
+                        df_var_anio_k_ind = df_var_anio_k_ind_raw[df_var_anio_k_ind_raw['Período'].dt.year != 2024].copy()
+                    else:
+                        df_var_anio_k_ind = df_var_anio_k_ind_raw.copy()
+
+                    fig_var_anio_k_ind = plot_bar(df_var_anio_k_ind, selected_k_ind_vars, "Variación Interanual ($K)" if tipo_var_anio_k_ind=='Valores' else "Variación Interanual (%)")
+                    st.plotly_chart(fig_var_anio_k_ind, use_container_width=True, key="var_anio_k_ind")
+                    # Goal 3 & 4: Añadir tabla con totales
+                    show_table(df_var_anio_k_ind, "Indicadores_Costos_Var_Interanual", is_percentage=is_pct_anio_k_ind, show_totals=True)
+                # --- FIN AÑADIDO ---
+
             else:
                 st.info("No hay datos de Indicadores de Costo para los filtros seleccionados.")
 
@@ -1301,7 +1376,16 @@ with tab3:
                     key="secondary_q_ind"
                 )
 
-            # Lógica para filtrar "Ninguna"
+            # --- AÑADIDO: Construir lista combinada para tablas (Goal 3) ---
+            selected_q_ind_vars = list(primary_q_ind_vars)
+            secondary_q_ind_vars_filtered = [col for col in secondary_q_ind_vars if col != "Ninguna"]
+            if secondary_q_ind_vars_filtered:
+                for col in secondary_q_ind_vars_filtered:
+                    if col not in selected_q_ind_vars:
+                        selected_q_ind_vars.append(col)
+            # --- FIN AÑADIDO ---
+
+            # Lógica para filtrar "Ninguna" (para el gráfico)
             secondary_q_ind_vars_plot = secondary_q_ind_vars
             if "Ninguna" in secondary_q_ind_vars and len(secondary_q_ind_vars) > 1:
                 secondary_q_ind_vars_plot = [col for col in secondary_q_ind_vars if col != "Ninguna"]
@@ -1316,5 +1400,72 @@ with tab3:
                     "Cantidades (Columnas)"
                 )
                 st.plotly_chart(fig_q_ind, use_container_width=True, key="evol_q_ind")
+                
+                # --- AÑADIDO: Tabla de datos para Evolución de Cantidad (Goal 3 y 4) ---
+                if selected_q_ind_vars: # Solo mostrar si hay algo seleccionado
+                    cols_for_table_q_ind = ['Período', 'Período_fmt'] + [c for c in selected_q_ind_vars if c in dff_indicadores.columns]
+                    table_q_ind = dff_indicadores[cols_for_table_q_ind].copy()
+                    show_table(table_q_ind, "Indicadores_Cantidades_Datos", show_totals=True) # show_totals=True es Goal 4
+                # --- FIN AÑADIDO ---
+                
+                # --- AÑADIDO: Variaciones Mensuales (Goal 1, 2, 3, 4) ---
+                if selected_q_ind_vars: # Solo si hay variables
+                    st.subheader("Variaciones Mensuales (Indicadores Cantidad)")
+                    tipo_var_mes_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_q_ind")
+
+                    # Usar df_indicadores (original) para calcular la variación
+                    df_for_var_mes_q_ind = pd.DataFrame()
+                    if filter_mode == 'Período Específico':
+                        df_for_var_mes_q_ind = df_indicadores[df_indicadores['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_indicadores.columns else pd.DataFrame()
+                    else:
+                        df_for_var_mes_q_ind = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
+
+                    df_val_mes_q_ind, df_pct_mes_q_ind = calc_variation(df_for_var_mes_q_ind, selected_q_ind_vars,'mensual')
+                    is_pct_mes_q_ind = (tipo_var_mes_q_ind == 'Porcentaje')
+                    df_var_mes_q_ind = df_pct_mes_q_ind if is_pct_mes_q_ind else df_val_mes_q_ind
+                    fig_var_mes_q_ind = plot_bar(df_var_mes_q_ind, selected_q_ind_vars, "Variación Mensual (Cantidad)" if tipo_var_mes_q_ind=='Valores' else "Variación Mensual (%)")
+                    st.plotly_chart(fig_var_mes_q_ind, use_container_width=True, key="var_mes_q_ind")
+                    # Goal 3 & 4: Añadir tabla con totales
+                    show_table(df_var_mes_q_ind, "Indicadores_Cantidades_Var_Mensual", is_percentage=is_pct_mes_q_ind, show_totals=True) 
+                    st.markdown("---") # Separador
+                # --- FIN AÑADIDO ---
+
+                # --- AÑADIDO: Variaciones Interanuales (Goal 1, 2, 3, 4) ---
+                if selected_q_ind_vars: # Solo si hay variables
+                    st.subheader("Variaciones Interanuales (Indicadores Cantidad)")
+                    tipo_var_anio_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_q_ind")
+
+                    # Usar df_indicadores (original) para calcular la variación
+                    df_for_var_anio_q_ind = pd.DataFrame()
+                    if filter_mode == 'Período Específico' and 'Período_fmt' in df_indicadores.columns:
+                        try:
+                            selected_periods_ind_q = pd.to_datetime(filter_selection, format='%b-%y', errors='coerce').dropna()
+                            if not selected_periods_ind_q.empty:
+                                compare_periods_ind_q = selected_periods_ind_q - pd.DateOffset(years=1)
+                                all_relevant_periods_ind_q = selected_periods_ind_q.union(compare_periods_ind_q)
+                                all_relevant_fmt_ind_q = all_relevant_periods_ind_q.strftime('%b-%y').tolist()
+                                df_for_var_anio_q_ind = df_indicadores[df_indicadores['Período_fmt'].isin(all_relevant_fmt_ind_q)].copy()
+                            else:
+                                st.warning("No se pudieron procesar los períodos específicos seleccionados para la variación interanual.")
+                        except Exception as e:
+                            st.error(f"Error procesando períodos específicos para variación interanual: {e}")
+                    elif filter_mode != 'Período Específico':
+                        df_for_var_anio_q_ind = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
+
+                    df_val_anio_q_ind, df_pct_anio_q_ind = calc_variation(df_for_var_anio_q_ind, selected_q_ind_vars,'interanual')
+                    is_pct_anio_q_ind = (tipo_var_anio_q_ind == 'Porcentaje')
+                    df_var_anio_q_ind_raw = df_pct_anio_q_ind if is_pct_anio_q_ind else df_val_anio_q_ind
+
+                    if not df_var_anio_q_ind_raw.empty and 'Período' in df_var_anio_q_ind_raw.columns:
+                        df_var_anio_q_ind = df_var_anio_q_ind_raw[df_var_anio_q_ind_raw['Período'].dt.year != 2024].copy()
+                    else:
+                        df_var_anio_q_ind = df_var_anio_q_ind_raw.copy()
+
+                    fig_var_anio_q_ind = plot_bar(df_var_anio_q_ind, selected_q_ind_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_q_ind=='Valores' else "Variación Interanual (%)")
+                    st.plotly_chart(fig_var_anio_q_ind, use_container_width=True, key="var_anio_q_ind")
+                    # Goal 3 & 4: Añadir tabla con totales
+                    show_table(df_var_anio_q_ind, "Indicadores_Cantidades_Var_Interanual", is_percentage=is_pct_anio_q_ind, show_totals=True)
+                # --- FIN AÑADIDO ---
+
             else:
                 st.info("No hay datos de Indicadores de Cantidad para los filtros seleccionados.")
