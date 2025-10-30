@@ -268,8 +268,11 @@ def format_percentage(x):
         return ""  # Devuelve un string vacío para valores nulos
     try:
         if isinstance(x, (int, float)):
+            # --- MODIFICACIÓN: Multiplicar por 100 ANTES de formatear ---
+            # El cálculo del ratio ahora es (Num/Den). Aquí se multiplica por 100 para mostrar.
+            val = float(x) * 100
             # Formato con 2 decimales, comas/puntos, y el signo %
-            formatted_num = f"{float(x):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            formatted_num = f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             return f"{formatted_num} %"
     except (ValueError, TypeError):
         pass
@@ -471,7 +474,13 @@ def calc_variation(df, columns, tipo='mensual'):
             col_prev = f"{col}_prev"
             # Hacemos la resta/división
             df_val[col] = df_merged[col] - df_merged[col_prev]
-            df_pct[col] = (df_val[col] / df_merged[col_prev]) * 100
+            df_pct[col] = (df_val[col] / df_merged[col_prev])
+            
+            # --- MODIFICACIÓN: No multiplicar por 100 aquí. ---
+            # Dejar como ratio (0.1) para variaciones. 
+            # La función 'format_percentage' ahora multiplica por 100.
+            # df_pct[col] = (df_val[col] / df_merged[col_prev]) * 100 
+            
             df_pct[col] = df_pct[col].replace([np.inf, -np.inf], np.nan)
 
         # --- FIN NUEVA LÓGICA ---
@@ -488,7 +497,10 @@ def calc_variation(df, columns, tipo='mensual'):
         for col in columns_to_process:
             shift_period = 1
             df_val[col] = df_var[col].diff(periods=shift_period)
-            df_pct[col] = (df_val[col] / df_var[col].shift(shift_period)) * 100
+            
+            # --- MODIFICACIÓN: No multiplicar por 100 aquí. ---
+            df_pct[col] = (df_val[col] / df_var[col].shift(shift_period))
+            # df_pct[col] = (df_val[col] / df_var[col].shift(shift_period)) * 100
 
     return df_val, df_pct
 
@@ -503,7 +515,16 @@ def plot_bar(df_plot, columns, yaxis_title):
             if col in df_plot.columns: # Asegurarse de que la columna Y existe
                 # --- MODIFICADO: Añadir 'Dotación' al formateo de enteros ---
                 is_int_col = col.startswith(('ds_', 'hs_')) or col in ['HE_hs', 'Guardias_ds', 'Dotación']
-                formatter = format_number_int if is_int_col else format_number
+                
+                # --- NUEVA LÓGICA: Detectar si el título Y es Porcentaje ---
+                is_pct_chart = "Variación Mensual (%)" in yaxis_title or "Variación Interanual (%)" in yaxis_title
+                
+                if is_pct_chart:
+                    formatter = format_percentage
+                elif is_int_col:
+                    formatter = format_number_int
+                else:
+                    formatter = format_number
 
                 fig.add_trace(go.Bar(
                     x=df_plot['Período_fmt'],
@@ -516,11 +537,13 @@ def plot_bar(df_plot, columns, yaxis_title):
     fig.update_traces(texttemplate='%{text}', textangle=0)
     return fig
 
-def show_table(df_table, nombre, show_totals=False, is_percentage=False):
+# --- MODIFICADO: show_table ahora acepta column_formats ---
+def show_table(df_table, nombre, show_totals=False, is_percentage=False, column_formats=None):
     """
     Muestra una tabla en Streamlit, ordenada, y agrega botones de descarga.
     Opcionalmente, añade una fila de totales.
     Acepta un flag 'is_percentage' para formatear con %.
+    NUEVO: Acepta 'column_formats' para formateo por columna.
     """
     # Usar 'Período_fmt' si 'Período' (datetime) no existe, común en tablas de variación
     sort_col = 'Período' if 'Período' in df_table.columns else 'Período_fmt'
@@ -566,14 +589,40 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
 
     df_formatted = df_display.copy()
 
-    for col in df_formatted.select_dtypes(include='number').columns:
-        if is_percentage:
+    # --- INICIO: Lógica de formateo actualizada ---
+    for col in df_formatted.columns:
+        # Saltar la columna 'Período'
+        if col == 'Período':
+            continue
+            
+        # Asegurarse de que la columna sea numérica antes de intentar formatear
+        if not pd.api.types.is_numeric_dtype(df_formatted[col]):
+            continue
+
+        # 1. Chequear 'column_formats' primero (para Tab 4)
+        if column_formats and col in column_formats:
+            format_type = column_formats[col]
+            if format_type == 'percent':
+                df_formatted[col] = df_formatted[col].apply(format_percentage)
+            elif format_type == 'currency':
+                df_formatted[col] = df_formatted[col].apply(format_number)
+            elif format_type == 'number':
+                df_formatted[col] = df_formatted[col].apply(format_number) # 2 decimales para ratios
+            elif format_type == 'integer':
+                df_formatted[col] = df_formatted[col].apply(format_number_int)
+        
+        # 2. Fallback a 'is_percentage' (para variaciones %)
+        elif is_percentage:
             df_formatted[col] = df_formatted[col].apply(format_percentage)
-        # MODIFICADO: Abarcar 'hs_', 'ds_' y nuevas columnas (YA INCLUYE DOTACIÓN)
+            
+        # 3. Fallback a lógica original (enteros para hs/ds/dotación)
         elif col.startswith(('ds_', 'hs_')) or col in ['HE_hs', 'Guardias_ds', 'Dotación']:
             df_formatted[col] = df_formatted[col].apply(format_number_int)
+            
+        # 4. Default (moneda/número 2 decimales)
         else:
             df_formatted[col] = df_formatted[col].apply(format_number)
+    # --- FIN: Lógica de formateo actualizada ---
 
     st.dataframe(df_formatted, use_container_width=True)
 
@@ -596,6 +645,7 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             use_container_width=True
         )
+# --- FIN: show_table modificada ---
 
 # --- FUNCIÓN PARA TARJETAS KPI (MODIFICADA) ---
 def show_kpi_cards(df, var_list):
@@ -653,9 +703,12 @@ def show_kpi_cards(df, var_list):
         delta_abs = total_2025 - total_2024
 
         if total_2024 > 0 and not pd.isna(total_2024):
-            delta_pct = (delta_abs / total_2024) * 100
+            # --- MODIFICACIÓN: No multiplicar por 100 ---
+            delta_pct = (delta_abs / total_2024)
+            # delta_pct = (delta_abs / total_2024) * 100
         elif (total_2024 == 0 or pd.isna(total_2024)) and total_2025 > 0:
-            delta_pct = 100.0 # Si 2024 es 0 y 2025 es > 0, es 100% (o N/A, pero 100% es indicativo)
+            delta_pct = 1.0 # 100%
+            # delta_pct = 100.0
         else:
             delta_pct = 0.0 # Cubre 0 a 0
 
@@ -666,7 +719,10 @@ def show_kpi_cards(df, var_list):
 
         val_str = formatter_val(total_2025)
         delta_abs_str = formatter_val(abs(delta_abs)) # Usamos abs() para el color
-        delta_pct_fmt = format_percentage(delta_pct) # format_percentage ya añade el " %"
+        
+        # --- MODIFICACIÓN: format_percentage ahora multiplica x100 ---
+        delta_pct_fmt = format_percentage(delta_pct)
+        # delta_pct_fmt = format_percentage(delta_pct) # format_percentage ya añade el " %"
 
         if var.startswith('$K_'):
             value_fmt = f"$K {val_str}"
@@ -1216,7 +1272,7 @@ with tab2:
             df_var_anio_qty = df_var_anio_qty_raw.copy()
         # --- FIN MODIFICACIÓN ---
 
-        fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Mensual (%)")
+        fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Interanual (%)")
         st.plotly_chart(fig_var_anio_qty, use_container_width=True, key="var_anio_qty")
         show_table(df_var_anio_qty, "Cantidades_Var_Interanual", is_percentage=is_pct_anio_qty)
     elif not selected_qty_vars:
@@ -1470,7 +1526,7 @@ with tab3:
             else:
                 st.info("No hay datos de Relaciones de Cantidad para los filtros seleccionados.") # <-- RENOMBRADO
 
-# --- INICIO: NUEVA PESTAÑA 4 - INDICADORES (RATIOS) ---
+# --- INICIO: PESTAÑA 4 MODIFICADA ---
 with tab4:
     st.subheader("Cálculo de Indicadores (Hoja: masa_salarial)")
 
@@ -1480,53 +1536,83 @@ with tab4:
     elif dff_indicadores.empty and (not df_indicadores_empty):
         st.info("Los datos de 'masa_salarial' existen pero no coinciden con los filtros seleccionados (Año, Mes, etc.).")
     else:
-        # Definir la lista de opciones para los selectores
-        # Usamos un set para evitar duplicados (como 'Dotación') y luego ordenamos
+        # --- NUEVO: Diccionario de Indicadores Predefinidos ---
+        # Formato: 'Display Name': (numerador_col, denominador_col, format_type)
+        PREDEFINED_INDICATORS = {
+            'HExtras_$K / Msalarial_$K (%)': ('HExtras_$K', 'Msalarial_$K', 'percent'),
+            'Guardias_$K / Msalarial_$K (%)': ('Guardias_$K', 'Msalarial_$K', 'percent'),
+            'HExtras_$K / HE_hs ($)': ('HExtras_$K', 'HE_hs', 'currency'),
+            'Guardias_$K / Guardias_ds ($)': ('Guardias_$K', 'Guardias_ds', 'currency'),
+            'Msalarial_$K / Dotación ($)': ('Msalarial_$K', 'Dotación', 'currency'),
+            'HE_hs / Dotación (hs/pers)': ('HE_hs', 'Dotación', 'number'),
+            'Guardias_ds / Dotación (ds/pers)': ('Guardias_ds', 'Dotación', 'number'),
+        }
+
+        # Filtrar indicadores predefinidos basados en columnas existentes
+        valid_predefined_options = []
+        for key, (num, den, fmt) in PREDEFINED_INDICATORS.items():
+            if num in dff_indicadores.columns and den in dff_indicadores.columns:
+                valid_predefined_options.append(key)
+
+        # --- NUEVO: Selector de Indicadores Predefinidos ---
+        st.subheader("Indicadores Predefinidos")
+        selected_predefined = st.multiselect(
+            "Seleccione indicadores clave:",
+            valid_predefined_options,
+            default=[],
+            key="ind_predefined_select"
+        )
+        
+        st.markdown("---")
+
+        # --- Selector Personalizado (Existente) ---
+        st.subheader("Indicador Personalizado (Avanzado)")
         options_list = sorted(list(set(k_indicador_cols + qty_indicador_cols)))
 
         if not options_list:
             st.warning("No se encontraron columnas de indicadores ('Msalarial_$K', 'HE_hs', 'Dotación', etc.) para calcular ratios.")
         else:
-            
-            # --- NUEVA LÓGICA: Multi-select de combinaciones ---
             possible_indicators = []
-            # Crear todas las combinaciones posibles
             for num in options_list:
                 for den in options_list:
-                    # Evitar divisiones por sí mismo (ratio=1)
                     if num != den:
                         possible_indicators.append(f"{num} / {den}")
-            
-            # Ordenar la lista alfabéticamente
             possible_indicators.sort()
 
             selected_indicators = st.multiselect(
-                "Seleccione los indicadores (Numerador / Denominador) a calcular:",
+                "Seleccione indicadores personalizados (Numerador / Denominador):",
                 possible_indicators,
-                default=[], # Empezar sin nada seleccionado
+                default=[],
                 key="ind_multi_select"
             )
 
-            if selected_indicators:
-                # Preparar el dataframe para la tabla
-                # Usamos dff_indicadores (los datos filtrados)
+            # --- LÓGICA DE CÁLCULO Y TABLA (MODIFICADA) ---
+            if selected_predefined or selected_indicators:
                 df_indicador_calc = dff_indicadores[['Período', 'Período_fmt']].copy().sort_values('Período')
-                
-                # Iterar sobre las selecciones (que son strings 'Num / Den')
+                column_formats_dict = {} # Diccionario para pasar a show_table
+
+                # 1. Calcular Indicadores Predefinidos
+                for key in selected_predefined:
+                    if key in PREDEFINED_INDICATORS:
+                        num_col, den_col, format_type = PREDEFINED_INDICATORS[key]
+                        try:
+                            calc_col = dff_indicadores[num_col].astype(float) / dff_indicadores[den_col].astype(float)
+                            df_indicador_calc[key] = calc_col
+                            column_formats_dict[key] = format_type # Guardar formato
+                        except Exception as e:
+                            st.error(f"Error al calcular '{key}': {e}")
+                            df_indicador_calc[key] = np.nan
+
+                # 2. Calcular Indicadores Personalizados
                 for indicator_str in selected_indicators:
                     try:
-                        # Parsear el string para obtener los nombres de las columnas
                         num_col, den_col = indicator_str.split(' / ')
-                        
-                        # Asegurarse que las columnas existen (por si acaso)
                         if num_col in dff_indicadores.columns and den_col in dff_indicadores.columns:
-                            # Calcular el indicador
                             calc_col = dff_indicadores[num_col].astype(float) / dff_indicadores[den_col].astype(float)
-                            # Guardar en la tabla con el nombre 'Num / Den' (que es el indicator_str)
                             df_indicador_calc[indicator_str] = calc_col
+                            column_formats_dict[indicator_str] = 'number' # Default para personalizados
                         else:
                             df_indicador_calc[indicator_str] = np.nan
-                    
                     except Exception as e:
                         st.error(f"Error al calcular '{indicator_str}': {e}")
                         df_indicador_calc[indicator_str] = np.nan
@@ -1536,14 +1622,14 @@ with tab4:
 
                 st.subheader("Resultados de Indicadores")
                 
-                # Usar show_table para la tabla final
-                # Los nombres de columna ya son 'Num / Den'
+                # Usar show_table con el nuevo argumento column_formats
                 show_table(
                     df_indicador_calc,
                     "Indicadores_Calculados",
-                    show_totals=False # Sumar ratios no tiene sentido
+                    show_totals=False, # Sumar ratios no tiene sentido
+                    column_formats=column_formats_dict
                 )
             
             else:
-                st.info("Por favor seleccione uno o más indicadores de la lista para calcular.")
-# --- FIN: NUEVA PESTAÑA 4 ---
+                st.info("Por favor seleccione uno o más indicadores (predefinidos o personalizados) para calcular.")
+# --- FIN: PESTAÑA 4 MODIFICADA ---
