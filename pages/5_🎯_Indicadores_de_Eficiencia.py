@@ -951,8 +951,8 @@ if not df_indicadores_empty:
 
 
 # ----------------- Pestañas de la aplicación -----------------
-# --- MODIFICACIÓN: Añadir tab3 ---
-tab1, tab2, tab3 = st.tabs(["$K (Costos)", "Cantidades (hs / ds)", "Indicadores"])
+# --- MODIFICACIÓN: Añadir tab4 y renombrar tab3 ---
+tab1, tab2, tab3, tab4 = st.tabs(["$K (Costos)", "Cantidades (hs / ds)", "Relaciones", "Indicadores"])
 # --- FIN MODIFICACIÓN ---
 
 # ----------------- Pestaña de Costos -----------------
@@ -1225,22 +1225,22 @@ with tab2:
     #    st.info("No hay datos de Cantidades para los filtros seleccionados.")
 
 
-# ----------------- NUEVA PESTAÑA DE INDICADORES (MODIFICADA) -----------------
+# ----------------- PESTAÑA DE RELACIONES (ANTES INDICADORES) -----------------
 with tab3:
-    st.subheader("Análisis de Indicadores (Hoja: masa_salarial)")
+    st.subheader("Análisis de Relaciones (Hoja: masa_salarial)") # <-- RENOMBRADO
 
     # Verificar si los datos de indicadores se cargaron y si hay columnas para mostrar
     if df_indicadores_empty:
         # El error ya se muestra en load_data si falla la carga
         pass # No mostrar nada más aquí
     elif dff_indicadores.empty and (not df_indicadores_empty):
-        st.info("Los datos de 'Indicadores' existen pero no coinciden con los filtros seleccionados (Año, Mes, etc.).")
+        st.info("Los datos de 'Relaciones' existen pero no coinciden con los filtros seleccionados (Año, Mes, etc.).") # <-- RENOMBRADO
     elif not k_indicador_cols and not qty_indicador_cols:
         st.warning("No se encontraron las columnas esperadas ('Msalarial_$K', 'HE_hs', etc.) en la hoja 'masa_salarial'.")
     else: # Si hay datos y columnas
         # --- Gráfico 1: Indicadores de Costos ($K) ---
         if k_indicador_cols: # Solo mostrar si hay columnas de costo
-            st.subheader("Indicadores de Costos ($K)")
+            st.subheader("Relaciones de Costos ($K)") # <-- RENOMBRADO
 
             col1_k_ind, col2_k_ind = st.columns(2)
             with col1_k_ind:
@@ -1248,7 +1248,7 @@ with tab3:
                     "Eje Principal ($K - Línea):",
                     k_indicador_cols, # <-- MODIFICADO: Ahora incluye 'Dotación'
                     default=[k_indicador_cols[0]] if k_indicador_cols else [],
-                    key="primary_k_ind"
+                    key="primary_k_rel" # <-- RENOMBRADO
                 )
             with col2_k_ind:
                 options_k_ind_secondary = ["Ninguna"] + k_indicador_cols # <-- MODIFICADO: Ahora incluye 'Dotación'
@@ -1256,7 +1256,7 @@ with tab3:
                     "Eje Secundario ($K - Columnas):",
                     options_k_ind_secondary,
                     default=["Ninguna"],
-                    key="secondary_k_ind"
+                    key="secondary_k_rel" # <-- RENOMBRADO
                 )
             
             # --- AÑADIDO: Construir lista combinada para tablas (Goal 3) ---
@@ -1288,13 +1288,13 @@ with tab3:
                 if selected_k_ind_vars: # Solo mostrar si hay algo seleccionado
                     cols_for_table_k_ind = ['Período', 'Período_fmt'] + [c for c in selected_k_ind_vars if c in dff_indicadores.columns]
                     table_k_ind = dff_indicadores[cols_for_table_k_ind].copy()
-                    show_table(table_k_ind, "Indicadores_Costos_Datos", show_totals=True) # show_totals=True es Goal 4
+                    show_table(table_k_ind, "Relaciones_Costos_Datos", show_totals=True) # <-- RENOMBRADO
                 # --- FIN AÑADIDO ---
                 
                 # --- AÑADIDO: Variaciones Mensuales (Goal 1, 2, 3, 4) ---
                 if selected_k_ind_vars: # Solo si hay variables
-                    st.subheader("Variaciones Mensuales (Indicadores Costo)")
-                    tipo_var_mes_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k_ind")
+                    st.subheader("Variaciones Mensuales (Relaciones Costo)") # <-- RENOMBRADO
+                    tipo_var_mes_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k_rel") # <-- RENOMBRADO
                     
                     # Usar df_indicadores (original) para calcular la variación
                     df_for_var_mes_k_ind = pd.DataFrame()
@@ -1307,15 +1307,15 @@ with tab3:
                     is_pct_mes_k_ind = (tipo_var_mes_k_ind == 'Porcentaje')
                     df_var_mes_k_ind = df_pct_mes_k_ind if is_pct_mes_k_ind else df_val_mes_k_ind
                     fig_var_mes_k_ind = plot_bar(df_var_mes_k_ind, selected_k_ind_vars, "Variación Mensual ($K)" if tipo_var_mes_k_ind=='Valores' else "Variación Mensual (%)")
-                    st.plotly_chart(fig_var_mes_k_ind, use_container_width=True, key="var_mes_k_ind")
+                    st.plotly_chart(fig_var_mes_k_ind, use_container_width=True, key="var_mes_k_rel") # <-- RENOMBRADO
                     # Goal 3 & 4: Añadir tabla con totales
-                    show_table(df_var_mes_k_ind, "Indicadores_Costos_Var_Mensual", is_percentage=is_pct_mes_k_ind, show_totals=True) 
+                    show_table(df_var_mes_k_ind, "Relaciones_Costos_Var_Mensual", is_percentage=is_pct_mes_k_ind, show_totals=True) # <-- RENOMBRADO
                 # --- FIN AÑADIDO ---
 
                 # --- AÑADIDO: Variaciones Interanuales (Goal 1, 2, 3, 4) ---
                 if selected_k_ind_vars: # Solo si hay variables
-                    st.subheader("Variaciones Interanuales (Indicadores Costo)")
-                    tipo_var_anio_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k_ind")
+                    st.subheader("Variaciones Interanuales (Relaciones Costo)") # <-- RENOMBRADO
+                    tipo_var_anio_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k_rel") # <-- RENOMBRADO
 
                     # Usar df_indicadores (original) para calcular la variación
                     df_for_var_anio_k_ind = pd.DataFrame()
@@ -1344,20 +1344,20 @@ with tab3:
                         df_var_anio_k_ind = df_var_anio_k_ind_raw.copy()
 
                     fig_var_anio_k_ind = plot_bar(df_var_anio_k_ind, selected_k_ind_vars, "Variación Interanual ($K)" if tipo_var_anio_k_ind=='Valores' else "Variación Interanual (%)")
-                    st.plotly_chart(fig_var_anio_k_ind, use_container_width=True, key="var_anio_k_ind")
+                    st.plotly_chart(fig_var_anio_k_ind, use_container_width=True, key="var_anio_k_rel") # <-- RENOMBRADO
                     # Goal 3 & 4: Añadir tabla con totales
-                    show_table(df_var_anio_k_ind, "Indicadores_Costos_Var_Interanual", is_percentage=is_pct_anio_k_ind, show_totals=True)
+                    show_table(df_var_anio_k_ind, "Relaciones_Costos_Var_Interanual", is_percentage=is_pct_anio_k_ind, show_totals=True) # <-- RENOMBRADO
                 # --- FIN AÑADIDO ---
 
             else:
-                st.info("No hay datos de Indicadores de Costo para los filtros seleccionados.")
+                st.info("No hay datos de Relaciones de Costo para los filtros seleccionados.") # <-- RENOMBRADO
 
 
             st.markdown("---")
 
         # --- Gráfico 2: Indicadores de Cantidad (hs / ds / dotación) ---
         if qty_indicador_cols: # Solo mostrar si hay columnas de cantidad
-            st.subheader("Indicadores de Cantidad (hs / ds / dotación)")
+            st.subheader("Relaciones de Cantidad (hs / ds / dotación)") # <-- RENOMBRADO
 
             col1_q_ind, col2_q_ind = st.columns(2)
             with col1_q_ind:
@@ -1365,7 +1365,7 @@ with tab3:
                     "Eje Principal (Cant. - Línea):",
                     qty_indicador_cols, # <-- Ya incluía 'Dotación'
                     default=[qty_indicador_cols[0]] if qty_indicador_cols else [],
-                    key="primary_q_ind"
+                    key="primary_q_rel" # <-- RENOMBRADO
                 )
             with col2_q_ind:
                 options_q_ind_secondary = ["Ninguna"] + qty_indicador_cols # <-- Ya incluía 'Dotación'
@@ -1373,7 +1373,7 @@ with tab3:
                     "Eje Secundario (Cant. - Columnas):",
                     options_q_ind_secondary,
                     default=["Ninguna"],
-                    key="secondary_q_ind"
+                    key="secondary_q_rel" # <-- RENOMBRADO
                 )
 
             # --- AÑADIDO: Construir lista combinada para tablas (Goal 3) ---
@@ -1405,13 +1405,13 @@ with tab3:
                 if selected_q_ind_vars: # Solo mostrar si hay algo seleccionado
                     cols_for_table_q_ind = ['Período', 'Período_fmt'] + [c for c in selected_q_ind_vars if c in dff_indicadores.columns]
                     table_q_ind = dff_indicadores[cols_for_table_q_ind].copy()
-                    show_table(table_q_ind, "Indicadores_Cantidades_Datos", show_totals=True) # show_totals=True es Goal 4
+                    show_table(table_q_ind, "Relaciones_Cantidades_Datos", show_totals=True) # <-- RENOMBRADO
                 # --- FIN AÑADIDO ---
                 
                 # --- AÑADIDO: Variaciones Mensuales (Goal 1, 2, 3, 4) ---
                 if selected_q_ind_vars: # Solo si hay variables
-                    st.subheader("Variaciones Mensuales (Indicadores Cantidad)")
-                    tipo_var_mes_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_q_ind")
+                    st.subheader("Variaciones Mensuales (Relaciones Cantidad)") # <-- RENOMBRADO
+                    tipo_var_mes_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_q_rel") # <-- RENOMBRADO
 
                     # Usar df_indicadores (original) para calcular la variación
                     df_for_var_mes_q_ind = pd.DataFrame()
@@ -1424,16 +1424,16 @@ with tab3:
                     is_pct_mes_q_ind = (tipo_var_mes_q_ind == 'Porcentaje')
                     df_var_mes_q_ind = df_pct_mes_q_ind if is_pct_mes_q_ind else df_val_mes_q_ind
                     fig_var_mes_q_ind = plot_bar(df_var_mes_q_ind, selected_q_ind_vars, "Variación Mensual (Cantidad)" if tipo_var_mes_q_ind=='Valores' else "Variación Mensual (%)")
-                    st.plotly_chart(fig_var_mes_q_ind, use_container_width=True, key="var_mes_q_ind")
+                    st.plotly_chart(fig_var_mes_q_ind, use_container_width=True, key="var_mes_q_rel") # <-- RENOMBRADO
                     # Goal 3 & 4: Añadir tabla con totales
-                    show_table(df_var_mes_q_ind, "Indicadores_Cantidades_Var_Mensual", is_percentage=is_pct_mes_q_ind, show_totals=True) 
+                    show_table(df_var_mes_q_ind, "Relaciones_Cantidades_Var_Mensual", is_percentage=is_pct_mes_q_ind, show_totals=True) # <-- RENOMBRADO
                     st.markdown("---") # Separador
                 # --- FIN AÑADIDO ---
 
                 # --- AÑADIDO: Variaciones Interanuales (Goal 1, 2, 3, 4) ---
                 if selected_q_ind_vars: # Solo si hay variables
-                    st.subheader("Variaciones Interanuales (Indicadores Cantidad)")
-                    tipo_var_anio_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_q_ind")
+                    st.subheader("Variaciones Interanuales (Relaciones Cantidad)") # <-- RENOMBRADO
+                    tipo_var_anio_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_q_rel") # <-- RENOMBRADO
 
                     # Usar df_indicadores (original) para calcular la variación
                     df_for_var_anio_q_ind = pd.DataFrame()
@@ -1462,10 +1462,85 @@ with tab3:
                         df_var_anio_q_ind = df_var_anio_q_ind_raw.copy()
 
                     fig_var_anio_q_ind = plot_bar(df_var_anio_q_ind, selected_q_ind_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_q_ind=='Valores' else "Variación Interanual (%)")
-                    st.plotly_chart(fig_var_anio_q_ind, use_container_width=True, key="var_anio_q_ind")
+                    st.plotly_chart(fig_var_anio_q_ind, use_container_width=True, key="var_anio_q_rel") # <-- RENOMBRADO
                     # Goal 3 & 4: Añadir tabla con totales
-                    show_table(df_var_anio_q_ind, "Indicadores_Cantidades_Var_Interanual", is_percentage=is_pct_anio_q_ind, show_totals=True)
+                    show_table(df_var_anio_q_ind, "Relaciones_Cantidades_Var_Interanual", is_percentage=is_pct_anio_q_ind, show_totals=True) # <-- RENOMBRADO
                 # --- FIN AÑADIDO ---
 
             else:
-                st.info("No hay datos de Indicadores de Cantidad para los filtros seleccionados.")
+                st.info("No hay datos de Relaciones de Cantidad para los filtros seleccionados.") # <-- RENOMBRADO
+
+# --- INICIO: NUEVA PESTAÑA 4 - INDICADORES (RATIOS) ---
+with tab4:
+    st.subheader("Cálculo de Indicadores (Hoja: masa_salarial)")
+
+    # Verificar si los datos de indicadores se cargaron
+    if df_indicadores_empty:
+        st.warning("No se pueden calcular indicadores porque la hoja 'masa_salarial' no se cargó correctamente.")
+    elif dff_indicadores.empty and (not df_indicadores_empty):
+        st.info("Los datos de 'masa_salarial' existen pero no coinciden con los filtros seleccionados (Año, Mes, etc.).")
+    else:
+        # Definir la lista de opciones para los selectores
+        # Usamos un set para evitar duplicados (como 'Dotación') y luego ordenamos
+        options_list = sorted(list(set(k_indicador_cols + qty_indicador_cols)))
+
+        if not options_list:
+            st.warning("No se encontraron columnas de indicadores ('Msalarial_$K', 'HE_hs', 'Dotación', etc.) para calcular ratios.")
+        else:
+            col1_ind, col2_ind = st.columns(2)
+            with col1_ind:
+                # Default al primer item
+                selector_1 = st.selectbox(
+                    "Selector 1 (Numerador):", 
+                    options_list, 
+                    index=0, 
+                    key="ind_num"
+                )
+            with col2_ind:
+                # Intentar que el default sea 'Dotación' si existe, si no, el último item
+                default_index_den = 0
+                if 'Dotación' in options_list:
+                    default_index_den = options_list.index('Dotación')
+                elif len(options_list) > 1:
+                    default_index_den = len(options_list) - 1
+
+                selector_2 = st.selectbox(
+                    "Selector 2 (Denominador):", 
+                    options_list, 
+                    index=default_index_den, 
+                    key="ind_den"
+                )
+
+            if selector_1 and selector_2:
+                # st.write(f"Calculando: {selector_1} / {selector_2}") # Debug
+                
+                # Crear un df temporal para el cálculo
+                df_indicador_calc = dff_indicadores[['Período', 'Período_fmt', selector_1, selector_2]].copy()
+                
+                # Calcular el indicador, manejando división por cero
+                try:
+                    df_indicador_calc['Indicador'] = df_indicador_calc[selector_1].astype(float) / df_indicador_calc[selector_2].astype(float)
+                    # Reemplazar infinitos (resultado de div por 0) con NaN
+                    df_indicador_calc['Indicador'] = df_indicador_calc['Indicador'].replace([np.inf, -np.inf], np.nan)
+                except Exception as e:
+                    st.error(f"Error al calcular el indicador: {e}")
+                    df_indicador_calc['Indicador'] = np.nan
+
+                # Mostrar la tabla de resultados
+                st.subheader(f"Resultado: {selector_1} / {selector_2}")
+                
+                # Seleccionar columnas para mostrar
+                cols_to_show = ['Período', 'Período_fmt', 'Indicador']
+                
+                # Usar show_table para la tabla final
+                # No usamos show_totals=True porque sumar ratios no tiene sentido
+                show_table(
+                    df_indicador_calc[cols_to_show], 
+                    f"Indicador_{selector_1}_div_{selector_2}", 
+                    show_totals=False 
+                )
+            
+            else:
+                st.info("Por favor seleccione un numerador y un denominador.")
+# --- FIN: NUEVA PESTAÑA 4 ---
+
