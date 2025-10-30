@@ -765,6 +765,122 @@ def show_kpi_cards(df, var_list):
 
         col_index += 1
 
+# --- NUEVA FUNCIÓN: TARJETAS ANUALES DE INDICADORES (TAB 4) ---
+def show_annual_indicator_cards(df_ind_unfiltered):
+    """
+    Calcula y muestra tarjetas de KPI anualizadas para 2024 vs 2025 (Acum.)
+    Usa el DataFrame *original* de 'masa_salarial' (sin filtrar).
+    """
+    if df_ind_unfiltered.empty or 'Año' not in df_ind_unfiltered.columns:
+        st.info("No hay datos en 'masa_salarial' para calcular indicadores anuales.")
+        return
+
+    # 1. Definir los indicadores clave (numerador, denominador, formato)
+    PREDEFINED_INDICATORS = {
+        'HExtras_$K / Msalarial_$K (%)': ('HExtras_$K', 'Msalarial_$K', 'percent'),
+        'Guardias_$K / Msalarial_$K (%)': ('Guardias_$K', 'Msalarial_$K', 'percent'),
+        'HExtras_$K / HE_hs ($)': ('HExtras_$K', 'HE_hs', 'currency'),
+        'Guardias_$K / Guardias_ds ($)': ('Guardias_$K', 'Guardias_ds', 'currency'),
+        'Msalarial_$K / Dotación ($)': ('Msalarial_$K', 'Dotación', 'currency'),
+        'HE_hs / Dotación (hs/pers)': ('HE_hs', 'Dotación', 'number'),
+        'Guardias_ds / Dotación (ds/pers)': ('Guardias_ds', 'Dotación', 'number'),
+    }
+
+    # 2. Encontrar último mes de 2025 para la etiqueta dinámica
+    df_2025_data = df_ind_unfiltered[df_ind_unfiltered['Año'] == 2025]
+    if not df_2025_data.empty and 'Período' in df_2025_data.columns:
+        last_month_2025 = df_2025_data['Período'].max()
+        label_2025 = f"2025 (Acum. a {last_month_2025.strftime('%b-%y')})"
+    else:
+        label_2025 = "2025 (Sin Datos)"
+
+    df_2024_data = df_ind_unfiltered[df_ind_unfiltered['Año'] == 2024]
+
+    st.subheader("Indicadores Anualizados (2024 vs 2025 Acum.)")
+    
+    # 3. Preparar layout (4 columnas)
+    col_layout = st.columns(4)
+    card_index = 0
+
+    # 4. Iterar y calcular
+    for key, (num_col, den_col, fmt) in PREDEFINED_INDICATORS.items():
+        
+        # Verificar que las columnas existan en el DF original
+        if not (num_col in df_ind_unfiltered.columns and den_col in df_ind_unfiltered.columns):
+            continue # Saltar este indicador si faltan datos base
+
+        # --- Cálculo 2024 ---
+        val_2024_str = "-"
+        if not df_2024_data.empty:
+            num_2024 = df_2024_data[num_col].sum()
+            
+            # Lógica especial para Dotación: usar el PROMEDIO
+            if den_col == 'Dotación':
+                den_2024 = df_2024_data[den_col].mean()
+            else:
+                den_2024 = df_2024_data[den_col].sum()
+
+            if den_2024 != 0 and not pd.isna(den_2024):
+                ratio_2024 = num_2024 / den_2024
+                # Formatear
+                if fmt == 'percent':
+                    val_2024_str = format_percentage(ratio_2024)
+                elif fmt == 'currency':
+                    val_2024_str = f"$ {format_number(ratio_2024)}" # Añadir $
+                else: # 'number'
+                    val_2024_str = format_number(ratio_2024) # 2 decimales
+            else:
+                val_2024_str = "N/A" # No hay datos o div por cero
+
+        # --- Cálculo 2025 (Acumulado) ---
+        val_2025_str = "-"
+        if not df_2025_data.empty:
+            num_2025 = df_2025_data[num_col].sum()
+            
+            # Lógica especial para Dotación: usar el PROMEDIO
+            if den_col == 'Dotación':
+                den_2025 = df_2025_data[den_col].mean()
+            else:
+                den_2025 = df_2025_data[den_col].sum()
+
+            if den_2025 != 0 and not pd.isna(den_2025):
+                ratio_2025 = num_2025 / den_2025
+                # Formatear
+                if fmt == 'percent':
+                    val_2025_str = format_percentage(ratio_2025)
+                elif fmt == 'currency':
+                    val_2025_str = f"$ {format_number(ratio_2025)}" # Añadir $
+                else: # 'number'
+                    val_2025_str = format_number(ratio_2025) # 2 decimales
+            else:
+                val_2025_str = "N/A" # No hay datos o div por cero
+
+        # --- Renderizar Tarjeta ---
+        # Extraer el nombre base del indicador (ej: 'HExtras_$K / Msalarial_$K')
+        label_base = key.split(' (')[0]
+        
+        html_card = f"""
+        <div class="custom-annual-card">
+            <div class="annual-label">{label_base}</div>
+            <div class="annual-values-grid">
+                <div class="annual-header">2024 (Anual)</div>
+                <div class="annual-header">{label_2025}</div>
+                <div class="annual-value">{val_2024_str}</div>
+                <div class="annual-value">{val_2025_str}</div>
+            </div>
+        </div>
+        """
+        
+        # Distribuir en 4 columnas
+        current_col = col_layout[card_index % 4]
+        current_col.markdown(html_card, unsafe_allow_html=True)
+        card_index += 1
+
+    # Añadir un separador antes del resto del contenido de la pestaña
+    st.markdown("---")
+# --- FIN: NUEVA FUNCIÓN ---
+
+
 # --- NUEVA FUNCIÓN DE FILTRADO (REEMPLAZA A LA JERÁRQUICA) ---
 def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_dict):
     """
@@ -814,7 +930,7 @@ st.title("Visualizador de Eficiencia")
 # --- CSS PARA ESTILOS DE TARJETAS (MODIFICADO PARA CENTRAR) ---
 CSS_STYLE = """
 <style>
-/* --- MODIFICADO: Ahora aplica a nuestra clase personalizada --- */
+/* --- Tarjeta KPI de Delta (Tabs 1, 2) --- */
 .custom-metric-card {
     background-color: #f0f8ff; /* Color de fondo azul claro (AliceBlue) */
     border-radius: 10px;
@@ -837,7 +953,6 @@ CSS_STYLE = """
     box-shadow: 0 8px 16px rgba(0,0,0,0.2);
 }
 
-/* --- NUEVO: Clases para el contenido interno --- */
 .metric-label {
     font-size: 1rem; /* Tamaño de la etiqueta */
     color: #333; /* Color de etiqueta */
@@ -853,7 +968,6 @@ CSS_STYLE = """
     line-height: 1.3;    /* Espacio entre líneas para el <br> */
     margin-top: 8px;   /* Ajuste para separarlo del valor */
 }
-/* --- FIN NUEVO --- */
 
 .delta-positive {
     color: #28a745; /* Verde */
@@ -861,6 +975,58 @@ CSS_STYLE = """
 .delta-negative {
     color: #dc3545; /* Rojo */
 }
+
+/* --- NUEVO: Tarjeta de Indicador Anual (Tab 4) --- */
+.custom-annual-card {
+    background-color: #f8f9fa; /* Gris muy claro */
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid #dee2e6;
+    min-height: 140px; /* Altura fija */
+    box-sizing: border-box;
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.custom-annual-card:hover {
+    transform: translateY(-5px); /* Transición vertical */
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+}
+
+.annual-label {
+    font-size: 0.9rem; /* Más pequeño para que entre */
+    font-weight: 600;
+    color: #007bff; /* Azul */
+    text-align: center;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 8px;
+    line-height: 1.3;
+}
+
+.annual-values-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px 10px;
+    text-align: center;
+}
+
+.annual-header {
+    font-size: 0.8rem;
+    color: #6c757d; /* Gris */
+    font-weight: 500;
+}
+
+.annual-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #343a40; /* Negro suave */
+}
+/* --- FIN NUEVO --- */
 </style>
 """
 st.markdown(CSS_STYLE, unsafe_allow_html=True)
@@ -1533,9 +1699,13 @@ with tab4:
     # Verificar si los datos de indicadores se cargaron
     if df_indicadores_empty:
         st.warning("No se pueden calcular indicadores porque la hoja 'masa_salarial' no se cargó correctamente.")
-    elif dff_indicadores.empty and (not df_indicadores_empty):
+    elif dff_indicadores.empty and (not df_indicadores_empty) and df_indicadores.empty: # Comprobar ambos
         st.info("Los datos de 'masa_salarial' existen pero no coinciden con los filtros seleccionados (Año, Mes, etc.).")
     else:
+        # --- NUEVO: Llamar a la función de tarjetas anuales ---
+        # Usa el df_indicadores *original* (sin filtrar) para obtener los totales anuales
+        show_annual_indicator_cards(df_indicadores)
+        
         # --- NUEVO: Diccionario de Indicadores Predefinidos ---
         # Formato: 'Display Name': (numerador_col, denominador_col, format_type)
         PREDEFINED_INDICATORS = {
@@ -1549,13 +1719,14 @@ with tab4:
         }
 
         # Filtrar indicadores predefinidos basados en columnas existentes
+        # USA dff_indicadores (DATOS FILTRADOS) para las opciones
         valid_predefined_options = []
         for key, (num, den, fmt) in PREDEFINED_INDICATORS.items():
             if num in dff_indicadores.columns and den in dff_indicadores.columns:
                 valid_predefined_options.append(key)
 
         # --- NUEVO: Selector de Indicadores Predefinidos ---
-        st.subheader("Indicadores Predefinidos")
+        st.subheader("Indicadores Predefinidos (Mensual)")
         selected_predefined = st.multiselect(
             "Seleccione indicadores clave:",
             valid_predefined_options,
@@ -1566,7 +1737,7 @@ with tab4:
         st.markdown("---")
 
         # --- Selector Personalizado (Existente) ---
-        st.subheader("Indicador Personalizado (Avanzado)")
+        st.subheader("Indicador Personalizado (Avanzado - Mensual)")
         options_list = sorted(list(set(k_indicador_cols + qty_indicador_cols)))
 
         if not options_list:
@@ -1588,6 +1759,7 @@ with tab4:
 
             # --- LÓGICA DE CÁLCULO Y TABLA (MODIFICADA) ---
             if selected_predefined or selected_indicators:
+                # USA dff_indicadores (DATOS FILTRADOS) para la tabla mensual
                 df_indicador_calc = dff_indicadores[['Período', 'Período_fmt']].copy().sort_values('Período')
                 column_formats_dict = {} # Diccionario para pasar a show_table
 
@@ -1620,7 +1792,7 @@ with tab4:
                 # Reemplazar todos los infinitos (resultado de div por 0) con NaN
                 df_indicador_calc.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-                st.subheader("Resultados de Indicadores")
+                st.subheader("Resultados de Indicadores (Mensual)")
                 
                 # Usar show_table con el nuevo argumento column_formats
                 show_table(
@@ -1631,5 +1803,7 @@ with tab4:
                 )
             
             else:
-                st.info("Por favor seleccione uno o más indicadores (predefinidos o personalizados) para calcular.")
+                st.info("Por favor seleccione uno o más indicadores (predefinidos o personalizados) para ver la tabla mensual.")
 # --- FIN: PESTAÑA 4 MODIFICADA ---
+
+
