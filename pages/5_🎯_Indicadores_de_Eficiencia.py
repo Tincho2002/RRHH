@@ -1487,60 +1487,63 @@ with tab4:
         if not options_list:
             st.warning("No se encontraron columnas de indicadores ('Msalarial_$K', 'HE_hs', 'Dotación', etc.) para calcular ratios.")
         else:
-            col1_ind, col2_ind = st.columns(2)
-            with col1_ind:
-                # Default al primer item
-                selector_1 = st.selectbox(
-                    "Selector 1 (Numerador):", 
-                    options_list, 
-                    index=0, 
-                    key="ind_num"
-                )
-            with col2_ind:
-                # Intentar que el default sea 'Dotación' si existe, si no, el último item
-                default_index_den = 0
-                if 'Dotación' in options_list:
-                    default_index_den = options_list.index('Dotación')
-                elif len(options_list) > 1:
-                    default_index_den = len(options_list) - 1
+            
+            # --- NUEVA LÓGICA: Multi-select de combinaciones ---
+            possible_indicators = []
+            # Crear todas las combinaciones posibles
+            for num in options_list:
+                for den in options_list:
+                    # Evitar divisiones por sí mismo (ratio=1)
+                    if num != den:
+                        possible_indicators.append(f"{num} / {den}")
+            
+            # Ordenar la lista alfabéticamente
+            possible_indicators.sort()
 
-                selector_2 = st.selectbox(
-                    "Selector 2 (Denominador):", 
-                    options_list, 
-                    index=default_index_den, 
-                    key="ind_den"
-                )
+            selected_indicators = st.multiselect(
+                "Seleccione los indicadores (Numerador / Denominador) a calcular:",
+                possible_indicators,
+                default=[], # Empezar sin nada seleccionado
+                key="ind_multi_select"
+            )
 
-            if selector_1 and selector_2:
-                # st.write(f"Calculando: {selector_1} / {selector_2}") # Debug
+            if selected_indicators:
+                # Preparar el dataframe para la tabla
+                # Usamos dff_indicadores (los datos filtrados)
+                df_indicador_calc = dff_indicadores[['Período', 'Período_fmt']].copy().sort_values('Período')
                 
-                # Crear un df temporal para el cálculo
-                df_indicador_calc = dff_indicadores[['Período', 'Período_fmt', selector_1, selector_2]].copy()
+                # Iterar sobre las selecciones (que son strings 'Num / Den')
+                for indicator_str in selected_indicators:
+                    try:
+                        # Parsear el string para obtener los nombres de las columnas
+                        num_col, den_col = indicator_str.split(' / ')
+                        
+                        # Asegurarse que las columnas existen (por si acaso)
+                        if num_col in dff_indicadores.columns and den_col in dff_indicadores.columns:
+                            # Calcular el indicador
+                            calc_col = dff_indicadores[num_col].astype(float) / dff_indicadores[den_col].astype(float)
+                            # Guardar en la tabla con el nombre 'Num / Den' (que es el indicator_str)
+                            df_indicador_calc[indicator_str] = calc_col
+                        else:
+                            df_indicador_calc[indicator_str] = np.nan
+                    
+                    except Exception as e:
+                        st.error(f"Error al calcular '{indicator_str}': {e}")
+                        df_indicador_calc[indicator_str] = np.nan
                 
-                # Calcular el indicador, manejando división por cero
-                try:
-                    df_indicador_calc['Indicador'] = df_indicador_calc[selector_1].astype(float) / df_indicador_calc[selector_2].astype(float)
-                    # Reemplazar infinitos (resultado de div por 0) con NaN
-                    df_indicador_calc['Indicador'] = df_indicador_calc['Indicador'].replace([np.inf, -np.inf], np.nan)
-                except Exception as e:
-                    st.error(f"Error al calcular el indicador: {e}")
-                    df_indicador_calc['Indicador'] = np.nan
+                # Reemplazar todos los infinitos (resultado de div por 0) con NaN
+                df_indicador_calc.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-                # Mostrar la tabla de resultados
-                st.subheader(f"Resultado: {selector_1} / {selector_2}")
-                
-                # Seleccionar columnas para mostrar
-                cols_to_show = ['Período', 'Período_fmt', 'Indicador']
+                st.subheader("Resultados de Indicadores")
                 
                 # Usar show_table para la tabla final
-                # No usamos show_totals=True porque sumar ratios no tiene sentido
+                # Los nombres de columna ya son 'Num / Den'
                 show_table(
-                    df_indicador_calc[cols_to_show], 
-                    f"Indicador_{selector_1}_div_{selector_2}", 
-                    show_totals=False 
+                    df_indicador_calc,
+                    "Indicadores_Calculados",
+                    show_totals=False # Sumar ratios no tiene sentido
                 )
             
             else:
-                st.info("Por favor seleccione un numerador y un denominador.")
+                st.info("Por favor seleccione uno o más indicadores de la lista para calcular.")
 # --- FIN: NUEVA PESTAÑA 4 ---
-
