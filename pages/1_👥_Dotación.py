@@ -62,6 +62,44 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
 
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
+/* --- INICIO REQ 1 (CORRECCIÓN): Estilos para las tarjetas de Neto Pagado --- */
+.metric-card-neto {
+    background-color: #ffffff;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    border-left: 5px solid #007bff; /* Color por defecto */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease-in-out;
+}
+.metric-card-neto:hover {
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+.metric-card-neto.green { border-color: #28a745; }
+.metric-card-neto.orange { border-color: #fd7e14; }
+
+.metric-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 0.25rem;
+}
+.metric-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #222;
+    line-height: 1.2;
+}
+.metric-delta {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: 0.5rem;
+}
+.metric-delta .green { color: #28a745; }
+.metric-delta .red { color: #dc3545; }
+.metric-delta .grey { color: #6c757d; }
+/* --- FIN REQ 1 (CORRECCIÓN) --- */
+
 
 /* --- REGLAS RESPONSIVE GENERALES --- */
 @media (max-width: 768px) {
@@ -340,8 +378,12 @@ def load_and_clean_data(uploaded_file):
         df_excel.dropna(subset=['CECO'], inplace=True)
         df_excel['CECO'] = df_excel['CECO'].astype(int).astype(str)
 
-    # --- MODIFICADO: Añadir 'Año' a la lista de columnas a normalizar ---
-    text_cols_for_filters_charts = ['LEGAJO','Gerencia', 'Relación', 'Sexo', 'Función', 'Distrito', 'Ministerio', 'Rango Antiguedad', 'Rango Edad', 'Periodo', 'Nivel', 'CECO', 'Año']
+    # --- MODIFICADO: Añadir 'Año', 'Apellido y Nombre', 'Subnivel' a la lista de columnas a normalizar ---
+    text_cols_for_filters_charts = [
+        'LEGAJO','Gerencia', 'Relación', 'Sexo', 'Función', 'Distrito', 
+        'Ministerio', 'Rango Antiguedad', 'Rango Edad', 'Periodo', 'Nivel', 
+        'CECO', 'Año', 'Apellido y Nombre', 'Subnivel' # <-- REQ 1 AÑADIDO
+    ]
     
     for col in text_cols_for_filters_charts:
         if col not in df_excel.columns: df_excel[col] = 'no disponible'
@@ -349,7 +391,7 @@ def load_and_clean_data(uploaded_file):
         if col in ['Rango Antiguedad', 'Rango Edad']: df_excel[col] = df_excel[col].str.lower()
         elif col == 'Periodo': df_excel[col] = df_excel[col].str.capitalize()
     
-    # --- INICIO: MODIFICACIÓN PARA 'Neto Pagado' ---
+    # --- INICIO: MODIFICACIÓN PARA 'Neto Pagado' Y 'SAC Pagado' (REQ 2) ---
     # Procesamos la columna 'Neto Pagado' que el usuario agregó
     if 'Neto Pagado' in df_excel.columns:
         # Convertimos a numérico, los errores (texto) se volverán NaN
@@ -358,9 +400,18 @@ def load_and_clean_data(uploaded_file):
         df_excel['Neto Pagado'] = df_excel['Neto Pagado'].fillna(0)
     else:
         # Si el archivo cargado NO tiene la columna, la creamos con 0s
-        # Esto asegura que el resto de la app no falle si se carga un archivo antiguo
         df_excel['Neto Pagado'] = 0
-    # --- FIN: MODIFICACIÓN PARA 'Neto Pagado' ---
+        
+    # Procesamos la nueva columna 'SAC Pagado'
+    if 'SAC Pagado' in df_excel.columns:
+        df_excel['SAC Pagado'] = pd.to_numeric(df_excel['SAC Pagado'], errors='coerce')
+        df_excel['SAC Pagado'] = df_excel['SAC Pagado'].fillna(0)
+    else:
+        df_excel['SAC Pagado'] = 0
+        
+    # Creamos la columna combinada 'Neto + SAC'
+    df_excel['Neto + SAC'] = df_excel['Neto Pagado'] + df_excel['SAC Pagado']
+    # --- FIN: MODIFICACIÓN (REQ 2) ---
 
     return df_excel
     
@@ -375,6 +426,36 @@ st.markdown("---")
 COORDS_URL = "https://raw.githubusercontent.com/Tincho2002/RRHH/main/coordenadas.csv"
 df_coords = load_coords_from_url(COORDS_URL)
 
+# --- INICIO REQ 2: Nueva función para deltas de tarjetas Neto ---
+def get_delta_html_neto(current_val, prev_val):
+    """
+    Genera un string HTML para la variación (en $ y %) para las tarjetas de Neto Pagado.
+    """
+    if pd.isna(prev_val) or pd.isna(current_val) or prev_val == 0:
+        # No hay datos previos o el valor previo es 0, no mostrar delta.
+        return '<div class="metric-delta grey">vs. período anterior s/d</div>'
+
+    diff_val = current_val - prev_val
+    diff_pct = (diff_val / prev_val) * 100
+
+    color = 'green' if diff_val >= 0 else 'red'
+    arrow = '▲' if diff_val >= 0 else '▼'
+
+    # Formatear strings
+    # Asegurarse de que format_currency_es maneje números (no strings formateados)
+    diff_val_str = format_currency_es(diff_val)
+    diff_pct_str = format_percentage_es(diff_pct)
+    
+    # Evitar -0,0%
+    if -0.05 < diff_pct < 0.05:
+        color = 'grey'
+        arrow = '▬'
+        diff_pct_str = format_percentage_es(0.0)
+
+    return f'<div class="metric-delta {color}">{arrow} {diff_val_str} ({diff_pct_str})</div>'
+# --- FIN REQ 2 ---
+
+
 if uploaded_file is not None:
     with st.spinner('Procesando archivo...'):
         df = load_and_clean_data(uploaded_file)
@@ -388,7 +469,7 @@ if uploaded_file is not None:
     
     # --- MODIFICADO: Añadido 'Año' al diccionario de filtros ---
     filter_cols_config = {
-        'Año': 'Año',                # AÑADIDO
+        'Año': 'Año',              # AÑADIDO
         'Periodo': 'Periodo', 
         'Gerencia': 'Gerencia', 
         'Relación': 'Relación', 
@@ -461,6 +542,8 @@ if uploaded_file is not None:
         if current_index > 0:
             previous_period = sorted_selected_periods[current_index - 1]
 
+    # --- INICIO: Corrección de indentación ---
+    # El bloque de "if not filtered_df.empty..." estaba mal indentado
     if not filtered_df.empty and period_to_display:
         df_display = filtered_df[filtered_df['Periodo'] == period_to_display].copy()
         total_dotacion = len(df_display)
@@ -618,7 +701,7 @@ if uploaded_file is not None:
                     if (!startTimestamp) startTimestamp = timestamp;
                     const progress = Math.min((timestamp - startTimestamp) / duration, 1);
                     const currentVal = Math.floor(progress * (end - start) + start);
-                    let formattedVal = currentVal.toString().replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, ".");
+                    let formattedVal = currentVal.toString().replace(/\B(?=(\d{{3}})+(?!\d))/g, ".");
                     if (obj.innerHTML.includes("👥")) {{ obj.innerHTML = `👥 ${{formattedVal}}`; }} else {{ obj.innerHTML = formattedVal; }}
                     if (progress < 1) {{ window.requestAnimationFrame(step); }}
                 }};
@@ -630,6 +713,7 @@ if uploaded_file is not None:
         """
         components.html(card_html, height=220)
         st.markdown("<br>", unsafe_allow_html=True)
+    # --- FIN: Corrección de indentación ---
 
     # --- INICIO: MODIFICACIÓN PARA AÑADIR SOLAPA 'Neto Pagado' ---
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
@@ -976,233 +1060,379 @@ if uploaded_file is not None:
                 st.dataframe(table_data_display.style.format({"Cantidad": format_integer_es}))
                 generate_download_buttons(table_data, f'dotacion_{cat_seleccionada.lower()}_{periodo_a_mostrar_desglose}', key_suffix="_desglose")
 
-    # --- INICIO: NUEVA LÓGICA PARA SOLAPA 'Neto Pagado' ---
+    # --- INICIO: REFACTORIZACIÓN TOTAL DE LA SOLAPA 'Neto Pagado' ---
     with tab_neto_pagado:
-        # --- MODIFICACIÓN REQ 1: Añadir selector de periodo ---
+        st.header(f"Análisis de Pagos por Período")
+
         if filtered_df.empty or not selected_periodos:
-            st.warning("No hay datos para mostrar con los filtros seleccionados.")
+            st.warning("No hay datos para mostrar con los filtros seleccionados. Por favor, ajuste los filtros en la barra lateral.")
         else:
-            periodo_a_mostrar_neto = st.selectbox(
-                'Seleccionar Periodo:', 
-                sorted_selected_periods, 
-                index=len(sorted_selected_periods) - 1 if sorted_selected_periods else 0, 
-                key='periodo_selector_neto'
+            
+            # --- INICIO REQ 2: Nuevo Selector de Tipo de Pago ---
+            opciones_pago = ["Neto Pagado", "SAC Pagado", "Neto Pagado + SAC Pagado"]
+            tipo_pago_seleccionado = st.selectbox(
+                "Seleccionar tipo de pago a analizar:", 
+                opciones_pago, 
+                key="selector_tipo_pago"
             )
             
-            st.header(f"Análisis de Neto Pagado para {periodo_a_mostrar_neto}")
-        # --- FIN MODIFICACIÓN REQ 1 ---
+            # Mapear la selección a la columna real del DataFrame
+            columna_pago_map = {
+                "Neto Pagado": "Neto Pagado",
+                "SAC Pagado": "SAC Pagado",
+                "Neto Pagado + SAC Pagado": "Neto + SAC"
+            }
+            columna_a_usar = columna_pago_map[tipo_pago_seleccionado]
+            # --- FIN REQ 2 ---
 
-            # Verificamos que la columna exista en el dataframe filtrado
-            if 'Neto Pagado' not in filtered_df.columns:
-                st.error("La columna 'Neto Pagado' no se encontró en el archivo.")
+            # --- MODIFICACIÓN REQ 1: Cambiar selectbox por multiselect ---
+            # Por defecto, selecciona solo el último período de la lista de períodos seleccionados
+            default_selection = [sorted_selected_periods[-1]] if sorted_selected_periods else []
+            
+            periodos_a_mostrar_neto = st.multiselect(
+                'Seleccionar Períodos para Analizar:', 
+                sorted_selected_periods, 
+                default=default_selection,
+                key='periodo_selector_neto_multi'
+            )
+            # --- FIN MODIFICACIÓN REQ 1 ---
+            
+            # Verificamos que la columna exista
+            if columna_a_usar not in filtered_df.columns:
+                st.error(f"La columna '{columna_a_usar}' no se encontró en el archivo.")
             else:
-                # --- MODIFICACIÓN REQ 2: Incluir 0s ---
-                df_periodo_neto = filtered_df[filtered_df['Periodo'] == periodo_a_mostrar_neto]
-                df_neto = df_periodo_neto[df_periodo_neto['Neto Pagado'] >= 0].copy()
-                # --- FIN MODIFICACIÓN REQ 2 ---
                 
-                if df_neto.empty:
-                    # --- MODIFICACIÓN REQ 2: Mensaje actualizado ---
-                    st.warning(f"No hay datos de 'Neto Pagado' (mayores o iguales a 0) para {periodo_a_mostrar_neto} con los filtros seleccionados.")
-                else:
-                    # --- MODIFICACIÓN REQ 2: min_val es 0 ---
-                    min_val = 0.0
-                    max_val = float(df_neto['Neto Pagado'].max())
-                    # --- FIN MODIFICACIÓN REQ 2 ---
+                # --- INICIO MODIFICACIÓN REQ 1: Bucle por cada período seleccionado ---
+                if not periodos_a_mostrar_neto:
+                    st.info("Por favor, seleccione uno o más períodos para analizar.")
+                
+                for periodo_actual in periodos_a_mostrar_neto:
                     
-                    # --- MODIFICACIÓN REQ 2: Caso especial si max_val es 0 ---
+                    st.markdown(f"### Análisis de **{tipo_pago_seleccionado}** para **{periodo_actual}**")
+                    
+                    # --- INICIO REQ 2: Lógica para período anterior (con lógica SAC) ---
+                    prev_periodo_str = None
+                    try:
+                        current_index_in_sidebar = sorted_selected_periods.index(periodo_actual)
+                        
+                        if tipo_pago_seleccionado == "SAC Pagado":
+                            current_month_name = periodo_actual.split('-')[0]
+                            # Buscar hacia atrás en la lista de períodos seleccionados
+                            target_month = None
+                            if current_month_name == 'Jun':
+                                target_month = 'Dic'
+                            elif current_month_name == 'Dic':
+                                target_month = 'Jun'
+                            
+                            if target_month:
+                                # Iterar hacia atrás desde la posición actual
+                                for i in range(current_index_in_sidebar - 1, -1, -1):
+                                    periodo_candidato = sorted_selected_periods[i]
+                                    if periodo_candidato.startswith(target_month):
+                                        prev_periodo_str = periodo_candidato
+                                        break # Encontramos el SAC anterior más cercano
+                                        
+                        else: # Lógica original para Neto Pagado y Neto + SAC
+                            if current_index_in_sidebar > 0:
+                                prev_periodo_str = sorted_selected_periods[current_index_in_sidebar - 1]
+                                
+                    except ValueError:
+                        pass # No se encontró el período, etc.
+                    # --- FIN REQ 2 ---
+                    
+                    # Obtener dataframes (actual y previo)
+                    df_periodo_neto = filtered_df[filtered_df['Periodo'] == periodo_actual]
+                    # --- MODIFICADO REQ 2: Usar columna_a_usar ---
+                    df_neto = df_periodo_neto[df_periodo_neto[columna_a_usar] >= 0].copy()
+                    
+                    df_periodo_neto_prev = pd.DataFrame() 
+                    df_neto_prev = pd.DataFrame()
+                    if prev_periodo_str:
+                        df_periodo_neto_prev = filtered_df[filtered_df['Periodo'] == prev_periodo_str]
+                        # --- MODIFICADO REQ 2: Usar columna_a_usar ---
+                        df_neto_prev = df_periodo_neto_prev[df_periodo_neto_prev[columna_a_usar] >= 0].copy()
+                    # --- FIN REQ 2 ---
+
+                    if df_neto.empty:
+                        st.warning(f"No hay datos de '{tipo_pago_seleccionado}' (>= 0) para {periodo_actual} con los filtros seleccionados.")
+                        st.markdown("---") 
+                        continue 
+
+                    min_val = 0.0
+                    # --- MODIFICADO REQ 2: Usar columna_a_usar ---
+                    max_val = float(df_neto[columna_a_usar].max())
+                    
+                    # --- INICIO: CORRECCIÓN ERROR SLIDER 0.0 ---
                     if max_val == 0.0:
-                        st.info(f"Todos los registros de 'Neto Pagado' tienen el valor: {format_currency_es(0.0)}")
-                        st.markdown("---")
-                        col_chart_zero, col_table_zero = st.columns([2, 1])
-                        
-                        with col_chart_zero:
-                            st.info("Solo se encontraron valores de $ 0,00. No se puede generar un histograma.")
-                        
-                        with col_table_zero:
-                            st.markdown("##### Estadísticas (Rango Selecc.)")
-                            st.metric("Promedio Neto", format_currency_es(0.0))
-                            st.metric("Mediana Neto", format_currency_es(0.0))
-                            st.metric("Suma Total Neta", format_currency_es(0.0))
-                            
-                            st.markdown("##### Datos del Histograma")
-                            df_hist_display = pd.DataFrame({
-                                'Rango': [format_currency_es(0.0)], 
-                                'Cantidad': [format_integer_es(len(df_neto))], 
-                                'Total Pagado': [format_currency_es(0.0)]
-                            })
-                            total_row = pd.DataFrame({
-                                'Rango': ['**TOTAL**'], 
-                                'Cantidad': [format_integer_es(len(df_neto))], 
-                                'Total Pagado': [format_currency_es(0.0)]
-                            })
-                            df_hist_display = pd.concat([df_hist_display, total_row], ignore_index=True)
-                            st.dataframe(df_hist_display, use_container_width=True, hide_index=True)
-                    # --- FIN MODIFICACIÓN REQ 2 ---
-                    else:
-                        st.markdown("### Controles del Histograma")
-                        col_cont1, col_cont2 = st.columns(2)
-                        
-                        with col_cont1:
-                            selected_range = st.slider(
-                                "Seleccionar rango de Neto Pagado:", 
-                                # --- MODIFICACIÓN REQ 2: min_value=min_val (que es 0.0) ---
-                                min_value=min_val, 
-                                max_value=max_val, 
-                                value=(min_val, max_val),
-                                key="slider_range_neto",
-                                step=100.0 
-                            )
-                        
-                        with col_cont2:
-                            num_bins = st.slider(
-                                "Seleccionar número de 'bins' (columnas):", 
-                                min_value=5, 
-                                max_value=100, 
-                                value=30,
-                                key="slider_bins_neto"
-                            )
-                        
-                        df_to_plot = df_neto[
-                            (df_neto['Neto Pagado'] >= selected_range[0]) & 
-                            (df_neto['Neto Pagado'] <= selected_range[1])
+                        st.info(f"Todos los registros de '{tipo_pago_seleccionado}' para {periodo_actual} tienen el valor: {format_currency_es(0.0)}")
+                        st.markdown("---") # Separador de período
+                        continue # Salta al siguiente período del bucle
+                    # --- FIN: CORRECCIÓN ERROR SLIDER 0.0 ---
+
+                    
+                    st.markdown("##### Controles del Histograma")
+                    col_cont1, col_cont2 = st.columns(2)
+                    
+                    with col_cont1:
+                        slider_range_key = f"slider_range_neto_{periodo_actual}_{columna_a_usar}"
+                        selected_range = st.slider(
+                            f"Seleccionar rango de {tipo_pago_seleccionado}:", 
+                            min_value=min_val, 
+                            max_value=max_val, 
+                            value=(min_val, max_val),
+                            key=slider_range_key,
+                            step=100.0 
+                        )
+                    
+                    with col_cont2:
+                        slider_bins_key = f"slider_bins_neto_{periodo_actual}_{columna_a_usar}"
+                        num_bins = st.slider(
+                            "Seleccionar número de 'bins' (columnas):", 
+                            min_value=5, 
+                            max_value=100, 
+                            value=30,
+                            key=slider_bins_key
+                        )
+                    
+                    # --- MODIFICADO REQ 2: Usar columna_a_usar ---
+                    df_to_plot = df_neto[
+                        (df_neto[columna_a_usar] >= selected_range[0]) & 
+                        (df_neto[columna_a_usar] <= selected_range[1])
+                    ]
+                    
+                    df_to_plot_prev = pd.DataFrame()
+                    if not df_neto_prev.empty:
+                        # --- MODIFICADO REQ 2: Usar columna_a_usar ---
+                        df_to_plot_prev = df_neto_prev[
+                            (df_neto_prev[columna_a_usar] >= selected_range[0]) & 
+                            (df_neto_prev[columna_a_usar] <= selected_range[1])
                         ]
+                    # --- FIN REQ 2 ---
+
+                    if df_to_plot.empty:
+                        st.warning(f"No hay datos de '{tipo_pago_seleccionado}' en el rango seleccionado para {periodo_actual}.")
+                        st.markdown("---") 
+                        continue 
+
+                    st.markdown("---")
+                    
+                    # --- INICIO: CORRECCIÓN RENDERIZADO DE TARJETAS (REQ 1) ---
+                    st.markdown("##### Estadísticas (Rango Seleccionado)")
+                    
+                    # --- MODIFICADO REQ 2: Usar columna_a_usar ---
+                    promedio_actual = df_to_plot[columna_a_usar].mean()
+                    mediana_actual = df_to_plot[columna_a_usar].median()
+                    suma_actual = df_to_plot[columna_a_usar].sum()
+                    
+                    promedio_prev = np.nan
+                    mediana_prev = np.nan
+                    suma_prev = np.nan
+                    
+                    if not df_to_plot_prev.empty:
+                        # --- MODIFICADO REQ 2: Usar columna_a_usar ---
+                        promedio_prev = df_to_plot_prev[columna_a_usar].mean()
+                        mediana_prev = df_to_plot_prev[columna_a_usar].median()
+                        suma_prev = df_to_plot_prev[columna_a_usar].sum()
+
+                    delta_promedio_html = get_delta_html_neto(promedio_actual, promedio_prev)
+                    delta_mediana_html = get_delta_html_neto(mediana_actual, mediana_prev)
+                    delta_suma_html = get_delta_html_neto(suma_actual, suma_prev)
+
+                    # --- MODIFICADO REQ 2: Títulos de tarjetas dinámicos ---
+                    cards_html = f"""
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="metric-card-neto">
+                                <div class="metric-title">Promedio {tipo_pago_seleccionado}</div>
+                                <div class="metric-value">{format_currency_es(promedio_actual)}</div>
+                                {delta_promedio_html}
+                            </div>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="metric-card-neto green">
+                                <div class="metric-title">Mediana {tipo_pago_seleccionado}</div>
+                                <div class="metric-value">{format_currency_es(mediana_actual)}</div>
+                                {delta_mediana_html}
+                            </div>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="metric-card-neto orange">
+                                <div class="metric-title">Suma Total {tipo_pago_seleccionado}</div>
+                                <div class="metric-value">{format_currency_es(suma_actual)}</div>
+                                {delta_suma_html}
+                            </div>
+                        </div>
+                    </div>
+                    """
+                    st.components.v1.html(cards_html, height=140)
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    # --- FIN: CORRECCIÓN RENDERIZADO DE TARJETAS (REQ 1) ---
+                    
+                    try:
+                        # --- MODIFICADO REQ 2: Usar columna_a_usar ---
+                        df_to_plot['Bin'] = pd.cut(df_to_plot[columna_a_usar], bins=num_bins)
+                    except ValueError as e:
+                        st.error(f"No se pudo generar el histograma para {periodo_actual}. Intente ajustar el número de 'bins' o el rango. Error: {e}")
+                        st.markdown("---") 
+                        continue 
+
+                    # --- MODIFICADO REQ 2: Usar columna_a_usar ---
+                    df_hist_agg = df_to_plot.groupby('Bin', observed=True)[columna_a_usar].agg(['count', 'sum']).reset_index()
+                    df_hist_agg.columns = ['Bin', 'Cantidad', 'Total Pagado']
+                    
+                    df_hist_agg['Rango'] = df_hist_agg['Bin'].apply(
+                        lambda x: f"{format_currency_es(x.left)} - {format_currency_es(x.right)}"
+                    )
+                    
+                    df_hist_agg['Total Pagado Formateado'] = df_hist_agg['Total Pagado'].apply(lambda x: format_currency_es(x))
+                    df_for_download = df_hist_agg[['Rango', 'Cantidad', 'Total Pagado']].copy()
+                    
+                    title_range_start = format_currency_es(selected_range[0], decimals=0)
+                    title_range_end = format_currency_es(selected_range[1], decimals=0)
+                    # --- MODIFICADO REQ 2: Título de gráfico dinámico ---
+                    title = f"Distribución de {tipo_pago_seleccionado} (Rango: {title_range_start} - {title_range_end})"
+                    
+                    st.subheader(f"Histograma ({format_integer_es(df_to_plot.shape[0])} registros)")
+                    
+                    col_chart, col_table = st.columns([2, 1])
+
+                    with col_chart:
+                        fig_hist = px.bar(
+                            df_hist_agg,
+                            x='Rango',
+                            y='Cantidad',
+                            text='Cantidad',
+                            title=title,
+                            labels={'Rango': f'Rango {tipo_pago_seleccionado}', 'Cantidad': 'Cantidad de Empleados'},
+                            hover_data=['Total Pagado Formateado'] 
+                        )
                         
-                        if df_to_plot.empty:
-                            st.warning("No hay datos de 'Neto Pagado' en el rango seleccionado.")
-                        else:
-                            st.markdown("---")
-                            
-                            # --- INICIO MODIFICACIÓN REQ 1, 2, 3, 4 ---
-                            
-                            # 1. Usar pd.cut para crear los bins
-                            # 'bins=num_bins' deja que pd.cut calcule los bins automáticamente
-                            try:
-                                df_to_plot['Bin'] = pd.cut(df_to_plot['Neto Pagado'], bins=num_bins)
-                            except ValueError as e:
-                                st.error(f"No se pudo generar el histograma. Intente ajustar el número de 'bins' o el rango. Error: {e}")
-                                # Si pd.cut falla (ej: rango muy pequeño), detenemos esta pestaña
-                                st.stop() 
+                        fig_hist.update_xaxes(categoryorder='array', categoryarray=df_hist_agg['Rango'])
+                        
+                        fig_hist.update_traces(
+                            textposition='outside',
+                            hovertemplate=f'Rango: %{{x}}<br>Empleados: %{{y}}<br>Total {tipo_pago_seleccionado}: %{{customdata[0]}}'
+                        )
+                        fig_hist.update_layout(
+                            bargap=0.1,
+                            xaxis_title=f"Rango {tipo_pago_seleccionado} ($)",
+                            yaxis_title="Cantidad de Empleados",
+                            height=600 
+                        )
+                        st.plotly_chart(fig_hist, use_container_width=True)
 
-                            # 2. Agrupar por esos bins y calcular Cantidad (count) y Total Pagado (sum) (REQ 2)
-                            df_hist_agg = df_to_plot.groupby('Bin', observed=True)['Neto Pagado'].agg(['count', 'sum']).reset_index()
+                    with col_table:
+                        st.markdown("##### Datos del Histograma")
+                        df_hist_display = df_hist_agg[['Rango', 'Cantidad', 'Total Pagado']].copy()
+                        
+                        total_row = pd.DataFrame({
+                            'Rango': ['**TOTAL**'], 
+                            'Cantidad': [df_hist_display['Cantidad'].sum()],
+                            'Total Pagado': [df_hist_display['Total Pagado'].sum()]
+                        })
+                        df_hist_display = pd.concat([df_hist_display, total_row], ignore_index=True)
+                        
+                        df_hist_display['Cantidad'] = df_hist_display['Cantidad'].apply(
+                            lambda x: format_integer_es(x) if isinstance(x, (int, np.integer, float)) else x
+                        )
+                        df_hist_display['Total Pagado'] = df_hist_display['Total Pagado'].apply(
+                            lambda x: format_currency_es(x) if isinstance(x, (int, np.integer, float)) else x
+                        )
+                        
+                        st.dataframe(
+                            df_hist_display, 
+                            use_container_width=True, 
+                            hide_index=True,
+                            height=600 
+                        )
+                        
+                        generate_download_buttons(
+                            df_for_download,
+                            f'histograma_{tipo_pago_seleccionado}_{periodo_actual}', 
+                            key_suffix=f"_neto_hist_{periodo_actual}_{columna_a_usar}"
+                        )
+                    
+                    # --- INICIO MODIFICACIÓN REQ 4: Tabla de Detalle ---
+                    st.markdown("---") # Separador
+                    st.subheader(f"Detalle de Empleados ({periodo_actual} / Rango Seleccionado)")
+                    
+                    # --- MODIFICADO REQ 2: Añadir columnas de pago ---
+                    cols_detalle = [
+                        'LEGAJO', 'Apellido y Nombre', 'Nivel', 'Subnivel', 'CECO', 
+                        'Gerencia', 'Ministerio', 'Distrito', 
+                        'Neto Pagado', 'SAC Pagado', 'Neto + SAC', # <-- Columnas de pago
+                        'Bin'
+                    ]
+                    
+                    cols_existentes = [col for col in cols_detalle if col in df_to_plot.columns]
+                    df_detalle = df_to_plot[cols_existentes].copy()
+                    
+                    if 'Bin' in df_detalle.columns:
+                        df_detalle['Rango'] = df_detalle['Bin'].apply(
+                            lambda x: f"{format_currency_es(x.left)} - {format_currency_es(x.right)}"
+                        )
 
-                            # 3. Renombrar columnas
-                            df_hist_agg.columns = ['Bin', 'Cantidad', 'Total Pagado']
-                            
-                            # 4. Crear la columna 'Rango' a partir del 'Bin' (que es un Interval object)
-                            df_hist_agg['Rango'] = df_hist_agg['Bin'].apply(
-                                lambda x: f"{format_currency_es(x.left)} - {format_currency_es(x.right)}"
-                            )
-                            
-                            # --- AÑADIDO: Pre-formatear Total Pagado para hover (Req 3) ---
-                            df_hist_agg['Total Pagado Formateado'] = df_hist_agg['Total Pagado'].apply(lambda x: format_currency_es(x))
+                    df_detalle_download = df_detalle.copy()
+                    if 'Bin' in df_detalle_download.columns:
+                        df_detalle_download = df_detalle_download.drop(columns=['Bin'])
+                    
+                    # --- MODIFICADO REQ 2: Formatear todas las columnas de pago ---
+                    if 'Neto Pagado' in df_detalle.columns:
+                        df_detalle['Neto Pagado'] = df_detalle['Neto Pagado'].apply(format_currency_es)
+                    if 'SAC Pagado' in df_detalle.columns:
+                        df_detalle['SAC Pagado'] = df_detalle['SAC Pagado'].apply(format_currency_es)
+                    if 'Neto + SAC' in df_detalle.columns:
+                        df_detalle['Neto + SAC'] = df_detalle['Neto + SAC'].apply(format_currency_es)
+                    if 'LEGAJO' in df_detalle.columns:
+                         df_detalle['LEGAJO'] = df_detalle['LEGAJO'].apply(lambda x: format_integer_es(int(x)) if (pd.notna(x) and x != 'no disponible' and str(x).isdigit()) else ('' if x=='no disponible' else x))
 
-                            # 5. Guardar los datos para descargar (antes de formatear y agregar total) (REQ 2)
-                            df_for_download = df_hist_agg[['Rango', 'Cantidad', 'Total Pagado']].copy()
-                            
-                            # 6. Definir título con formato (Req 3)
-                            title_range_start = format_currency_es(selected_range[0], decimals=0)
-                            title_range_end = format_currency_es(selected_range[1], decimals=0)
-                            title = f"Distribución de Neto Pagado (Rango: {title_range_start} - {title_range_end})"
-                            
-                            st.subheader(f"Histograma de Neto Pagado ({format_integer_es(df_to_plot.shape[0])} registros)")
-                            
-                            col_chart, col_table = st.columns([2, 1])
+                    # --- MODIFICADO REQ 2: Reordenar columnas para mostrar ---
+                    cols_display_final = [
+                        col for col in [
+                            'LEGAJO', 'Apellido y Nombre', 'Nivel', 'Subnivel', 'CECO', 
+                            'Gerencia', 'Ministerio', 'Distrito', 
+                            'Neto Pagado', 'SAC Pagado', 'Neto + SAC', 'Rango'
+                        ] if col in df_detalle.columns
+                    ]
+                    st.dataframe(df_detalle[cols_display_final], use_container_width=True, hide_index=True)
+                    
+                    generate_download_buttons(
+                        df_detalle_download, 
+                        f'detalle_pagos_{periodo_actual}', 
+                        key_suffix=f"_neto_detalle_{periodo_actual}_{columna_a_usar}"
+                    )
+                    # --- FIN MODIFICACIÓN REQ 4 ---
 
-                            with col_chart:
-                                # 7. Crear gráfico de BARRAS (Req 4)
-                                fig_hist = px.bar(
-                                    df_hist_agg, # Usamos el DF agregado
-                                    x='Rango',
-                                    y='Cantidad',
-                                    text='Cantidad', # <-- REQ 4: Etiqueta de datos
-                                    title=title,
-                                    labels={'Rango': 'Rango Neto Pagado', 'Cantidad': 'Cantidad de Empleados'},
-                                    # --- MODIFICADO: Usar columna pre-formateada ---
-                                    hover_data=['Total Pagado Formateado'] 
-                                )
-                                
-                                # Asegurar el orden correcto del eje X
-                                fig_hist.update_xaxes(categoryorder='array', categoryarray=df_hist_agg['Rango'])
-                                
-                                # Mejorar tooltips y posición de etiquetas (Req 4)
-                                fig_hist.update_traces(
-                                    textposition='outside',
-                                    # --- MODIFICADO: Mostrar string pre-formateado ---
-                                    hovertemplate='Rango: %{x}<br>Empleados: %{y}<br>Total Pagado: %{customdata[0]}'
-                                )
-                                fig_hist.update_layout(
-                                    bargap=0.1,
-                                    xaxis_title="Rango Neto Pagado ($)",
-                                    yaxis_title="Cantidad de Empleados",
-                                    # --- AÑADIDO: REQ 1 ---
-                                    height=600
-                                )
-                                st.plotly_chart(fig_hist, use_container_width=True)
-
-                            with col_table:
-                                # 8. Mostrar estadísticas (REQ 1: Apiladas)
-                                st.markdown("##### Estadísticas (Rango Selecc.)")
-                                st.metric("Promedio Neto", format_currency_es(df_to_plot['Neto Pagado'].mean()))
-                                st.metric("Mediana Neto", format_currency_es(df_to_plot['Neto Pagado'].median()))
-                                st.metric("Suma Total Neta", format_currency_es(df_to_plot['Neto Pagado'].sum()))
-                                
-                                # 9. Mostrar tabla de datos (REQ 2)
-                                st.markdown("##### Datos del Histograma")
-                                df_hist_display = df_hist_agg[['Rango', 'Cantidad', 'Total Pagado']].copy()
-                                
-                                # Añadir fila de total (REQ 2)
-                                total_row = pd.DataFrame({
-                                    'Rango': ['**TOTAL**'], 
-                                    'Cantidad': [df_hist_display['Cantidad'].sum()],
-                                    'Total Pagado': [df_hist_display['Total Pagado'].sum()] # <-- REQ 2: Total de la nueva columna
-                                })
-                                df_hist_display = pd.concat([df_hist_display, total_row], ignore_index=True)
-                                
-                                # Formatear las columnas para la tabla (Req 3)
-                                df_hist_display['Cantidad'] = df_hist_display['Cantidad'].apply(
-                                    lambda x: format_integer_es(x) if isinstance(x, (int, np.integer, float)) else x
-                                )
-                                df_hist_display['Total Pagado'] = df_hist_display['Total Pagado'].apply(
-                                    lambda x: format_currency_es(x) if isinstance(x, (int, np.integer, float)) else x
-                                )
-                                
-                                st.dataframe(
-                                    df_hist_display, 
-                                    use_container_width=True, 
-                                    hide_index=True,
-                                    height=300 
-                                )
-                                
-                                # 10. Botones de descarga (REQ 2)
-                                generate_download_buttons(
-                                    df_for_download, # Usamos el df sin formato ni total
-                                    f'histograma_neto_{periodo_a_mostrar_neto}', 
-                                    key_suffix="_neto_hist"
-                                )
-                            # --- FIN MODIFICACIÓN REQ 1, 2, 3, 4 ---
-    # --- FIN: NUEVA LÓGICA PARA SOLAPA 'Neto Pagado' ---
+                    st.markdown("---") # Separador de período (REQ 1)
+                # --- FIN DEL BUCLE FOR ---
+    # --- FIN: REFACTORIZACIÓN 'Neto Pagado' ---
 
     with tab_brutos:
         st.header('Tabla de Datos Filtrados')
         display_df = filtered_df.copy()
+        
+        # Formatear columnas numéricas para visualización
         if 'LEGAJO' in display_df.columns:
             display_df['LEGAJO'] = display_df['LEGAJO'].apply(lambda x: format_integer_es(int(x)) if (pd.notna(x) and x != 'no disponible' and str(x).isdigit()) else ('' if x=='no disponible' else x))
         
-        # --- AÑADIDO: Formatear Neto Pagado en la tabla de datos brutos ---
+        # --- MODIFICADO REQ 2: Formatear todas las columnas de pago ---
         if 'Neto Pagado' in display_df.columns:
-            # --- MODIFICACIÓN REQ 3: Usar nueva función ---
             display_df['Neto Pagado'] = display_df['Neto Pagado'].apply(
                 lambda x: format_currency_es(x) if x > 0 else ("$ 0,00" if x == 0 else "")
             )
-        # --- FIN AÑADIDO ---
+        if 'SAC Pagado' in display_df.columns:
+            display_df['SAC Pagado'] = display_df['SAC Pagado'].apply(
+                lambda x: format_currency_es(x) if x > 0 else ("$ 0,00" if x == 0 else "")
+            )
+        if 'Neto + SAC' in display_df.columns:
+            display_df['Neto + SAC'] = display_df['Neto + SAC'].apply(
+                lambda x: format_currency_es(x) if x > 0 else ("$ 0,00" if x == 0 else "")
+            )
+        # --- FIN MODIFICADO REQ 2 ---
 
         st.dataframe(display_df)
         generate_download_buttons(filtered_df, 'datos_filtrados_dotacion', key_suffix="_brutos")
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
 
