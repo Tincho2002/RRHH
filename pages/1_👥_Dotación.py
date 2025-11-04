@@ -63,41 +63,7 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
 /* --- INICIO REQ 1 (CORRECCIÓN): Estilos para las tarjetas de Neto Pagado --- */
-.metric-card-neto {
-    background-color: #ffffff;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    border-left: 5px solid #007bff; /* Color por defecto */
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-    transition: all 0.3s ease-in-out;
-}
-.metric-card-neto:hover {
-    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
-}
-.metric-card-neto.green { border-color: #28a745; }
-.metric-card-neto.orange { border-color: #fd7e14; }
-
-.metric-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #555;
-    margin-bottom: 0.25rem;
-}
-.metric-value {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: #222;
-    line-height: 1.2;
-}
-.metric-delta {
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin-top: 0.5rem;
-}
-.metric-delta .green { color: #28a745; }
-.metric-delta .red { color: #dc3545; }
-.metric-delta .grey { color: #6c757d; }
+/* --- CSS MOVIDO a 'cards_html' (línea 1420) para asegurar la carga en el iframe --- */
 /* --- FIN REQ 1 (CORRECCIÓN) --- */
 
 
@@ -1119,9 +1085,9 @@ if uploaded_file is not None:
                             current_month_name = periodo_actual.split('-')[0]
                             # Buscar hacia atrás en la lista de períodos seleccionados
                             target_month = None
-                            if current_month_name == 'Jun':
+                            if 'Jun' in current_month_name: # Flexible a 'Jun' o 'Junio'
                                 target_month = 'Dic'
-                            elif current_month_name == 'Dic':
+                            elif 'Dic' in current_month_name: # Flexible a 'Dic' o 'Diciembre'
                                 target_month = 'Jun'
                             
                             if target_month:
@@ -1239,7 +1205,45 @@ if uploaded_file is not None:
                     delta_suma_html = get_delta_html_neto(suma_actual, suma_prev)
 
                     # --- MODIFICADO REQ 2: Títulos de tarjetas dinámicos ---
+                    # --- CORRECCIÓN REQ 1: Mover CSS adentro del HTML ---
                     cards_html = f"""
+                    <style>
+                        .metric-card-neto {{
+                            background-color: #ffffff;
+                            border-radius: 0.5rem;
+                            padding: 1rem;
+                            border-left: 5px solid #007bff; /* Color por defecto */
+                            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+                            transition: all 0.3s ease-in-out;
+                        }}
+                        .metric-card-neto:hover {{
+                            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
+                            transform: translateY(-2px);
+                        }}
+                        .metric-card-neto.green {{ border-color: #28a745; }}
+                        .metric-card-neto.orange {{ border-color: #fd7e14; }}
+                
+                        .metric-title {{
+                            font-size: 0.9rem;
+                            font-weight: 600;
+                            color: #555;
+                            margin-bottom: 0.25rem;
+                        }}
+                        .metric-value {{
+                            font-size: 1.75rem;
+                            font-weight: 700;
+                            color: #222;
+                            line-height: 1.2;
+                        }}
+                        .metric-delta {{
+                            font-size: 0.85rem;
+                            font-weight: 600;
+                            margin-top: 0.5rem;
+                        }}
+                        .metric-delta .green {{ color: #28a745; }}
+                        .metric-delta .red {{ color: #dc3545; }}
+                        .metric-delta .grey {{ color: #6c757d; }}
+                    </style>
                     <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px;">
                             <div class="metric-card-neto">
@@ -1435,4 +1439,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
