@@ -996,21 +996,49 @@ if uploaded_file is not None:
             if 'Neto Pagado' not in filtered_df.columns:
                 st.error("La columna 'Neto Pagado' no se encontró en el archivo.")
             else:
-                # --- MODIFICACIÓN REQ 1: Filtrar por periodo seleccionado ---
+                # --- MODIFICACIÓN REQ 2: Incluir 0s ---
                 df_periodo_neto = filtered_df[filtered_df['Periodo'] == periodo_a_mostrar_neto]
-                # Filtramos datos > 0 para el análisis
-                df_neto = df_periodo_neto[df_periodo_neto['Neto Pagado'] > 0].copy()
-                # --- FIN MODIFICACIÓN REQ 1 ---
+                df_neto = df_periodo_neto[df_periodo_neto['Neto Pagado'] >= 0].copy()
+                # --- FIN MODIFICACIÓN REQ 2 ---
                 
                 if df_neto.empty:
-                    st.warning(f"No hay datos de 'Neto Pagado' (mayores a 0) para {periodo_a_mostrar_neto} con los filtros seleccionados.")
+                    # --- MODIFICACIÓN REQ 2: Mensaje actualizado ---
+                    st.warning(f"No hay datos de 'Neto Pagado' (mayores o iguales a 0) para {periodo_a_mostrar_neto} con los filtros seleccionados.")
                 else:
-                    min_val = float(df_neto['Neto Pagado'].min())
+                    # --- MODIFICACIÓN REQ 2: min_val es 0 ---
+                    min_val = 0.0
                     max_val = float(df_neto['Neto Pagado'].max())
+                    # --- FIN MODIFICACIÓN REQ 2 ---
                     
-                    if min_val == max_val:
-                        # --- MODIFICACIÓN REQ 3: Formato de moneda ---
-                        st.info(f"Todos los registros de 'Neto Pagado' tienen el mismo valor: {format_currency_es(min_val)}")
+                    # --- MODIFICACIÓN REQ 2: Caso especial si max_val es 0 ---
+                    if max_val == 0.0:
+                        st.info(f"Todos los registros de 'Neto Pagado' tienen el valor: {format_currency_es(0.0)}")
+                        st.markdown("---")
+                        col_chart_zero, col_table_zero = st.columns([2, 1])
+                        
+                        with col_chart_zero:
+                            st.info("Solo se encontraron valores de $ 0,00. No se puede generar un histograma.")
+                        
+                        with col_table_zero:
+                            st.markdown("##### Estadísticas (Rango Selecc.)")
+                            st.metric("Promedio Neto", format_currency_es(0.0))
+                            st.metric("Mediana Neto", format_currency_es(0.0))
+                            st.metric("Suma Total Neta", format_currency_es(0.0))
+                            
+                            st.markdown("##### Datos del Histograma")
+                            df_hist_display = pd.DataFrame({
+                                'Rango': [format_currency_es(0.0)], 
+                                'Cantidad': [format_integer_es(len(df_neto))], 
+                                'Total Pagado': [format_currency_es(0.0)]
+                            })
+                            total_row = pd.DataFrame({
+                                'Rango': ['**TOTAL**'], 
+                                'Cantidad': [format_integer_es(len(df_neto))], 
+                                'Total Pagado': [format_currency_es(0.0)]
+                            })
+                            df_hist_display = pd.concat([df_hist_display, total_row], ignore_index=True)
+                            st.dataframe(df_hist_display, use_container_width=True, hide_index=True)
+                    # --- FIN MODIFICACIÓN REQ 2 ---
                     else:
                         st.markdown("### Controles del Histograma")
                         col_cont1, col_cont2 = st.columns(2)
@@ -1018,6 +1046,7 @@ if uploaded_file is not None:
                         with col_cont1:
                             selected_range = st.slider(
                                 "Seleccionar rango de Neto Pagado:", 
+                                # --- MODIFICACIÓN REQ 2: min_value=min_val (que es 0.0) ---
                                 min_value=min_val, 
                                 max_value=max_val, 
                                 value=(min_val, max_val),
@@ -1066,6 +1095,9 @@ if uploaded_file is not None:
                                 lambda x: f"{format_currency_es(x.left)} - {format_currency_es(x.right)}"
                             )
                             
+                            # --- AÑADIDO: Pre-formatear Total Pagado para hover (Req 3) ---
+                            df_hist_agg['Total Pagado Formateado'] = df_hist_agg['Total Pagado'].apply(lambda x: format_currency_es(x))
+
                             # 5. Guardar los datos para descargar (antes de formatear y agregar total) (REQ 2)
                             df_for_download = df_hist_agg[['Rango', 'Cantidad', 'Total Pagado']].copy()
                             
@@ -1087,7 +1119,8 @@ if uploaded_file is not None:
                                     text='Cantidad', # <-- REQ 4: Etiqueta de datos
                                     title=title,
                                     labels={'Rango': 'Rango Neto Pagado', 'Cantidad': 'Cantidad de Empleados'},
-                                    hover_data={'Total Pagado': ':.2f'} # <-- REQ 2: Añadir a hover
+                                    # --- MODIFICADO: Usar columna pre-formateada ---
+                                    hover_data=['Total Pagado Formateado'] 
                                 )
                                 
                                 # Asegurar el orden correcto del eje X
@@ -1096,13 +1129,15 @@ if uploaded_file is not None:
                                 # Mejorar tooltips y posición de etiquetas (Req 4)
                                 fig_hist.update_traces(
                                     textposition='outside',
-                                    # REQ 2: Actualizar hovertemplate para mostrar el total pagado
-                                    hovertemplate='Rango: %{x}<br>Empleados: %{y}<br>Total Pagado: %{customdata[0]:,.2f}'
+                                    # --- MODIFICADO: Mostrar string pre-formateado ---
+                                    hovertemplate='Rango: %{x}<br>Empleados: %{y}<br>Total Pagado: %{customdata[0]}'
                                 )
                                 fig_hist.update_layout(
                                     bargap=0.1,
                                     xaxis_title="Rango Neto Pagado ($)",
-                                    yaxis_title="Cantidad de Empleados"
+                                    yaxis_title="Cantidad de Empleados",
+                                    # --- AÑADIDO: REQ 1 ---
+                                    height=600
                                 )
                                 st.plotly_chart(fig_hist, use_container_width=True)
 
@@ -1168,4 +1203,6 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
+
 
