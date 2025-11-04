@@ -1044,26 +1044,32 @@ if uploaded_file is not None:
                         else:
                             st.markdown("---")
                             
-                            # --- INICIO MODIFICACIÓN REQ 2, 3, 4: Tabla y gráfico de barras ---
+                            # --- INICIO MODIFICACIÓN REQ 1, 2, 3, 4 ---
                             
-                            # 1. Calcular datos del histograma con Numpy
-                            counts, bins = np.histogram(df_to_plot['Neto Pagado'], bins=num_bins)
-                            
-                            # 2. Crear DataFrame con los bins
-                            df_hist_data = pd.DataFrame({
-                                'Monto (Inicio)': bins[:-1],
-                                'Monto (Fin)': bins[1:],
-                                'Cantidad': counts
-                            })
-                            # Crear etiqueta de rango con formato moneda (Req 3)
-                            df_hist_data['Rango'] = df_hist_data.apply(
-                                lambda r: f"{format_currency_es(r['Monto (Inicio)'])} - {format_currency_es(r['Monto (Fin)'])}", 
-                                axis=1
-                            )
-                            # Filtrar bins sin cantidad
-                            df_hist_data = df_hist_data[df_hist_data['Cantidad'] > 0].reset_index(drop=True)
+                            # 1. Usar pd.cut para crear los bins
+                            # 'bins=num_bins' deja que pd.cut calcule los bins automáticamente
+                            try:
+                                df_to_plot['Bin'] = pd.cut(df_to_plot['Neto Pagado'], bins=num_bins)
+                            except ValueError as e:
+                                st.error(f"No se pudo generar el histograma. Intente ajustar el número de 'bins' o el rango. Error: {e}")
+                                # Si pd.cut falla (ej: rango muy pequeño), detenemos esta pestaña
+                                st.stop() 
 
-                            # 3. Definir título con formato (Req 3)
+                            # 2. Agrupar por esos bins y calcular Cantidad (count) y Total Pagado (sum) (REQ 2)
+                            df_hist_agg = df_to_plot.groupby('Bin', observed=True)['Neto Pagado'].agg(['count', 'sum']).reset_index()
+
+                            # 3. Renombrar columnas
+                            df_hist_agg.columns = ['Bin', 'Cantidad', 'Total Pagado']
+                            
+                            # 4. Crear la columna 'Rango' a partir del 'Bin' (que es un Interval object)
+                            df_hist_agg['Rango'] = df_hist_agg['Bin'].apply(
+                                lambda x: f"{format_currency_es(x.left)} - {format_currency_es(x.right)}"
+                            )
+                            
+                            # 5. Guardar los datos para descargar (antes de formatear y agregar total) (REQ 2)
+                            df_for_download = df_hist_agg[['Rango', 'Cantidad', 'Total Pagado']].copy()
+                            
+                            # 6. Definir título con formato (Req 3)
                             title_range_start = format_currency_es(selected_range[0], decimals=0)
                             title_range_end = format_currency_es(selected_range[1], decimals=0)
                             title = f"Distribución de Neto Pagado (Rango: {title_range_start} - {title_range_end})"
@@ -1073,23 +1079,25 @@ if uploaded_file is not None:
                             col_chart, col_table = st.columns([2, 1])
 
                             with col_chart:
-                                # 4. Crear gráfico de BARRAS (no histograma) para tener control total
+                                # 7. Crear gráfico de BARRAS (Req 4)
                                 fig_hist = px.bar(
-                                    df_hist_data,
+                                    df_hist_agg, # Usamos el DF agregado
                                     x='Rango',
                                     y='Cantidad',
                                     text='Cantidad', # <-- REQ 4: Etiqueta de datos
                                     title=title,
-                                    labels={'Rango': 'Rango Neto Pagado', 'Cantidad': 'Cantidad de Empleados'}
+                                    labels={'Rango': 'Rango Neto Pagado', 'Cantidad': 'Cantidad de Empleados'},
+                                    hover_data={'Total Pagado': ':.2f'} # <-- REQ 2: Añadir a hover
                                 )
                                 
-                                # Asegurar el orden correcto del eje X (no alfabético)
-                                fig_hist.update_xaxes(categoryorder='array', categoryarray=df_hist_data['Rango'])
+                                # Asegurar el orden correcto del eje X
+                                fig_hist.update_xaxes(categoryorder='array', categoryarray=df_hist_agg['Rango'])
                                 
                                 # Mejorar tooltips y posición de etiquetas (Req 4)
                                 fig_hist.update_traces(
                                     textposition='outside',
-                                    hovertemplate='Rango: %{x}<br>Empleados: %{y}'
+                                    # REQ 2: Actualizar hovertemplate para mostrar el total pagado
+                                    hovertemplate='Rango: %{x}<br>Empleados: %{y}<br>Total Pagado: %{customdata[0]:,.2f}'
                                 )
                                 fig_hist.update_layout(
                                     bargap=0.1,
@@ -1099,44 +1107,46 @@ if uploaded_file is not None:
                                 st.plotly_chart(fig_hist, use_container_width=True)
 
                             with col_table:
-                                # 5. Mostrar estadísticas (Req 3)
+                                # 8. Mostrar estadísticas (REQ 1: Apiladas)
                                 st.markdown("##### Estadísticas (Rango Selecc.)")
-                                stats_col1, stats_col2 = st.columns(2)
-                                stats_col1.metric("Promedio Neto", format_currency_es(df_to_plot['Neto Pagado'].mean()))
-                                stats_col2.metric("Mediana Neto", format_currency_es(df_to_plot['Neto Pagado'].median()))
+                                st.metric("Promedio Neto", format_currency_es(df_to_plot['Neto Pagado'].mean()))
+                                st.metric("Mediana Neto", format_currency_es(df_to_plot['Neto Pagado'].median()))
                                 st.metric("Suma Total Neta", format_currency_es(df_to_plot['Neto Pagado'].sum()))
                                 
-                                # 6. Mostrar tabla de datos (Req 2)
+                                # 9. Mostrar tabla de datos (REQ 2)
                                 st.markdown("##### Datos del Histograma")
-                                df_hist_display = df_hist_data[['Rango', 'Cantidad']].copy()
+                                df_hist_display = df_hist_agg[['Rango', 'Cantidad', 'Total Pagado']].copy()
                                 
-                                # Añadir fila de total
+                                # Añadir fila de total (REQ 2)
                                 total_row = pd.DataFrame({
                                     'Rango': ['**TOTAL**'], 
-                                    'Cantidad': [df_hist_display['Cantidad'].sum()]
+                                    'Cantidad': [df_hist_display['Cantidad'].sum()],
+                                    'Total Pagado': [df_hist_display['Total Pagado'].sum()] # <-- REQ 2: Total de la nueva columna
                                 })
                                 df_hist_display = pd.concat([df_hist_display, total_row], ignore_index=True)
                                 
-                                # Formatear la columna cantidad para la tabla
+                                # Formatear las columnas para la tabla (Req 3)
                                 df_hist_display['Cantidad'] = df_hist_display['Cantidad'].apply(
-                                    lambda x: format_integer_es(x) if isinstance(x, (int, np.integer)) else x
+                                    lambda x: format_integer_es(x) if isinstance(x, (int, np.integer, float)) else x
+                                )
+                                df_hist_display['Total Pagado'] = df_hist_display['Total Pagado'].apply(
+                                    lambda x: format_currency_es(x) if isinstance(x, (int, np.integer, float)) else x
                                 )
                                 
                                 st.dataframe(
                                     df_hist_display, 
                                     use_container_width=True, 
                                     hide_index=True,
-                                    height=300 # Ajustar altura
+                                    height=300 
                                 )
                                 
-                                # 7. Botones de descarga (Req 2)
-                                # Usamos df_hist_data (sin total, sin formato) para la descarga
+                                # 10. Botones de descarga (REQ 2)
                                 generate_download_buttons(
-                                    df_hist_data[['Rango', 'Monto (Inicio)', 'Monto (Fin)', 'Cantidad']], 
+                                    df_for_download, # Usamos el df sin formato ni total
                                     f'histograma_neto_{periodo_a_mostrar_neto}', 
                                     key_suffix="_neto_hist"
                                 )
-                            # --- FIN MODIFICACIÓN REQ 2, 3, 4 ---
+                            # --- FIN MODIFICACIÓN REQ 1, 2, 3, 4 ---
     # --- FIN: NUEVA LÓGICA PARA SOLAPA 'Neto Pagado' ---
 
     with tab_brutos:
@@ -1158,4 +1168,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
 
