@@ -100,6 +100,12 @@ def format_percentage_es(num, decimals=1):
     if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
+# --- AÑADIDO: Función de formato de moneda (Req 3) ---
+def format_currency_es(num, decimals=2):
+    if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
+    # Formato $ 1.234,56
+    return f"${num:,.{decimals}f}".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
+
 # --- Funciones Auxiliares ---
 def create_rounded_image_with_matte(im, rad, background_color='#f0f2f6'):
     # Creamos la máscara "a mano" para máxima compatibilidad
@@ -972,87 +978,165 @@ if uploaded_file is not None:
 
     # --- INICIO: NUEVA LÓGICA PARA SOLAPA 'Neto Pagado' ---
     with tab_neto_pagado:
-        st.header("Análisis de Histograma por Neto Pagado")
-        
-        # Verificamos que la columna exista en el dataframe filtrado (ya debería existir por load_and_clean_data)
-        if 'Neto Pagado' not in filtered_df.columns:
-            st.error("La columna 'Neto Pagado' no se encontró en el archivo.")
+        # --- MODIFICACIÓN REQ 1: Añadir selector de periodo ---
+        if filtered_df.empty or not selected_periodos:
+            st.warning("No hay datos para mostrar con los filtros seleccionados.")
         else:
-            # Filtramos datos > 0 para el análisis, ya que 0s no aportan al histograma de pagos
-            df_neto = filtered_df[filtered_df['Neto Pagado'] > 0].copy()
+            periodo_a_mostrar_neto = st.selectbox(
+                'Seleccionar Periodo:', 
+                sorted_selected_periods, 
+                index=len(sorted_selected_periods) - 1 if sorted_selected_periods else 0, 
+                key='periodo_selector_neto'
+            )
             
-            if df_neto.empty:
-                st.warning("No hay datos de 'Neto Pagado' (mayores a 0) para mostrar con los filtros seleccionados.")
+            st.header(f"Análisis de Neto Pagado para {periodo_a_mostrar_neto}")
+        # --- FIN MODIFICACIÓN REQ 1 ---
+
+            # Verificamos que la columna exista en el dataframe filtrado
+            if 'Neto Pagado' not in filtered_df.columns:
+                st.error("La columna 'Neto Pagado' no se encontró en el archivo.")
             else:
-                # Obtenemos los valores mínimos y máximos para los sliders
-                min_val = float(df_neto['Neto Pagado'].min())
-                max_val = float(df_neto['Neto Pagado'].max())
+                # --- MODIFICACIÓN REQ 1: Filtrar por periodo seleccionado ---
+                df_periodo_neto = filtered_df[filtered_df['Periodo'] == periodo_a_mostrar_neto]
+                # Filtramos datos > 0 para el análisis
+                df_neto = df_periodo_neto[df_periodo_neto['Neto Pagado'] > 0].copy()
+                # --- FIN MODIFICACIÓN REQ 1 ---
                 
-                if min_val == max_val:
-                    # Caso borde donde todos los empleados filtrados ganan lo mismo
-                    st.info(f"Todos los registros de 'Neto Pagado' tienen el mismo valor: ${min_val:,.2f}")
+                if df_neto.empty:
+                    st.warning(f"No hay datos de 'Neto Pagado' (mayores a 0) para {periodo_a_mostrar_neto} con los filtros seleccionados.")
                 else:
-                    st.markdown("### Controles del Histograma")
-                    col_cont1, col_cont2 = st.columns(2)
+                    min_val = float(df_neto['Neto Pagado'].min())
+                    max_val = float(df_neto['Neto Pagado'].max())
                     
-                    with col_cont1:
-                        # Slider para el RANGO de valores
-                        selected_range = st.slider(
-                            "Seleccionar rango de Neto Pagado:", 
-                            min_value=min_val, 
-                            max_value=max_val, 
-                            value=(min_val, max_val), # Default es el rango completo
-                            key="slider_range_neto",
-                            step=100.0 # Un step razonable para montos de dinero
-                        )
-                    
-                    with col_cont2:
-                        # Slider para el NÚMERO DE BINS (la "escala" que pediste)
-                        num_bins = st.slider(
-                            "Seleccionar número de 'bins' (columnas):", 
-                            min_value=5, 
-                            max_value=100, 
-                            value=30, # Un default razonable
-                            key="slider_bins_neto"
-                        )
-                    
-                    # Filtramos el dataframe con el rango seleccionado por el primer slider
-                    df_to_plot = df_neto[
-                        (df_neto['Neto Pagado'] >= selected_range[0]) & 
-                        (df_neto['Neto Pagado'] <= selected_range[1])
-                    ]
-                    
-                    if df_to_plot.empty:
-                        st.warning("No hay datos de 'Neto Pagado' en el rango seleccionado.")
+                    if min_val == max_val:
+                        # --- MODIFICACIÓN REQ 3: Formato de moneda ---
+                        st.info(f"Todos los registros de 'Neto Pagado' tienen el mismo valor: {format_currency_es(min_val)}")
                     else:
-                        st.markdown("---")
-                        st.subheader(f"Histograma de Neto Pagado ({format_integer_es(len(df_to_plot))} registros)")
+                        st.markdown("### Controles del Histograma")
+                        col_cont1, col_cont2 = st.columns(2)
                         
-                        # Usamos Plotly Express para crear el histograma
-                        fig_hist = px.histogram(
-                            df_to_plot, 
-                            x='Neto Pagado', 
-                            nbins=num_bins, # Usamos el valor del segundo slider
-                            title=f"Distribución de Neto Pagado (Rango: ${selected_range[0]:,.0f} - ${selected_range[1]:,.0f})",
-                            labels={'Neto Pagado': 'Monto Neto Pagado', 'count': 'Cantidad de Empleados'}
-                        )
+                        with col_cont1:
+                            selected_range = st.slider(
+                                "Seleccionar rango de Neto Pagado:", 
+                                min_value=min_val, 
+                                max_value=max_val, 
+                                value=(min_val, max_val),
+                                key="slider_range_neto",
+                                step=100.0 
+                            )
                         
-                        # Mejoramos los tooltips y el diseño
-                        fig_hist.update_traces(hovertemplate='Rango Neto: %{x}<br>Empleados: %{y}')
-                        fig_hist.update_layout(
-                            bargap=0.1, # Pequeño espacio entre barras
-                            xaxis_title="Monto Neto Pagado ($)",
-                            yaxis_title="Cantidad de Empleados"
-                        )
+                        with col_cont2:
+                            num_bins = st.slider(
+                                "Seleccionar número de 'bins' (columnas):", 
+                                min_value=5, 
+                                max_value=100, 
+                                value=30,
+                                key="slider_bins_neto"
+                            )
                         
-                        st.plotly_chart(fig_hist, use_container_width=True)
+                        df_to_plot = df_neto[
+                            (df_neto['Neto Pagado'] >= selected_range[0]) & 
+                            (df_neto['Neto Pagado'] <= selected_range[1])
+                        ]
                         
-                        # Añadimos algunas estadísticas clave sobre el rango seleccionado
-                        st.markdown("### Estadísticas del Rango Seleccionado")
-                        stats_col1, stats_col2, stats_col3 = st.columns(3)
-                        stats_col1.metric("Promedio Neto", f"${df_to_plot['Neto Pagado'].mean():,.2f}")
-                        stats_col2.metric("Mediana Neto", f"${df_to_plot['Neto Pagado'].median():,.2f}")
-                        stats_col3.metric("Suma Total Neta", f"${df_to_plot['Neto Pagado'].sum():,.2f}")
+                        if df_to_plot.empty:
+                            st.warning("No hay datos de 'Neto Pagado' en el rango seleccionado.")
+                        else:
+                            st.markdown("---")
+                            
+                            # --- INICIO MODIFICACIÓN REQ 2, 3, 4: Tabla y gráfico de barras ---
+                            
+                            # 1. Calcular datos del histograma con Numpy
+                            counts, bins = np.histogram(df_to_plot['Neto Pagado'], bins=num_bins)
+                            
+                            # 2. Crear DataFrame con los bins
+                            df_hist_data = pd.DataFrame({
+                                'Monto (Inicio)': bins[:-1],
+                                'Monto (Fin)': bins[1:],
+                                'Cantidad': counts
+                            })
+                            # Crear etiqueta de rango con formato moneda (Req 3)
+                            df_hist_data['Rango'] = df_hist_data.apply(
+                                lambda r: f"{format_currency_es(r['Monto (Inicio)'])} - {format_currency_es(r['Monto (Fin)'])}", 
+                                axis=1
+                            )
+                            # Filtrar bins sin cantidad
+                            df_hist_data = df_hist_data[df_hist_data['Cantidad'] > 0].reset_index(drop=True)
+
+                            # 3. Definir título con formato (Req 3)
+                            title_range_start = format_currency_es(selected_range[0], decimals=0)
+                            title_range_end = format_currency_es(selected_range[1], decimals=0)
+                            title = f"Distribución de Neto Pagado (Rango: {title_range_start} - {title_range_end})"
+                            
+                            st.subheader(f"Histograma de Neto Pagado ({format_integer_es(df_to_plot.shape[0])} registros)")
+                            
+                            col_chart, col_table = st.columns([2, 1])
+
+                            with col_chart:
+                                # 4. Crear gráfico de BARRAS (no histograma) para tener control total
+                                fig_hist = px.bar(
+                                    df_hist_data,
+                                    x='Rango',
+                                    y='Cantidad',
+                                    text='Cantidad', # <-- REQ 4: Etiqueta de datos
+                                    title=title,
+                                    labels={'Rango': 'Rango Neto Pagado', 'Cantidad': 'Cantidad de Empleados'}
+                                )
+                                
+                                # Asegurar el orden correcto del eje X (no alfabético)
+                                fig_hist.update_xaxes(categoryorder='array', categoryarray=df_hist_data['Rango'])
+                                
+                                # Mejorar tooltips y posición de etiquetas (Req 4)
+                                fig_hist.update_traces(
+                                    textposition='outside',
+                                    hovertemplate='Rango: %{x}<br>Empleados: %{y}'
+                                )
+                                fig_hist.update_layout(
+                                    bargap=0.1,
+                                    xaxis_title="Rango Neto Pagado ($)",
+                                    yaxis_title="Cantidad de Empleados"
+                                )
+                                st.plotly_chart(fig_hist, use_container_width=True)
+
+                            with col_table:
+                                # 5. Mostrar estadísticas (Req 3)
+                                st.markdown("##### Estadísticas (Rango Selecc.)")
+                                stats_col1, stats_col2 = st.columns(2)
+                                stats_col1.metric("Promedio Neto", format_currency_es(df_to_plot['Neto Pagado'].mean()))
+                                stats_col2.metric("Mediana Neto", format_currency_es(df_to_plot['Neto Pagado'].median()))
+                                st.metric("Suma Total Neta", format_currency_es(df_to_plot['Neto Pagado'].sum()))
+                                
+                                # 6. Mostrar tabla de datos (Req 2)
+                                st.markdown("##### Datos del Histograma")
+                                df_hist_display = df_hist_data[['Rango', 'Cantidad']].copy()
+                                
+                                # Añadir fila de total
+                                total_row = pd.DataFrame({
+                                    'Rango': ['**TOTAL**'], 
+                                    'Cantidad': [df_hist_display['Cantidad'].sum()]
+                                })
+                                df_hist_display = pd.concat([df_hist_display, total_row], ignore_index=True)
+                                
+                                # Formatear la columna cantidad para la tabla
+                                df_hist_display['Cantidad'] = df_hist_display['Cantidad'].apply(
+                                    lambda x: format_integer_es(x) if isinstance(x, (int, np.integer)) else x
+                                )
+                                
+                                st.dataframe(
+                                    df_hist_display, 
+                                    use_container_width=True, 
+                                    hide_index=True,
+                                    height=300 # Ajustar altura
+                                )
+                                
+                                # 7. Botones de descarga (Req 2)
+                                # Usamos df_hist_data (sin total, sin formato) para la descarga
+                                generate_download_buttons(
+                                    df_hist_data[['Rango', 'Monto (Inicio)', 'Monto (Fin)', 'Cantidad']], 
+                                    f'histograma_neto_{periodo_a_mostrar_neto}', 
+                                    key_suffix="_neto_hist"
+                                )
+                            # --- FIN MODIFICACIÓN REQ 2, 3, 4 ---
     # --- FIN: NUEVA LÓGICA PARA SOLAPA 'Neto Pagado' ---
 
     with tab_brutos:
@@ -1063,9 +1147,9 @@ if uploaded_file is not None:
         
         # --- AÑADIDO: Formatear Neto Pagado en la tabla de datos brutos ---
         if 'Neto Pagado' in display_df.columns:
-            # Formateamos como moneda con 2 decimales, pero solo si es mayor a 0
+            # --- MODIFICACIÓN REQ 3: Usar nueva función ---
             display_df['Neto Pagado'] = display_df['Neto Pagado'].apply(
-                lambda x: f"${x:,.2f}".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".") if x > 0 else ("$ 0,00" if x == 0 else "")
+                lambda x: format_currency_es(x) if x > 0 else ("$ 0,00" if x == 0 else "")
             )
         # --- FIN AÑADIDO ---
 
@@ -1074,3 +1158,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
+
