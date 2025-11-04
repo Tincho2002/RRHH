@@ -1169,4 +1169,3 @@ if uploaded_file is not None:
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
 
-
