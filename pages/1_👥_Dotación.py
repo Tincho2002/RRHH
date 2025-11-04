@@ -343,6 +343,19 @@ def load_and_clean_data(uploaded_file):
         if col in ['Rango Antiguedad', 'Rango Edad']: df_excel[col] = df_excel[col].str.lower()
         elif col == 'Periodo': df_excel[col] = df_excel[col].str.capitalize()
     
+    # --- INICIO: MODIFICACIÓN PARA 'Neto Pagado' ---
+    # Procesamos la columna 'Neto Pagado' que el usuario agregó
+    if 'Neto Pagado' in df_excel.columns:
+        # Convertimos a numérico, los errores (texto) se volverán NaN
+        df_excel['Neto Pagado'] = pd.to_numeric(df_excel['Neto Pagado'], errors='coerce')
+        # Reemplazamos NaN con 0 para evitar errores en sumas o cálculos
+        df_excel['Neto Pagado'] = df_excel['Neto Pagado'].fillna(0)
+    else:
+        # Si el archivo cargado NO tiene la columna, la creamos con 0s
+        # Esto asegura que el resto de la app no falle si se carga un archivo antiguo
+        df_excel['Neto Pagado'] = 0
+    # --- FIN: MODIFICACIÓN PARA 'Neto Pagado' ---
+
     return df_excel
     
 # --- INICIO DE LA APLICACIÓN ---
@@ -369,7 +382,7 @@ if uploaded_file is not None:
     
     # --- MODIFICADO: Añadido 'Año' al diccionario de filtros ---
     filter_cols_config = {
-        'Año': 'Año',                   # AÑADIDO
+        'Año': 'Año',                # AÑADIDO
         'Periodo': 'Periodo', 
         'Gerencia': 'Gerencia', 
         'Relación': 'Relación', 
@@ -612,7 +625,11 @@ if uploaded_file is not None:
         components.html(card_html, height=220)
         st.markdown("<br>", unsafe_allow_html=True)
 
+    # --- INICIO: MODIFICACIÓN PARA AÑADIR SOLAPA 'Neto Pagado' ---
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
+    # Insertamos la nueva solapa en la posición 3 (antes de Datos Brutos)
+    tab_names.insert(3, "💰 Neto Pagado") 
+    
     if not df_coords.empty:
         tab_names.insert(1, "🗺️ Mapa Geográfico")
         tab_names.insert(1, "🗺️ Comparador de Mapas")
@@ -629,7 +646,11 @@ if uploaded_file is not None:
         tab_index += 1
     tab_edad_antiguedad = tabs[tab_index]
     tab_desglose = tabs[tab_index + 1]
-    tab_brutos = tabs[tab_index + 2]
+    
+    # Asignamos las variables de las nuevas solapas y ajustamos el índice de la última
+    tab_neto_pagado = tabs[tab_index + 2] 
+    tab_brutos = tabs[tab_index + 3]
+    # --- FIN: MODIFICACIÓN PARA AÑADIR SOLAPA ---
 
     with tab_resumen:
         st.header('Resumen General de la Dotación')
@@ -949,15 +970,107 @@ if uploaded_file is not None:
                 st.dataframe(table_data_display.style.format({"Cantidad": format_integer_es}))
                 generate_download_buttons(table_data, f'dotacion_{cat_seleccionada.lower()}_{periodo_a_mostrar_desglose}', key_suffix="_desglose")
 
+    # --- INICIO: NUEVA LÓGICA PARA SOLAPA 'Neto Pagado' ---
+    with tab_neto_pagado:
+        st.header("Análisis de Histograma por Neto Pagado")
+        
+        # Verificamos que la columna exista en el dataframe filtrado (ya debería existir por load_and_clean_data)
+        if 'Neto Pagado' not in filtered_df.columns:
+            st.error("La columna 'Neto Pagado' no se encontró en el archivo.")
+        else:
+            # Filtramos datos > 0 para el análisis, ya que 0s no aportan al histograma de pagos
+            df_neto = filtered_df[filtered_df['Neto Pagado'] > 0].copy()
+            
+            if df_neto.empty:
+                st.warning("No hay datos de 'Neto Pagado' (mayores a 0) para mostrar con los filtros seleccionados.")
+            else:
+                # Obtenemos los valores mínimos y máximos para los sliders
+                min_val = float(df_neto['Neto Pagado'].min())
+                max_val = float(df_neto['Neto Pagado'].max())
+                
+                if min_val == max_val:
+                    # Caso borde donde todos los empleados filtrados ganan lo mismo
+                    st.info(f"Todos los registros de 'Neto Pagado' tienen el mismo valor: ${min_val:,.2f}")
+                else:
+                    st.markdown("### Controles del Histograma")
+                    col_cont1, col_cont2 = st.columns(2)
+                    
+                    with col_cont1:
+                        # Slider para el RANGO de valores
+                        selected_range = st.slider(
+                            "Seleccionar rango de Neto Pagado:", 
+                            min_value=min_val, 
+                            max_value=max_val, 
+                            value=(min_val, max_val), # Default es el rango completo
+                            key="slider_range_neto",
+                            step=100.0 # Un step razonable para montos de dinero
+                        )
+                    
+                    with col_cont2:
+                        # Slider para el NÚMERO DE BINS (la "escala" que pediste)
+                        num_bins = st.slider(
+                            "Seleccionar número de 'bins' (columnas):", 
+                            min_value=5, 
+                            max_value=100, 
+                            value=30, # Un default razonable
+                            key="slider_bins_neto"
+                        )
+                    
+                    # Filtramos el dataframe con el rango seleccionado por el primer slider
+                    df_to_plot = df_neto[
+                        (df_neto['Neto Pagado'] >= selected_range[0]) & 
+                        (df_neto['Neto Pagado'] <= selected_range[1])
+                    ]
+                    
+                    if df_to_plot.empty:
+                        st.warning("No hay datos de 'Neto Pagado' en el rango seleccionado.")
+                    else:
+                        st.markdown("---")
+                        st.subheader(f"Histograma de Neto Pagado ({format_integer_es(len(df_to_plot))} registros)")
+                        
+                        # Usamos Plotly Express para crear el histograma
+                        fig_hist = px.histogram(
+                            df_to_plot, 
+                            x='Neto Pagado', 
+                            nbins=num_bins, # Usamos el valor del segundo slider
+                            title=f"Distribución de Neto Pagado (Rango: ${selected_range[0]:,.0f} - ${selected_range[1]:,.0f})",
+                            labels={'Neto Pagado': 'Monto Neto Pagado', 'count': 'Cantidad de Empleados'}
+                        )
+                        
+                        # Mejoramos los tooltips y el diseño
+                        fig_hist.update_traces(hovertemplate='Rango Neto: %{x}<br>Empleados: %{y}')
+                        fig_hist.update_layout(
+                            bargap=0.1, # Pequeño espacio entre barras
+                            xaxis_title="Monto Neto Pagado ($)",
+                            yaxis_title="Cantidad de Empleados"
+                        )
+                        
+                        st.plotly_chart(fig_hist, use_container_width=True)
+                        
+                        # Añadimos algunas estadísticas clave sobre el rango seleccionado
+                        st.markdown("### Estadísticas del Rango Seleccionado")
+                        stats_col1, stats_col2, stats_col3 = st.columns(3)
+                        stats_col1.metric("Promedio Neto", f"${df_to_plot['Neto Pagado'].mean():,.2f}")
+                        stats_col2.metric("Mediana Neto", f"${df_to_plot['Neto Pagado'].median():,.2f}")
+                        stats_col3.metric("Suma Total Neta", f"${df_to_plot['Neto Pagado'].sum():,.2f}")
+    # --- FIN: NUEVA LÓGICA PARA SOLAPA 'Neto Pagado' ---
+
     with tab_brutos:
         st.header('Tabla de Datos Filtrados')
         display_df = filtered_df.copy()
         if 'LEGAJO' in display_df.columns:
             display_df['LEGAJO'] = display_df['LEGAJO'].apply(lambda x: format_integer_es(int(x)) if (pd.notna(x) and x != 'no disponible' and str(x).isdigit()) else ('' if x=='no disponible' else x))
+        
+        # --- AÑADIDO: Formatear Neto Pagado en la tabla de datos brutos ---
+        if 'Neto Pagado' in display_df.columns:
+            # Formateamos como moneda con 2 decimales, pero solo si es mayor a 0
+            display_df['Neto Pagado'] = display_df['Neto Pagado'].apply(
+                lambda x: f"${x:,.2f}".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".") if x > 0 else ("$ 0,00" if x == 0 else "")
+            )
+        # --- FIN AÑADIDO ---
+
         st.dataframe(display_df)
         generate_download_buttons(filtered_df, 'datos_filtrados_dotacion', key_suffix="_brutos")
 
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
-
-
