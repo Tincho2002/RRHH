@@ -62,9 +62,7 @@ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:has(div[data-te
 
 /* --- FIN DE ESTILOS AGREGADOS --- */
 
-/* --- INICIO REQ 1 (CORRECCIÓN): Estilos para las tarjetas de Neto Pagado --- */
 /* --- CSS MOVIDO a 'cards_html' (línea 1420) para asegurar la carga en el iframe --- */
-/* --- FIN REQ 1 (CORRECCIÓN) --- */
 
 
 /* --- REGLAS RESPONSIVE GENERALES --- */
@@ -681,10 +679,11 @@ if uploaded_file is not None:
         st.markdown("<br>", unsafe_allow_html=True)
     # --- FIN: Corrección de indentación ---
 
-    # --- INICIO: MODIFICACIÓN PARA AÑADIR SOLAPA 'Neto Pagado' ---
+    # --- INICIO: MODIFICACIÓN PARA AÑADIR SOLAPAS ---
     tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
-    # Insertamos la nueva solapa en la posición 3 (antes de Datos Brutos)
+    # Insertamos las nuevas solapas
     tab_names.insert(3, "💰 Neto Pagado") 
+    tab_names.insert(4, "📈 Evolución de Pagos") # <-- AÑADIDO
     
     if not df_coords.empty:
         tab_names.insert(1, "🗺️ Mapa Geográfico")
@@ -705,8 +704,9 @@ if uploaded_file is not None:
     
     # Asignamos las variables de las nuevas solapas y ajustamos el índice de la última
     tab_neto_pagado = tabs[tab_index + 2] 
-    tab_brutos = tabs[tab_index + 3]
-    # --- FIN: MODIFICACIÓN PARA AÑADIR SOLAPA ---
+    tab_evolucion_pagos = tabs[tab_index + 3] # <-- AÑADIDO
+    tab_brutos = tabs[tab_index + 4]          # <-- AJUSTADO
+    # --- FIN: MODIFICACIÓN PARA AÑADIR SOLAPAS ---
 
     with tab_resumen:
         st.header('Resumen General de la Dotación')
@@ -1041,6 +1041,11 @@ if uploaded_file is not None:
                 opciones_pago, 
                 key="selector_tipo_pago"
             )
+            
+            # --- AÑADIDO: Recordatorio contextual para SAC ---
+            if tipo_pago_seleccionado == "SAC Pagado":
+                st.info("💡 **Recordatorio:** 'SAC Pagado' generalmente solo contiene valores en los períodos de Junio y Diciembre. Es normal ver $0,00 en otros meses.", icon="💡")
+            # --- FIN AÑADIDO ---
             
             # Mapear la selección a la columna real del DataFrame
             columna_pago_map = {
@@ -1410,6 +1415,161 @@ if uploaded_file is not None:
                     st.markdown("---") # Separador de período (REQ 1)
                 # --- FIN DEL BUCLE FOR ---
     # --- FIN: REFACTORIZACIÓN 'Neto Pagado' ---
+    
+    # --- INICIO: NUEVA SOLAPA DE EVOLUCIÓN DE PAGOS ---
+    with tab_evolucion_pagos:
+        st.header("Evolución Mensual de Pagos")
+
+        if filtered_df.empty or not selected_periodos:
+            st.warning("No hay datos para mostrar con los filtros seleccionados. Por favor, ajuste los filtros en la barra lateral.")
+        else:
+            # --- INICIO: MODIFICACIÓN GRÁFICO DOBLE EJE ---
+            
+            # 1. Definir las métricas disponibles
+            metric_map = {
+                "Suma Neto Pagado": {"col": "Suma_Neto", "color": "#1f77b4"},
+                "Suma SAC Pagado": {"col": "Suma_SAC", "color": "#ff7f0e"},
+                "Suma Neto + SAC": {"col": "Suma_Total_Neto_SAC", "color": "#2ca02c"},
+                "Promedio Neto Pagado": {"col": "Promedio_Neto", "color": "#d62728"},
+                "Promedio SAC Pagado": {"col": "Promedio_SAC", "color": "#9467bd"},
+                "Promedio Neto + SAC": {"col": "Promedio_Total_Neto_SAC", "color": "#8c564b"}
+            }
+            metric_options = list(metric_map.keys())
+
+            # 2. Crear los selectores multiselect
+            st.subheader("Controles del Gráfico de Evolución")
+            col_sel1, col_sel2 = st.columns(2)
+            with col_sel1:
+                opciones_eje1 = st.multiselect(
+                    "Métricas Eje Y (Principal):",
+                    options=metric_options,
+                    default=["Suma Neto Pagado"],
+                    key="select_eje_1"
+                )
+            with col_sel2:
+                opciones_eje2 = st.multiselect(
+                    "Métricas Eje Y (Secundario):",
+                    options=metric_options,
+                    default=[],
+                    key="select_eje_2"
+                )
+            st.markdown("---")
+
+            # 3. Preparar los datos (esto no cambia)
+            df_evolucion = filtered_df.groupby('Periodo').agg(
+                Suma_Neto=('Neto Pagado', 'sum'),
+                Promedio_Neto=('Neto Pagado', 'mean'),
+                Suma_SAC=('SAC Pagado', 'sum'),
+                Promedio_SAC=('SAC Pagado', 'mean'),
+                Suma_Total_Neto_SAC=('Neto + SAC', 'sum'),
+                Promedio_Total_Neto_SAC=('Neto + SAC', 'mean')
+            ).reset_index()
+
+            # Ordenar cronológicamente
+            df_evolucion['Periodo'] = pd.Categorical(df_evolucion['Periodo'], categories=all_periodos_sorted, ordered=True)
+            df_evolucion = df_evolucion.sort_values('Periodo')
+
+            # Filtrar solo a los períodos seleccionados en la sidebar
+            df_evolucion = df_evolucion[df_evolucion['Periodo'].isin(sorted_selected_periods)].reset_index(drop=True)
+
+            if df_evolucion.empty:
+                st.warning("No hay datos de evolución para los períodos seleccionados.")
+            else:
+                col_graf, col_tabla = st.columns([2, 1])
+
+                with col_graf:
+                    st.subheader("Gráfico de Evolución Combinado")
+                    
+                    # --- AÑADIDO: Chequeo para gráfico vacío ---
+                    if not opciones_eje1 and not opciones_eje2:
+                        st.info("Por favor, seleccione al menos una métrica en los controles de arriba para construir el gráfico.")
+                        # Placeholder para mantener el layout
+                        st.markdown("<div style='height: 600px;'></div>", unsafe_allow_html=True) 
+                    
+                    else:
+                        # 4. Crear gráfico con doble eje
+                        fig_evolucion = make_subplots(specs=[[{"secondary_y": True}]])
+                        
+                        # Añadir trazas Eje 1 (Principal)
+                        for metric_name in opciones_eje1:
+                            config = metric_map[metric_name]
+                            col_name = config["col"]
+                            color = config["color"]
+                            fig_evolucion.add_trace(go.Scatter(
+                                x=df_evolucion['Periodo'],
+                                y=df_evolucion[col_name],
+                                name=metric_name,
+                                mode='lines+markers', # Sin texto para más limpieza
+                                line=dict(color=color)
+                            ), secondary_y=False)
+
+                        # Añadir trazas Eje 2 (Secundario)
+                        for metric_name in opciones_eje2:
+                            config = metric_map[metric_name]
+                            col_name = config["col"]
+                            color = config["color"]
+                            fig_evolucion.add_trace(go.Scatter(
+                                x=df_evolucion['Periodo'],
+                                y=df_evolucion[col_name],
+                                name=f"{metric_name} (Sec.)",
+                                mode='lines+markers',
+                                line=dict(color=color, dash='dash') # Estilo punteado
+                            ), secondary_y=True)
+
+                        # 5. Títulos de Ejes Dinámicos
+                        def get_axis_title(options):
+                            has_suma = any('Suma' in s for s in options)
+                            has_prom = any('Promedio' in s for s in options)
+                            if has_suma and not has_prom: return "Suma Total ($)"
+                            if has_prom and not has_suma: return "Promedio ($)"
+                            if has_suma and has_prom: return "Valor Mixto ($)"
+                            return "Valor ($)"
+
+                        title_eje_1 = get_axis_title(opciones_eje1)
+                        title_eje_2 = get_axis_title(opciones_eje2)
+
+                        fig_evolucion.update_layout(
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                            height=600,
+                            hovermode="x unified"
+                        )
+                        fig_evolucion.update_xaxes(title_text="Período", categoryorder='array', categoryarray=sorted_selected_periods)
+                        fig_evolucion.update_yaxes(title_text=f"<b>{title_eje_1}</b> (Principal)", secondary_y=False)
+                        fig_evolucion.update_yaxes(title_text=f"<b>{title_eje_2}</b> (Secundario)", secondary_y=True, showgrid=False)
+                        
+                        st.plotly_chart(fig_evolucion, use_container_width=True)
+                        # --- FIN: Lógica del gráfico movida al 'else' ---
+
+                with col_tabla:
+                    st.subheader("Datos Agregados")
+                    
+                    df_display_evolucion = df_evolucion.copy()
+                    
+                    # 6. Formatear y mostrar TODAS las columnas en la tabla
+                    cols_to_format = [
+                        'Suma_Neto', 'Promedio_Neto', 'Suma_SAC', 'Promedio_SAC', 
+                        'Suma_Total_Neto_SAC', 'Promedio_Total_Neto_SAC'
+                    ]
+                    cols_to_show = ['Periodo'] + cols_to_format # Mostrar todas
+
+                    for col in cols_to_format:
+                        if col in df_display_evolucion.columns:
+                            df_display_evolucion[col] = df_display_evolucion[col].apply(format_currency_es)
+                        
+                    st.dataframe(
+                        df_display_evolucion[cols_to_show], 
+                        use_container_width=True, 
+                        hide_index=True,
+                        height=600
+                    )
+                    
+                    generate_download_buttons(
+                        df_evolucion, # Descargar datos crudos (sin formato)
+                        f'evolucion_pagos_agregados', 
+                        key_suffix="_evolucion_pagos"
+                    )
+            # --- FIN: MODIFICACIÓN GRÁFICO DOBLE EJE ---
+    # --- FIN: NUEVA SOLAPA DE EVOLUCIÓN DE PAGOS ---
 
     with tab_brutos:
         st.header('Tabla de Datos Filtrados')
