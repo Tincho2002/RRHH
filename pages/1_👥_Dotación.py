@@ -679,34 +679,31 @@ if uploaded_file is not None:
         st.markdown("<br>", unsafe_allow_html=True)
     # --- FIN: Corrección de indentación ---
 
-    # --- INICIO: MODIFICACIÓN PARA AÑADIR SOLAPAS ---
-    tab_names = ["📊 Resumen de Dotación", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "📋 Datos Brutos"]
-    # Insertamos las nuevas solapas
-    tab_names.insert(3, "💰 Neto Pagado") 
-    tab_names.insert(4, "📈 Evolución de Pagos") # <-- AÑADIDO
+    # --- INICIO: CORRECCIÓN LÓGICA DE SOLAPAS (REQ 2) ---
+    tab_names = ["📊 Resumen de Dotación", "📊 Dotación SIPAF", "⏳ Edad y Antigüedad", "📈 Desglose por Categoría", "💰 Neto Pagado", "📈 Evolución de Pagos", "📋 Datos Brutos"]
     
     if not df_coords.empty:
-        tab_names.insert(1, "🗺️ Mapa Geográfico")
-        tab_names.insert(1, "🗺️ Comparador de Mapas")
+        # Insertar las solapas de mapas después de Dotación SIPAF
+        tab_names.insert(2, "🗺️ Comparador de Mapas")
+        tab_names.insert(3, "🗺️ Mapa Geográfico")
     
     tabs = st.tabs(tab_names)
-    tab_map_comparador, tab_map_individual = (None, None)
+
+    # Re-indexar las variables de las solapas
+    tab_index = 0
+    tab_resumen = tabs[tab_index]; tab_index += 1
+    tab_sipaf = tabs[tab_index]; tab_index += 1
     
-    tab_resumen = tabs[0]
-    tab_index = 1
     if not df_coords.empty:
-        tab_map_comparador = tabs[tab_index]
-        tab_index += 1
-        tab_map_individual = tabs[tab_index]
-        tab_index += 1
-    tab_edad_antiguedad = tabs[tab_index]
-    tab_desglose = tabs[tab_index + 1]
-    
-    # Asignamos las variables de las nuevas solapas y ajustamos el índice de la última
-    tab_neto_pagado = tabs[tab_index + 2] 
-    tab_evolucion_pagos = tabs[tab_index + 3] # <-- AÑADIDO
-    tab_brutos = tabs[tab_index + 4]          # <-- AJUSTADO
-    # --- FIN: MODIFICACIÓN PARA AÑADIR SOLAPAS ---
+        tab_map_comparador = tabs[tab_index]; tab_index += 1
+        tab_map_individual = tabs[tab_index]; tab_index += 1
+        
+    tab_edad_antiguedad = tabs[tab_index]; tab_index += 1
+    tab_desglose = tabs[tab_index]; tab_index += 1
+    tab_neto_pagado = tabs[tab_index]; tab_index += 1
+    tab_evolucion_pagos = tabs[tab_index]; tab_index += 1
+    tab_brutos = tabs[tab_index]; tab_index += 1
+    # --- FIN: CORRECCIÓN LÓGICA DE SOLAPAS (REQ 2) ---
 
     with tab_resumen:
         st.header('Resumen General de la Dotación')
@@ -826,7 +823,156 @@ if uploaded_file is not None:
                 text_var = chart_var.mark_text(align='center', baseline='middle', dy=alt.expr("datum.Variacion_Cantidad > 0 ? -10 : 15"), color='white').encode(text='label:N')
                 st.altair_chart(chart_var + text_var, use_container_width=True)
 
+    # --- INICIO: NUEVA SOLAPA SIPAF (REQ 1) ---
+    with tab_sipaf:
+        st.header("Análisis Comparativo de Dotación (SIPAF)")
+
+        if filtered_df.empty or len(sorted_selected_periods) < 1:
+            st.warning("No hay datos para mostrar con los filtros seleccionados. Por favor, ajuste los filtros en la barra lateral.")
+        elif len(sorted_selected_periods) < 2:
+            st.info("Por favor, seleccione al menos dos períodos en la barra lateral para poder comparar.")
+        else:
+            # Controles de selección de período
+            st.subheader("Selección de Períodos a Comparar")
+            col_sel_1, col_sel_2 = st.columns(2)
+            with col_sel_1:
+                periodo_actual_sipaf = st.selectbox(
+                    "Seleccionar Período Principal (A):", 
+                    sorted_selected_periods, 
+                    index=len(sorted_selected_periods)-1, # Default: último período
+                    key="sipaf_periodo_actual"
+                )
+            with col_sel_2:
+                periodo_previo_sipaf = st.selectbox(
+                    "Seleccionar Período de Comparación (B):", 
+                    sorted_selected_periods, 
+                    index=len(sorted_selected_periods)-2, # Default: anteúltimo período
+                    key="sipaf_periodo_previo"
+                )
+            
+            # Selector de Categoría
+            st.subheader("Desglose por Categoría")
+            # --- MODIFICADO REQ 1: Selector Múltiple ---
+            categorias_sipaf = st.multiselect(
+                "Seleccionar categorías para el desglose (el orden importa):", 
+                options=["Ministerio", "Gerencia", "Función", "Nivel", "Subnivel"],
+                default=["Función", "Nivel", "Subnivel"], # Default como la imagen
+                key="sipaf_categorias"
+            )
+            st.markdown("---")
+
+            if not categorias_sipaf:
+                st.warning("Por favor, seleccione al menos una categoría para el desglose.")
+            else:
+                # Data Processing
+                df_actual = filtered_df[filtered_df['Periodo'] == periodo_actual_sipaf]
+                df_previo = filtered_df[filtered_df['Periodo'] == periodo_previo_sipaf]
+
+                # Renombrar columnas para claridad en la tabla final
+                col_actual = f"Dotación {periodo_actual_sipaf} (A)"
+                col_previo = f"Dotación {periodo_previo_sipaf} (B)"
+                col_var = 'Variaciones (A - B)'
+
+                actual_counts = df_actual.groupby(categorias_sipaf).size().rename(col_actual)
+                previo_counts = df_previo.groupby(categorias_sipaf).size().rename(col_previo)
+
+                # Combinar los dos dataframes
+                df_comparativo = pd.concat([actual_counts, previo_counts], axis=1).fillna(0).astype(int)
+                
+                # Calcular Variaciones
+                df_comparativo[col_var] = df_comparativo[col_actual] - df_comparativo[col_previo]
+                
+                # Ordenar por el período actual
+                df_comparativo = df_comparativo.sort_values(by=categorias_sipaf)
+
+                # --- INICIO: NUEVA LÓGICA DE SUBTOTALES (REQ 1) ---
+                df_display_list = []
+                
+                # Columnas de agrupación (ej: Función, Nivel, Subnivel)
+                group_cols = df_comparativo.index.names
+                
+                # Nivel principal de agrupación (ej: Función)
+                main_group_col = group_cols[0]
+                
+                # Iterar por cada grupo principal (ej: 'Personal administrativo', 'Personal operativo')
+                for main_group_name, df_main_group in df_comparativo.groupby(level=0):
+                    
+                    # 1. Crear y añadir la fila de SUBTOTAL para este grupo
+                    subtotal = df_main_group.sum()
+                    subtotal_row = {
+                        main_group_col: f"**{main_group_name}**",
+                        col_actual: subtotal[col_actual],
+                        col_previo: subtotal[col_previo],
+                        col_var: subtotal[col_var]
+                    }
+                    # Rellenar otras columnas de agrupación con ''
+                    for col in group_cols[1:]:
+                        subtotal_row[col] = ''
+                    df_display_list.append(subtotal_row)
+
+                    # 2. Añadir las filas de DETALLE para este grupo
+                    df_detail_reset = df_main_group.reset_index()
+                    for _, detail_row in df_detail_reset.iterrows():
+                        detail_dict = detail_row.to_dict()
+                        # "Indentar" visualmente borrando el nombre del grupo principal
+                        detail_dict[main_group_col] = '' 
+                        df_display_list.append(detail_dict)
+
+                # 3. Crear el DataFrame final
+                df_display = pd.DataFrame(df_display_list)
+                
+                # 4. Añadir Fila de TOTAL GENERAL
+                total_actual = df_comparativo[col_actual].sum()
+                total_previo = df_comparativo[col_previo].sum()
+                total_variacion = df_comparativo[col_var].sum()
+
+                total_row_data = {
+                    main_group_col: ['**TOTAL GENERAL**'],
+                    col_actual: [total_actual],
+                    col_previo: [total_previo],
+                    col_var: [total_variacion]
+                }
+                for col in group_cols[1:]:
+                    total_row_data[col] = ['']
+                
+                total_row_df = pd.DataFrame(total_row_data)
+                
+                df_display = pd.concat([df_display, total_row_df], ignore_index=True)
+                
+                # Reordenar columnas para que las de agrupación estén primero
+                ordered_cols = list(group_cols) + [col_actual, col_previo, col_var]
+                df_display = df_display[ordered_cols]
+                # --- FIN: NUEVA LÓGICA DE SUBTOTALES ---
+
+                # Mostrar la tabla
+                st.subheader(f"Comparativa por: {', '.join(categorias_sipaf)}")
+                
+                # Formatear columnas numéricas
+                format_dict = {
+                    col_actual: format_integer_es,
+                    col_previo: format_integer_es,
+                    col_var: format_integer_es
+                }
+                
+                st.dataframe(
+                    df_display.style.format(format_dict),
+                    use_container_width=True,
+                    hide_index=True # Ocultar el índice numérico
+                )
+
+                # Botones de descarga (usar el df comparativo original, reseteado)
+                download_filename = f'comparativa_sipaf_{"_".join(categorias_sipaf)}_{periodo_actual_sipaf}_vs_{periodo_previo_sipaf}'
+                generate_download_buttons(
+                    df_comparativo.reset_index(), # Descargar los datos crudos, sin subtotales
+                    download_filename, 
+                    key_suffix="_sipaf"
+                )
+    # --- FIN: NUEVA SOLAPA SIPAF ---
+
+    # --- INICIO: CORRECCIÓN LÓGICA DE SOLAPAS (REQ 2) ---
+    # El código de las solapas de mapa ahora se comprueba y se ejecuta DESPUÉS de SIPAF
     if tab_map_comparador and period_to_display:
+    # --- FIN: CORRECCIÓN LÓGICA DE SOLAPAS (REQ 2) ---
         with tab_map_comparador:
             st.header(f"Comparador de Mapas para el Período: {period_to_display}")
             map_style_options = {
@@ -1000,31 +1146,133 @@ if uploaded_file is not None:
                 st.dataframe(antiguedad_table_display.style.format(format_integer_es))
                 generate_download_buttons(antiguedad_table.reset_index(), f'distribucion_antiguedad_{periodo_a_mostrar_edad}', key_suffix="_antiguedad")
 
+    # --- INICIO: MODIFICACIÓN SOLAPA DESGLOSE (REQ 1) ---
     with tab_desglose:
         st.header('Desglose Detallado por Categoría por Periodo')
-        if filtered_df.empty or not selected_periodos: st.warning("No hay datos para mostrar.")
+        if filtered_df.empty or not selected_periodos: 
+            st.warning("No hay datos para mostrar.")
         else:
-            periodo_a_mostrar_desglose = st.selectbox('Seleccionar Periodo:', sorted_selected_periods, index=len(sorted_selected_periods) - 1 if sorted_selected_periods else 0, key='periodo_selector_desglose')
-            cat_seleccionada = st.selectbox('Seleccionar Categoría:', ['Gerencia', 'Ministerio', 'Función', 'Distrito', 'Nivel'], key='cat_selector_desglose')
+            periodo_a_mostrar_desglose = st.selectbox(
+                'Seleccionar Periodo:', 
+                sorted_selected_periods, 
+                index=len(sorted_selected_periods) - 1 if sorted_selected_periods else 0, 
+                key='periodo_selector_desglose'
+            )
+            
             df_periodo_desglose = filtered_df[filtered_df['Periodo'] == periodo_a_mostrar_desglose]
-            st.subheader(f'Dotación por {cat_seleccionada} para {periodo_a_mostrar_desglose}')
-            col_table_cat, col_chart_cat = st.columns([1, 2])
-            with col_chart_cat:
-                chart = alt.Chart(df_periodo_desglose).mark_bar().encode(x=alt.X(f'{cat_seleccionada}:N', sort='-y'), y=alt.Y('count():Q', title='Cantidad'), color=f'{cat_seleccionada}:N', tooltip=[alt.Tooltip('count()', format=',.0f'), cat_seleccionada])
-                text_labels = chart.mark_text(align='center', baseline='middle', dy=-10).encode(text='count():Q')
-                st.altair_chart(chart + text_labels, use_container_width=True)
-            with col_table_cat:
-                table_data = df_periodo_desglose.groupby(cat_seleccionada).size().reset_index(name='Cantidad').sort_values('Cantidad', ascending=False)
+
+            # --- INICIO REQ 1: Checkbox para cambiar vista ---
+            vista_jerarquica = st.checkbox("Mostrar vista jerárquica (Treemap)", value=True, key="desglose_vista_toggle")
+            st.markdown("---")
+            
+            if vista_jerarquica:
+                # --- VISTA JERÁRQUICA (TREEMAP) ---
+                opciones_desglose_jerarq = ['Ministerio', 'Gerencia', 'Función', 'Nivel']
+                cat_seleccionada = st.selectbox('Seleccionar Categoría Principal:', opciones_desglose_jerarq, key='cat_selector_desglose_jerarq')
                 
-                # --- AÑADIDO (PUNTO 2): Fila de Total para Desglose ---
-                try:
-                    total_row_desglose = pd.DataFrame({cat_seleccionada: ['**TOTAL**'], 'Cantidad': [table_data['Cantidad'].sum()]})
-                    table_data_display = pd.concat([table_data, total_row_desglose], ignore_index=True)
-                except Exception:
-                    table_data_display = table_data # Fallback
+                st.subheader(f'Desglose Jerárquico para {periodo_a_mostrar_desglose}')
+                col_chart_cat, col_table_cat = st.columns([2, 1])
+
+                with col_chart_cat:
+                    # Definir dinámicamente el path para evitar duplicados
+                    if cat_seleccionada == 'Nivel':
+                        path_jerarquico = ['Nivel', 'Subnivel']
+                        st.markdown(f"##### Treemap por: Nivel -> Subnivel")
+                    else:
+                        path_jerarquico = [cat_seleccionada, 'Nivel', 'Subnivel']
+                        st.markdown(f"##### Treemap por: {cat_seleccionada} -> Nivel -> Subnivel")
+                    
+                    # Preparar datos para el treemap
+                    df_treemap = df_periodo_desglose.groupby(path_jerarquico).size().reset_index(name='Cantidad')
+                    df_treemap = df_treemap.dropna(subset=path_jerarquico)
+                    
+                    if df_treemap.empty:
+                        st.warning(f"No hay datos para construir el treemap con la jerarquía: {' -> '.join(path_jerarquico)}.")
+                    else:
+                        path_treemap = [px.Constant(f"Total {periodo_a_mostrar_desglose}")] + path_jerarquico
+
+                        # Crear el Treemap
+                        fig_treemap = px.treemap(
+                            df_treemap, 
+                            path=path_treemap, # Usar el path dinámico
+                            values='Cantidad',
+                            title=f"Jerarquía de Dotación por {cat_seleccionada}",
+                            color=cat_seleccionada, # Colorear por la categoría principal
+                            hover_data={'Cantidad': True} # Mostrar cantidad en hover
+                        )
+                        
+                        fig_treemap.update_traces(
+                            textinfo="label+value+percent entry",
+                            textfont=dict(size=12)
+                        )
+                        fig_treemap.update_layout(
+                            margin = dict(t=50, l=10, r=10, b=10), # Ajustar márgenes
+                            height=600 # Darle una altura fija
+                        )
+                        st.plotly_chart(fig_treemap, use_container_width=True)
+
+                with col_table_cat:
+                    st.markdown("##### Datos Agrupados (Jerarquía)")
+                    table_data = df_treemap.sort_values('Cantidad', ascending=False)
+                    
+                    try:
+                        # Crear fila de total dinámicamente
+                        total_row_data = {'Cantidad': [table_data['Cantidad'].sum()]}
+                        for i, col in enumerate(path_jerarquico):
+                            total_row_data[col] = ['**TOTAL**' if i == 0 else '-']
+                        
+                        total_row_desglose = pd.DataFrame(total_row_data)
+
+                        table_data_display = pd.concat([table_data, total_row_desglose], ignore_index=True)
+                    except Exception:
+                        table_data_display = table_data # Fallback
+                    
+                    st.dataframe(
+                        table_data_display.style.format({"Cantidad": format_integer_es}),
+                        height=600 # Misma altura que el gráfico
+                    )
+                    generate_download_buttons(
+                        table_data, 
+                        f'dotacion_jerarquia_{cat_seleccionada.lower()}_{periodo_a_mostrar_desglose}', 
+                        key_suffix="_desglose_v2_jerarq"
+                    )
+            
+            else:
+                # --- VISTA SIMPLE (GRÁFICO DE BARRAS) ---
+                opciones_desglose_simple = ['Gerencia', 'Ministerio', 'Función', 'Distrito', 'Nivel']
+                cat_seleccionada = st.selectbox('Seleccionar Categoría:', opciones_desglose_simple, key='cat_selector_desglose_simple')
                 
-                st.dataframe(table_data_display.style.format({"Cantidad": format_integer_es}))
-                generate_download_buttons(table_data, f'dotacion_{cat_seleccionada.lower()}_{periodo_a_mostrar_desglose}', key_suffix="_desglose")
+                st.subheader(f'Dotación por {cat_seleccionada} para {periodo_a_mostrar_desglose}')
+                col_table_cat, col_chart_cat = st.columns([1, 2])
+                
+                with col_chart_cat:
+                    chart = alt.Chart(df_periodo_desglose).mark_bar().encode(
+                        x=alt.X(f'{cat_seleccionada}:N', sort='-y'), 
+                        y=alt.Y('count():Q', title='Cantidad'), 
+                        color=f'{cat_seleccionada}:N', 
+                        tooltip=[alt.Tooltip('count()', format=',.0f'), cat_seleccionada]
+                    )
+                    text_labels = chart.mark_text(align='center', baseline='middle', dy=-10).encode(text='count():Q')
+                    st.altair_chart(chart + text_labels, use_container_width=True)
+                
+                with col_table_cat:
+                    table_data = df_periodo_desglose.groupby(cat_seleccionada).size().reset_index(name='Cantidad').sort_values('Cantidad', ascending=False)
+                    
+                    try:
+                        total_row_desglose = pd.DataFrame({cat_seleccionada: ['**TOTAL**'], 'Cantidad': [table_data['Cantidad'].sum()]})
+                        table_data_display = pd.concat([table_data, total_row_desglose], ignore_index=True)
+                    except Exception:
+                        table_data_display = table_data # Fallback
+                    
+                    st.dataframe(table_data_display.style.format({"Cantidad": format_integer_es}))
+                    generate_download_buttons(
+                        table_data, 
+                        f'dotacion_{cat_seleccionada.lower()}_{periodo_a_mostrar_desglose}', 
+                        key_suffix="_desglose_v2_simple" # Key diferente
+                    )
+            # --- FIN REQ 1 ---
+    # --- FIN: MODIFICACIÓN SOLAPA DESGLOSE (REQ 1) ---
+
 
     # --- INICIO: REFACTORIZACIÓN TOTAL DE LA SOLAPA 'Neto Pagado' ---
     with tab_neto_pagado:
