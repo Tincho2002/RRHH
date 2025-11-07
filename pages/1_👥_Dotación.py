@@ -1,3 +1,4 @@
+%%writefile visualizador_app.py
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -977,7 +978,7 @@ if uploaded_file is not None:
                 st.subheader(f"Análisis de Variaciones de Legajos: {periodo_actual_sipaf} vs. {periodo_previo_sipaf}")
 
                 # Definir columnas de detalle y de comparación
-                detail_cols = ['LEGAJO', 'Apellido y Nombre', 'Nivel', 'Subnivel', 'CECO', 'Gerencia', 'Ministerio', 'Distrito', 'Función']
+                detail_cols = ['LEGAJO', 'Apellido y Nombre', 'Periodo', 'Nivel', 'Subnivel', 'CECO', 'Gerencia', 'Ministerio', 'Distrito', 'Función']
                 compare_cols = ['Nivel', 'Subnivel'] # Columnas que si cambian, marcan una modificación
 
                 # Asegurarnos que solo tomamos las columnas que existen en el DF
@@ -1062,7 +1063,7 @@ if uploaded_file is not None:
                 df_variaciones_total = pd.concat([df_ingresos, df_egresos, df_cambios_final], ignore_index=True)
 
                 # Reordenar columnas para la tabla final
-                cols_final_orden = ['Tipo_Variacion'] + detail_cols_existentes
+                cols_final_orden = ['Tipo_Variacion', 'Periodo'] + [col for col in detail_cols_existentes if col != 'Periodo']
                 df_variaciones_total = df_variaciones_total[cols_final_orden]
                 df_variaciones_total = df_variaciones_total.sort_values(by=['Tipo_Variacion', 'LEGAJO'])
 
