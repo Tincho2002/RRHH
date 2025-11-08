@@ -253,7 +253,11 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
             if col not in table_data.columns: table_data[col] = 0
         table_data = table_data.reset_index()
         table_data.rename(columns={year_col: 'Año', month_col: 'Mes'}, inplace=True)
+        # Asegurarse que 'Año' es numérico antes de convertir a int
+        table_data['Año'] = pd.to_numeric(table_data['Año'], errors='coerce')
+        table_data = table_data.dropna(subset=['Año']) # Eliminar filas donde Año no sea numérico
         table_data['Año'] = table_data['Año'].astype(int)
+        
         table_data['month_num'] = table_data['Mes'].map(month_order_map)
         table_data = table_data.sort_values(by=['Año', 'month_num']).drop(columns=['month_num'])
         table_data['Total'] = table_data[rel_cols].sum(axis=1)
@@ -291,6 +295,7 @@ if uploaded_file:
             st.session_state.clear()
             st.session_state.file_name = uploaded_file.name
 
+        # --- INICIO: LÓGICA DE 'Dotación Mensualizada' ---
         if view_mode == 'Dotación Mensualizada':
             st.sidebar.header("Filtros de Dotación")
             if st.sidebar.button("🔄 Resetear Filtros", key='reset_dotacion'):
@@ -303,19 +308,24 @@ if uploaded_file:
                     df_contexto_reset = pd.DataFrame()
                 st.session_state['selections_dotacion'] = {key: get_sorted_unique_options(df_contexto_reset, key) for key in filter_keys_dotacion}
                 st.rerun()
+            
             if df_original['F. de Ingreso'].notna().any():
                 latest_date = df_original['F. de Ingreso'].max()
                 fecha_referencia = latest_date + MonthEnd(0)
                 df_contexto = df_original[(df_original['F. de Ingreso'] <= fecha_referencia) & ((df_original['F. de Egreso'].isnull()) | (df_original['F. de Egreso'] > fecha_referencia))]
             else:
                 df_contexto = pd.DataFrame()
+                fecha_referencia = datetime.now() # Fallback por si no hay fechas de ingreso
+
             filter_keys = ['Gerencia', 'Distrito', 'Función', 'Nivel', 'Sexo', 'Ministerio', 'Relación']
             session_key = 'selections_dotacion'
             if session_key not in st.session_state:
                 st.session_state[session_key] = {key: get_sorted_unique_options(df_contexto, key) for key in filter_keys}
+            
             selections = st.session_state[session_key]
             selections_before = selections.copy()
             df_filtered_for_options = df_contexto.copy()
+            
             for f_key in filter_keys:
                 options = get_sorted_unique_options(df_filtered_for_options, f_key)
                 if f_key == 'Relación': options = [opt for opt in options if opt != 'No especificado']
@@ -323,8 +333,11 @@ if uploaded_file:
                 selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"dot_{f_key}")
                 if selections[f_key]:
                     df_filtered_for_options = df_filtered_for_options[df_filtered_for_options[f_key].isin(selections[f_key])]
+            
             if selections != selections_before: st.rerun()
+            
             st.header(f"Dotación a {fecha_referencia.strftime('%B de %Y')}")
+            
             if df_filtered_for_options.empty:
                 st.warning("No se encontraron datos para los filtros seleccionados.")
             else:
@@ -372,58 +385,75 @@ if uploaded_file:
                     # BOTONES DE DESCARGA
                     create_download_buttons(df_filtered_for_options, "detalle_dotacion_completa", "dot_full_detail")
 
-        else: # 'Ingresos y Egresos'
+        # --- INICIO: LÓGICA DE 'Ingresos y Egresos' ---
+        else: 
             st.sidebar.header("Filtros de Eventos")
             sidebar_filters = ['Gerencia', 'Distrito', 'Función', 'Nivel', 'Sexo', 'Ministerio', 'Relación', 'Motivo de Egreso']
             session_key = 'selections_eventos'
+
             if st.sidebar.button("🔄 Resetear Filtros", key='reset_eventos'):
                 initial_selections = {}
                 all_years = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-                initial_selections['Año'] = all_years if all_years else [] # <<< CORRECCIÓN 1: Seleccionar todos los años por defecto
+                initial_selections['Año'] = all_years if all_years else [] # FIX 1: Seleccionar todos los años
                 initial_selections['Mes'] = all_months
                 for key in sidebar_filters: initial_selections[key] = get_sorted_unique_options(df_original, key)
                 st.session_state[session_key] = initial_selections
                 st.rerun()
+
             if session_key not in st.session_state:
                 selections = {}
                 all_years = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-                selections['Año'] = all_years if all_years else [] # <<< CORRECCIÓN 2: Seleccionar todos los años por defecto
+                selections['Año'] = all_years if all_years else [] # FIX 1: Seleccionar todos los años
                 selections['Mes'] = all_months
                 for key in sidebar_filters: selections[key] = get_sorted_unique_options(df_original, key)
                 st.session_state[session_key] = selections
+            
             selections = st.session_state[session_key]
             selections_before = selections.copy()
-            df_after_sidebar = df_original.copy()
-            for key in sidebar_filters:
-                if selections.get(key): df_after_sidebar = df_after_sidebar[df_after_sidebar[key].isin(selections[key])]
-            df_after_main_selects = df_original.copy()
-            if selections.get('Año'):
-                df_after_main_selects = df_after_main_selects[df_after_main_selects['Año Ingreso'].isin(selections['Año']) | df_after_main_selects['Año Egreso'].isin(selections['Año'])]
-            if selections.get('Mes'):
-                df_after_main_selects = df_after_main_selects[df_after_main_selects['Mes Ingreso'].isin(selections['Mes']) | df_after_main_selects['Mes Egreso'].isin(selections['Mes'])]
+            
+            # --- INICIO DE LA CORRECCIÓN (FIX 2: Desacoplar filtros) ---
             st.header("Dinámica de Personal (Ingresos y Egresos)")
             col_año, col_mes = st.columns(2)
-            options_año = sorted(list(set(get_sorted_unique_options(df_after_sidebar, 'Año Ingreso')) | set(get_sorted_unique_options(df_after_sidebar, 'Año Egreso'))), reverse=True)
+
+            # Obtener TODAS las opciones de filtros siempre desde df_original
+            options_año = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
+            options_mes = [m for m in all_months if m in set(get_sorted_unique_options(df_original, 'Mes Ingreso')) | set(get_sorted_unique_options(df_original, 'Mes Egreso'))]
+
+            # Dibujar filtros de Año y Mes (main page)
             default_año = [s for s in selections.get('Año', []) if s in options_año]
             selections['Año'] = col_año.multiselect("Filtrar por Año:", options_año, default=default_año)
-            options_mes = [m for m in all_months if m in set(get_sorted_unique_options(df_after_sidebar, 'Mes Ingreso')) | set(get_sorted_unique_options(df_after_sidebar, 'Mes Egreso'))]
+            
             default_mes = [s for s in selections.get('Mes', []) if s in options_mes]
             selections['Mes'] = col_mes.multiselect("Filtrar por Mes:", options_mes, default=default_mes)
+            
+            # Dibujar filtros del Sidebar
             for f_key in sidebar_filters:
-                options = get_sorted_unique_options(df_after_main_selects, f_key)
-                if f_key == 'Relación': options = [opt for opt in options if opt != 'No especificado']
+                options = get_sorted_unique_options(df_original, f_key)
+                if f_key == 'Relación': 
+                    options = [opt for opt in options if opt != 'No especificado']
+                
                 default = [s for s in selections.get(f_key, []) if s in options]
                 selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"evt_{f_key}")
-            if selections != selections_before: st.rerun()
+            
+            if selections != selections_before: 
+                st.rerun()
+            # --- FIN DE LA CORRECCIÓN (FIX 2) ---
+
+            # Aplicar filtros
             df_filtered = df_original.copy()
             for key, values in selections.items():
-                if values and key not in ['Año', 'Mes']: df_filtered = df_filtered[df_filtered[key].isin(values)]
+                if values and key not in ['Año', 'Mes']: 
+                    df_filtered = df_filtered[df_filtered[key].isin(values)]
+            
             df_ingresos = df_filtered.dropna(subset=['F. de Ingreso']).copy()
             if selections.get('Año'): df_ingresos = df_ingresos[df_ingresos['Año Ingreso'].isin(selections['Año'])]
             if selections.get('Mes'): df_ingresos = df_ingresos[df_ingresos['Mes Ingreso'].isin(selections['Mes'])]
+            
             df_egresos = df_filtered.dropna(subset=['F. de Egreso']).copy()
             if selections.get('Año'): df_egresos = df_egresos[df_egresos['Año Egreso'].isin(selections['Año'])]
             if selections.get('Mes'): df_egresos = df_egresos[df_egresos['Mes Egreso'].isin(selections['Mes'])]
+            
+            # Mostrar métricas
             col_ing_m, col_eg_m = st.columns(2)
             col_ing_m.metric("✅ Ingresos (Según Filtros)", len(df_ingresos))
             col_eg_m.metric("❌ Egresos (Según Filtros)", len(df_egresos))
