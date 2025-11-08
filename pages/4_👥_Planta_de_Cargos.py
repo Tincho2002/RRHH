@@ -1,3 +1,4 @@
+%%writefile visualizador_app.py
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -320,7 +321,7 @@ if uploaded_file:
                 options = get_sorted_unique_options(df_filtered_for_options, f_key)
                 if f_key == 'Relación': options = [opt for opt in options if opt != 'No especificado']
                 default = [s for s in selections.get(f_key, []) if s in options]
-                selections[f_key] = st.sidebar.multiselect(f_key, options, default=default, key=f"dot_{f_key}")
+                selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"dot_{f_key}")
                 if selections[f_key]:
                     df_filtered_for_options = df_filtered_for_options[df_filtered_for_options[f_key].isin(selections[f_key])]
             if selections != selections_before: st.rerun()
@@ -379,7 +380,7 @@ if uploaded_file:
             if st.sidebar.button("🔄 Resetear Filtros", key='reset_eventos'):
                 initial_selections = {}
                 all_years = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-                initial_selections['Año'] = [all_years[0]] if all_years else []
+                initial_selections['Año'] = all_years if all_years else [] # <<< CORRECCIÓN 1: Seleccionar todos los años por defecto
                 initial_selections['Mes'] = all_months
                 for key in sidebar_filters: initial_selections[key] = get_sorted_unique_options(df_original, key)
                 st.session_state[session_key] = initial_selections
@@ -387,7 +388,7 @@ if uploaded_file:
             if session_key not in st.session_state:
                 selections = {}
                 all_years = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-                selections['Año'] = [all_years[0]] if all_years else []
+                selections['Año'] = all_years if all_years else [] # <<< CORRECCIÓN 2: Seleccionar todos los años por defecto
                 selections['Mes'] = all_months
                 for key in sidebar_filters: selections[key] = get_sorted_unique_options(df_original, key)
                 st.session_state[session_key] = selections
@@ -413,7 +414,7 @@ if uploaded_file:
                 options = get_sorted_unique_options(df_after_main_selects, f_key)
                 if f_key == 'Relación': options = [opt for opt in options if opt != 'No especificado']
                 default = [s for s in selections.get(f_key, []) if s in options]
-                selections[f_key] = st.sidebar.multiselect(f_key, options, default=default, key=f"evt_{f_key}")
+                selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"evt_{f_key}")
             if selections != selections_before: st.rerun()
             df_filtered = df_original.copy()
             for key, values in selections.items():
