@@ -464,4 +464,3 @@ if uploaded_file:
 
 else:
     st.info("Esperando a que se cargue un archivo Excel...")
-
