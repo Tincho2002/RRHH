@@ -92,7 +92,9 @@ def load_data(uploaded_file):
         cols_to_clean = ['Gerencia', 'Sexo', 'Ministerio', 'Nivel', 'Distrito', 'Función', 'Motivo de Egreso', 'I. Activo']
         for col in cols_to_clean:
             if col in df.columns:
-                df[col] = df[col].fillna("No especificado").astype(str).replace({'nan': "No especificado", 'None': "No especificado"})
+                df[col] = df[col].fillna("No especificado")
+                df[col] = df[col].astype(str)
+                df[col] = df[col].replace({'nan': "No especificado", 'None': "No especificado"})
             else:
                 df[col] = "No especificado"
         return df
@@ -103,13 +105,15 @@ def load_data(uploaded_file):
 
 def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns and not dataframe.empty:
-        unique_values = dataframe[column_name].dropna().unique()
+        unique_values = dataframe[column_name].unique()
+        
         if "Año" in column_name:
             numeric_years = pd.to_numeric(unique_values, errors='coerce')
             return sorted([int(y) for y in numeric_years if not pd.isna(y)], reverse=True)
         if 'Mes' in column_name:
             month_order = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
             return [m for m in month_order if m in unique_values]
+        
         return sorted(list(unique_values))
     return []
 
@@ -208,7 +212,12 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
     if month_col not in df_plot.columns:
         st.warning("No existe la columna de mes en los datos.")
         return
-    df_plot = df_plot[df_plot[month_col].notna()]
+    
+    # --- CORRECCIÓN: FILTRAR MESES 'No especificado' (NULOS) ANTES DE GRAFICAR ---
+    df_plot = df_plot[df_plot[month_col] != "No especificado"]
+    if df_plot.empty:
+        st.warning(f"No hay datos con mes especificado para {title.lower()}.")
+        return
 
     col_chart, col_table = st.columns([1.5, 1])
     with col_chart:
@@ -295,7 +304,7 @@ if uploaded_file:
             st.session_state.clear()
             st.session_state.file_name = uploaded_file.name
 
-        # --- INICIO: LÓGICA DE 'Dotación Mensualizada' ---
+        # --- INICIO: LÓGICA DE 'Dotación Mensualizada' (INTACTA) ---
         if view_mode == 'Dotación Mensualizada':
             st.sidebar.header("Filtros de Dotación")
             if st.sidebar.button("🔄 Resetear Filtros", key='reset_dotacion'):
@@ -324,17 +333,22 @@ if uploaded_file:
             
             selections = st.session_state[session_key]
             selections_before = selections.copy()
+            
+            # --- Lógica de Cascada Secuencial (Original) ---
             df_filtered_for_options = df_contexto.copy()
             
             for f_key in filter_keys:
                 options = get_sorted_unique_options(df_filtered_for_options, f_key)
                 if f_key == 'Relación': options = [opt for opt in options if opt != 'No especificado']
+                
                 default = [s for s in selections.get(f_key, []) if s in options]
                 selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"dot_{f_key}")
+                
                 if selections[f_key]:
                     df_filtered_for_options = df_filtered_for_options[df_filtered_for_options[f_key].isin(selections[f_key])]
             
             if selections != selections_before: st.rerun()
+            # --- Fin Lógica Cascada Secuencial ---
             
             st.header(f"Dotación a {fecha_referencia.strftime('%B de %Y')}")
             
@@ -346,7 +360,6 @@ if uploaded_file:
                 with col1:
                     st.subheader("Dotación Activa por Relación")
                     st.dataframe(resumen, use_container_width=True, hide_index=True)
-                    # BOTONES DE DESCARGA
                     create_download_buttons(resumen, "resumen_dotacion_relacion", "dot_relacion_summary")
                     
                     st.metric("Total Dotación Activa (Según Filtros)", int(df_filtered_for_options.shape[0]))
@@ -382,10 +395,9 @@ if uploaded_file:
                         create_dotacion_breakdown(df_filtered_for_options, breakdown_key, breakdown_columns[breakdown_key], selected_gerencias)
                 with st.expander("Ver detalle completo de la dotación filtrada"):
                     st.dataframe(df_filtered_for_options)
-                    # BOTONES DE DESCARGA
                     create_download_buttons(df_filtered_for_options, "detalle_dotacion_completa", "dot_full_detail")
 
-        # --- INICIO: LÓGICA DE 'Ingresos y Egresos' ---
+        # --- INICIO: LÓGICA DE 'Ingresos y Egresos' (CON CASCADA) ---
         else: 
             st.sidebar.header("Filtros de Eventos")
             sidebar_filters = ['Gerencia', 'Distrito', 'Función', 'Nivel', 'Sexo', 'Ministerio', 'Relación', 'Motivo de Egreso']
@@ -393,67 +405,125 @@ if uploaded_file:
 
             if st.sidebar.button("🔄 Resetear Filtros", key='reset_eventos'):
                 initial_selections = {}
-                all_years = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-                initial_selections['Año'] = all_years if all_years else [] # FIX 1: Seleccionar todos los años
-                initial_selections['Mes'] = all_months
-                for key in sidebar_filters: initial_selections[key] = get_sorted_unique_options(df_original, key)
+                initial_selections['Año'] = [] 
+                initial_selections['Mes'] = [] 
+                for key in sidebar_filters: initial_selections[key] = [] 
                 st.session_state[session_key] = initial_selections
                 st.rerun()
 
             if session_key not in st.session_state:
                 selections = {}
-                all_years = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-                selections['Año'] = all_years if all_years else [] # FIX 1: Seleccionar todos los años
-                selections['Mes'] = all_months
-                for key in sidebar_filters: selections[key] = get_sorted_unique_options(df_original, key)
+                selections['Año'] = [] 
+                selections['Mes'] = [] 
+                for key in sidebar_filters: selections[key] = [] 
                 st.session_state[session_key] = selections
             
             selections = st.session_state[session_key]
             selections_before = selections.copy()
             
-            # --- INICIO DE LA CORRECCIÓN (FIX 2: Desacoplar filtros) ---
             st.header("Dinámica de Personal (Ingresos y Egresos)")
             col_año, col_mes = st.columns(2)
 
-            # Obtener TODAS las opciones de filtros siempre desde df_original
-            options_año = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-            options_mes = [m for m in all_months if m in set(get_sorted_unique_options(df_original, 'Mes Ingreso')) | set(get_sorted_unique_options(df_original, 'Mes Egreso'))]
+            options_año_total = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
+            options_mes_total = [m for m in all_months if m in set(get_sorted_unique_options(df_original, 'Mes Ingreso')) | set(get_sorted_unique_options(df_original, 'Mes Egreso'))]
 
-            # Dibujar filtros de Año y Mes (main page)
-            default_año = [s for s in selections.get('Año', []) if s in options_año]
-            selections['Año'] = col_año.multiselect("Filtrar por Año:", options_año, default=default_año)
+            default_año = [s for s in selections.get('Año', []) if s in options_año_total]
+            selections['Año'] = col_año.multiselect("Filtrar por Año:", options_año_total, default=default_año)
+            if selections['Año']:
+                selections['Año'] = sorted(list(selections['Año']), reverse=True)
             
-            default_mes = [s for s in selections.get('Mes', []) if s in options_mes]
-            selections['Mes'] = col_mes.multiselect("Filtrar por Mes:", options_mes, default=default_mes)
+            default_mes = [s for s in selections.get('Mes', []) if s in options_mes_total]
+            selections['Mes'] = col_mes.multiselect("Filtrar por Mes:", options_mes_total, default=default_mes)
+            if selections['Mes']:
+                selections['Mes'] = [m for m in all_months if m in selections['Mes']]
             
-            # Dibujar filtros del Sidebar
+            
+            # --- LÓGICA DE FILTROS CORRECTA ---
+
+            # 1. CREAR EL CONTEXTO MAESTRO BASADO EN AÑO/MES
+            df_master_context = df_original.copy()
+            año_selection = selections.get('Año', [])
+            mes_selection = selections.get('Mes', [])
+
+            if año_selection or mes_selection:
+                # Si hay filtro de fecha, el contexto se reduce
+                
+                # Opciones por defecto (False)
+                mask_ingreso = pd.Series(False, index=df_original.index)
+                mask_egreso = pd.Series(False, index=df_original.index)
+                
+                # Filtrar Ingresos
+                mask_ing_año = df_original['Año Ingreso'].isin(año_selection) if año_selection else pd.Series(True, index=df_original.index)
+                mask_ing_mes = df_original['Mes Ingreso'].isin(mes_selection) if mes_selection else pd.Series(True, index=df_original.index)
+                # Un ingreso nulo (NaN) no debe coincidir si se seleccionan meses
+                if mes_selection:
+                    mask_ing_mes = mask_ing_mes & df_original['Mes Ingreso'].notna()
+                
+                mask_ingreso = mask_ing_año & mask_ing_mes & df_original['F. de Ingreso'].notna()
+                
+                # Filtrar Egresos
+                mask_egr_año = df_original['Año Egreso'].isin(año_selection) if año_selection else pd.Series(True, index=df_original.index)
+                mask_egr_mes = df_original['Mes Egreso'].isin(mes_selection) if mes_selection else pd.Series(True, index=df_original.index)
+                if mes_selection:
+                    mask_egr_mes = mask_egr_mes & df_original['Mes Egreso'].notna()
+
+                mask_egreso = mask_egr_año & mask_egr_mes & df_original['F. de Egreso'].notna()
+                
+                # El contexto son las filas que tienen un ingreso O un egreso que coincide
+                df_master_context = df_original[mask_ingreso | mask_egreso].copy()
+
+            # 2. CASCADA DEL SIDEBAR (se basa en df_master_context)
             for f_key in sidebar_filters:
-                options = get_sorted_unique_options(df_original, f_key)
+                df_context_for_this_filter = df_master_context.copy()
+                
+                for other_key in sidebar_filters:
+                    if other_key == f_key:
+                        continue 
+                    other_selection = selections.get(other_key, [])
+                    if other_selection:
+                        df_context_for_this_filter = df_context_for_this_filter[df_context_for_this_filter[other_key].isin(other_selection)]
+
+                options = get_sorted_unique_options(df_context_for_this_filter, f_key)
                 if f_key == 'Relación': 
                     options = [opt for opt in options if opt != 'No especificado']
-                
+
                 default = [s for s in selections.get(f_key, []) if s in options]
+                
                 selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"evt_{f_key}")
             
             if selections != selections_before: 
                 st.rerun()
-            # --- FIN DE LA CORRECCIÓN (FIX 2) ---
 
-            # Aplicar filtros
-            df_filtered = df_original.copy()
-            for key, values in selections.items():
-                if values and key not in ['Año', 'Mes']: 
-                    df_filtered = df_filtered[df_filtered[key].isin(values)]
+            # 3. APLICAR FILTROS DEL SIDEBAR AL CONTEXTO MAESTRO
+            df_final_filtered = df_master_context.copy()
+            for key in sidebar_filters:
+                values = selections.get(key, [])
+                if values:
+                    df_final_filtered = df_final_filtered[df_final_filtered[key].isin(values)]
             
-            df_ingresos = df_filtered.dropna(subset=['F. de Ingreso']).copy()
-            if selections.get('Año'): df_ingresos = df_ingresos[df_ingresos['Año Ingreso'].isin(selections['Año'])]
-            if selections.get('Mes'): df_ingresos = df_ingresos[df_ingresos['Mes Ingreso'].isin(selections['Mes'])]
+            # 4. CALCULAR INGRESOS Y EGRESOS FINALES
             
-            df_egresos = df_filtered.dropna(subset=['F. de Egreso']).copy()
-            if selections.get('Año'): df_egresos = df_egresos[df_egresos['Año Egreso'].isin(selections['Año'])]
-            if selections.get('Mes'): df_egresos = df_egresos[df_egresos['Mes Egreso'].isin(selections['Mes'])]
+            # Los df de Ingreso/Egreso se basan en el set final filtrado
+            df_ingresos = df_final_filtered.copy()
+            df_egresos = df_final_filtered.copy()
+
+            # Pero deben ser re-validados contra la selección de fecha
+            # (porque una fila puede estar en el contexto por un ingreso, pero su egreso ser de otro año)
             
-            # Mostrar métricas
+            if año_selection:
+                df_ingresos = df_ingresos[df_ingresos['Año Ingreso'].isin(año_selection)]
+                df_egresos = df_egresos[df_egresos['Año Egreso'].isin(año_selection)]
+            
+            if mes_selection:
+                df_ingresos = df_ingresos[df_ingresos['Mes Ingreso'].isin(mes_selection)]
+                df_egresos = df_egresos[df_egresos['Mes Egreso'].isin(mes_selection)]
+
+            # Limpieza final: solo contar eventos reales
+            df_ingresos = df_ingresos.dropna(subset=['F. de Ingreso'])
+            df_egresos = df_egresos.dropna(subset=['F. de Egreso'])
+
+            # --- FIN DE LA LÓGICA ---
+
             col_ing_m, col_eg_m = st.columns(2)
             col_ing_m.metric("✅ Ingresos (Según Filtros)", len(df_ingresos))
             col_eg_m.metric("❌ Egresos (Según Filtros)", len(df_egresos))
@@ -461,7 +531,7 @@ if uploaded_file:
             st.markdown("---")
             st.subheader("Seleccionar Vistas de Análisis de Eventos")
             st.info("ℹ️ Elija una o más aperturas para analizar la composición de los Ingresos y Egresos.")
-            event_breakdowns = {'Mes/Año': 'Análisis por Mes/Año', 'Gerencia': 'Análisis por Gerencia', 'Nivel': 'Análisis por Nivel', 'Ministerio': 'Análisis por Ministerio', 'Función': 'Análisis por Función', 'Distrito': 'Análisis por Distrito', 'Sexo': 'Análisis por Sexo', 'Motivo de Egreso': 'Motivo de Egreso'}
+            event_breakdowns = {'Mes/Año': 'Análisis por Mes/Año', 'Gerencia': 'Análisis por Gerencia', 'Nivel': 'Análisis por Nivel', 'Ministerio': 'Composición por Ministerio', 'Función': 'Análisis por Función', 'Distrito': 'Análisis por Distrito', 'Sexo': 'Análisis por Sexo', 'Motivo de Egreso': 'Motivo de Egreso'}
             selected_event_breakdowns = st.multiselect("Elija las aperturas que desea visualizar:", options=list(event_breakdowns.keys()))
 
             if selected_event_breakdowns:
@@ -485,11 +555,9 @@ if uploaded_file:
             st.markdown("---")
             with st.expander("Ver detalle de Ingresos"):
                 st.dataframe(df_ingresos)
-                # BOTONES DE DESCARGA
                 create_download_buttons(df_ingresos, "detalle_ingresos", "ingresos_full_detail")
             with st.expander("Ver detalle de Egresos"):
                 st.dataframe(df_egresos)
-                # BOTONES DE DESCARGA
                 create_download_buttons(df_egresos, "detalle_egresos", "egresos_full_detail")
 
 else:
