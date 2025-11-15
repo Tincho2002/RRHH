@@ -1141,6 +1141,112 @@ if uploaded_file is not None:
             if len(month_to_month_periods) < 2:
                 st.warning(f"No hay suficientes datos de períodos (desde {start_period}) seleccionados en el filtro lateral para mostrar la evolución mensual.")
             else:
+                
+                # --- INICIO: NUEVA SECCIÓN "PLANTA DE CARGOS MES A MES" ---
+                st.markdown("---") # Separador
+                st.markdown("##### Planta de Cargos Mes a Mes")
+                
+                categorias_evolucion = st.multiselect(
+                    "Seleccionar categorías para el desglose de la planta (el orden importa):",
+                    options=["Ministerio", "Gerencia", "Función", "Nivel", "Subnivel"],
+                    default=["Función", "Nivel", "Subnivel"], # Mismo default que A vs B
+                    key="sipaf_categorias_evolucion" # Nueva key
+                )
+                
+                if not categorias_evolucion:
+                    st.warning("Por favor, seleccione al menos una categoría para el desglose de la planta.")
+                else:
+                    with st.spinner("Generando grilla de planta de cargos..."):
+                        # 1. Filtrar DF a solo los períodos de evolución
+                        df_planta_raw = filtered_df[filtered_df['Periodo'].isin(month_to_month_periods)]
+                        
+                        # 2. Crear la tabla pivoteada
+                        try:
+                            df_planta_pivot = pd.pivot_table(
+                                df_planta_raw,
+                                index=categorias_evolucion,
+                                columns='Periodo',
+                                aggfunc='size',
+                                fill_value=0
+                            )
+                            
+                            # 3. Reordenar columnas cronológicamente
+                            df_planta_pivot = df_planta_pivot.reindex(columns=month_to_month_periods, fill_value=0)
+
+                            # 4. Lógica de Subtotales (adaptada de "A vs B")
+                            df_display_list = []
+                            group_cols = df_planta_pivot.index.names
+                            main_group_col = group_cols[0]
+                            period_cols = list(month_to_month_periods) # Columnas de datos
+
+                            for main_group_name, df_main_group in df_planta_pivot.groupby(level=0):
+                                # Fila de Subtotal
+                                subtotal_row = {}
+                                subtotal_row[main_group_col] = f"**{main_group_name}**"
+                                for col in group_cols[1:]: # Rellenar cols de categoría
+                                    subtotal_row[col] = ''
+                                
+                                subtotal_data = df_main_group.sum() # Suma todas las columnas de período
+                                for p_col in period_cols: # Rellenar cols de período
+                                    if p_col in subtotal_data:
+                                        subtotal_row[p_col] = subtotal_data[p_col]
+                                    else:
+                                        subtotal_row[p_col] = 0 # Asegurar que la columna existe
+                                df_display_list.append(subtotal_row)
+
+                                # Filas de Detalle
+                                df_detail_reset = df_main_group.reset_index()
+                                for _, detail_row in df_detail_reset.iterrows():
+                                    detail_dict = detail_row.to_dict()
+                                    detail_dict[main_group_col] = '' # Indentar
+                                    df_display_list.append(detail_dict)
+
+                            # 5. DataFrame final y Fila de Total
+                            df_display_planta = pd.DataFrame(df_display_list)
+                            
+                            total_row_data = {}
+                            total_row_data[main_group_col] = ['**TOTAL GENERAL**']
+                            for col in group_cols[1:]:
+                                total_row_data[col] = ['']
+                            
+                            total_general_data = df_planta_pivot.sum() # Suma total
+                            for p_col in period_cols:
+                                if p_col in total_general_data:
+                                    total_row_data[p_col] = [total_general_data[p_col]]
+                                else:
+                                    total_row_data[p_col] = [0] # Asegurar que la columna existe
+                            
+                            total_row_df = pd.DataFrame(total_row_data)
+                            df_display_planta = pd.concat([df_display_planta, total_row_df], ignore_index=True)
+
+                            # 6. Ordenar columnas y mostrar
+                            ordered_cols = list(group_cols) + period_cols
+                            # Asegurarse que todas las columnas existan en el df final
+                            ordered_cols_existentes = [c for c in ordered_cols if c in df_display_planta.columns]
+                            df_display_planta = df_display_planta[ordered_cols_existentes]
+                            
+                            format_dict = {p_col: format_integer_es for p_col in period_cols}
+                            
+                            st.dataframe(
+                                df_display_planta.style.format(format_dict),
+                                use_container_width=True,
+                                hide_index=True
+                            )
+                            
+                            # 7. Botón de Descarga
+                            generate_download_buttons(
+                                df_planta_pivot.reset_index(), # Descargar datos pivoteados (sin subtotales)
+                                'planta_cargos_mes_a_mes',
+                                key_suffix="_sipaf_planta_evolucion"
+                            )
+
+                        except Exception as e:
+                            st.error(f"Ocurrió un error al generar la grilla de planta de cargos: {e}")
+                            st.info("Intente seleccionar menos categorías o verifique los datos.")
+                
+                st.markdown("---") # Separador antes del gráfico de evolución
+                # --- FIN: NUEVA SECCIÓN "PLANTA DE CARGOS MES A MES" ---
+
                 evolution_data = []
                 # Usar st.spinner para operaciones largas
                 with st.spinner(f"Calculando evolución mes a mes desde {start_period}..."):
