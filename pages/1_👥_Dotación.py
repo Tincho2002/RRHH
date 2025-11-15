@@ -144,6 +144,81 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
     with col_dl2:
         st.download_button(label="📊 Descargar como Excel", data=excel_buffer.getvalue(), file_name=f"{filename_prefix}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"excel_download_{filename_prefix}{key_suffix}")
 
+# --- INICIO: NUEVA FUNCIÓN HELPER PARA SIPAF ---
+def get_legajo_variations(df_base, periodo_actual, periodo_previo, detail_cols, compare_cols):
+    """
+    Compara dos períodos y devuelve dataframes de Ingresos, Egresos,
+    Cambios (Nivelaciones) y un DF total de todas las variaciones.
+    """
+    
+    # 1. Preparar DataFrames base
+    df_actual_raw = df_base[df_base['Periodo'] == periodo_actual]
+    df_previo_raw = df_base[df_base['Periodo'] == periodo_previo]
+    
+    df_actual_legajos = df_actual_raw[detail_cols].drop_duplicates(subset=['LEGAJO'])
+    df_previo_legajos = df_previo_raw[detail_cols].drop_duplicates(subset=['LEGAJO'])
+
+    # 2. Realizar el merge 'outer'
+    df_merged = pd.merge(
+        df_actual_legajos,
+        df_previo_legajos,
+        on='LEGAJO',
+        how='outer',
+        suffixes=('_actual', '_previo')
+    )
+
+    # 3. Identificar INGRESOS
+    col_check_prev = f"{compare_cols[0]}_previo"
+    df_ingresos_raw = df_merged[df_merged[col_check_prev].isna()]
+    cols_ingresos = [col if col == 'LEGAJO' else f"{col}_actual" for col in detail_cols]
+    df_ingresos = df_ingresos_raw[cols_ingresos].rename(
+        columns=lambda x: x.replace('_actual', '')
+    )
+    df_ingresos['Tipo_Variacion'] = 'Ingreso'
+
+    # 4. Identificar EGRESOS
+    col_check_actual = f"{compare_cols[0]}_actual"
+    df_egresos_raw = df_merged[df_merged[col_check_actual].isna()]
+    cols_egresos = [col if col == 'LEGAJO' else f"{col}_previo" for col in detail_cols]
+    df_egresos = df_egresos_raw[cols_egresos].rename(
+        columns=lambda x: x.replace('_previo', '')
+    )
+    df_egresos['Tipo_Variacion'] = 'Egreso'
+
+    # 5. Identificar CAMBIOS (Nivelaciones)
+    df_comunes = df_merged.dropna(subset=[col_check_actual, col_check_prev]).copy()
+    df_comunes['hubo_cambio'] = False
+    for col in compare_cols:
+        if f'{col}_actual' in df_comunes.columns and f'{col}_previo' in df_comunes.columns:
+            df_comunes.loc[df_comunes[f'{col}_actual'] != df_comunes[f'{col}_previo'], 'hubo_cambio'] = True
+    df_cambios = df_comunes[df_comunes['hubo_cambio'] == True]
+
+    df_cambios_display_list = []
+    for _, row in df_cambios.iterrows():
+        row_prev = {col: row[col] if col == 'LEGAJO' else row[f'{col}_previo'] for col in detail_cols}
+        row_prev['Tipo_Variacion'] = f"Nivelación ({row['LEGAJO']} - Anterior)"
+        df_cambios_display_list.append(row_prev)
+        
+        row_actual = {col: row[col] if col == 'LEGAJO' else row[f'{col}_actual'] for col in detail_cols}
+        row_actual['Tipo_Variacion'] = f"Nivelación ({row['LEGAJO']} - Actual)"
+        df_cambios_display_list.append(row_actual)
+
+    df_cambios_final = pd.DataFrame(df_cambios_display_list)
+    
+    # 6. Combinar todas las variaciones
+    df_variaciones_total = pd.concat([df_ingresos, df_egresos, df_cambios_final], ignore_index=True)
+    
+    # Reordenar columnas
+    cols_final_orden = ['Tipo_Variacion', 'Periodo'] + [col for col in detail_cols if col != 'Periodo']
+    # Asegurarse que todas las columnas existan antes de reordenar
+    cols_final_existentes = [c for c in cols_final_orden if c in df_variaciones_total.columns]
+    df_variaciones_total = df_variaciones_total[cols_final_existentes]
+    df_variaciones_total = df_variaciones_total.sort_values(by=['Tipo_Variacion', 'LEGAJO'])
+
+    # Devolver los dataframes necesarios
+    return df_ingresos, df_egresos, df_cambios, df_cambios_final, df_variaciones_total
+# --- FIN: NUEVA FUNCIÓN HELPER PARA SIPAF ---
+
 def apply_all_filters(df, selections):
     _df = df.copy()
     for col, values in selections.items():
@@ -825,9 +900,19 @@ if uploaded_file is not None:
                 text_var = chart_var.mark_text(align='center', baseline='middle', dy=alt.expr("datum.Variacion_Cantidad > 0 ? -10 : 15"), color='white').encode(text='label:N')
                 st.altair_chart(chart_var + text_var, use_container_width=True)
 
-    # --- INICIO: NUEVA SOLAPA SIPAF (REQ 1) ---
+    # --- INICIO: SOLAPA SIPAF (MODIFICADA) ---
     with tab_sipaf:
         st.header("Análisis Comparativo de Dotación (SIPAF)")
+        
+        # --- INICIO MODIFICACIÓN: Definir columnas de análisis aquí ---
+        # Definir columnas de detalle y de comparación
+        detail_cols = ['LEGAJO', 'Apellido y Nombre', 'Periodo', 'Nivel', 'Subnivel', 'CECO', 'Gerencia', 'Ministerio', 'Distrito', 'Función']
+        compare_cols = ['Nivel', 'Subnivel'] # Columnas que si cambian, marcan una modificación
+
+        # Asegurarnos que solo tomamos las columnas que existen en el DF
+        detail_cols_existentes = [col for col in detail_cols if col in filtered_df.columns]
+        compare_cols_existentes = [col for col in compare_cols if col in filtered_df.columns]
+        # --- FIN MODIFICACIÓN ---
 
         if filtered_df.empty or len(sorted_selected_periods) < 1:
             st.warning("No hay datos para mostrar con los filtros seleccionados. Por favor, ajuste los filtros en la barra lateral.")
@@ -835,7 +920,7 @@ if uploaded_file is not None:
             st.info("Por favor, seleccione al menos dos períodos en la barra lateral para poder comparar.")
         else:
             # Controles de selección de período
-            st.subheader("Selección de Períodos a Comparar")
+            st.subheader("Selección de Períodos a Comparar (A vs B)")
             col_sel_1, col_sel_2 = st.columns(2)
             with col_sel_1:
                 periodo_actual_sipaf = st.selectbox(
@@ -972,66 +1057,20 @@ if uploaded_file is not None:
                     key_suffix="_sipaf"
                 )
 
-                # --- INICIO: NUEVA SECCIÓN DE ANÁLISIS DE VARIACIONES (REQ 1) ---
+                # --- INICIO: SECCIÓN DE ANÁLISIS DE VARIACIONES (MODIFICADA) ---
                 st.markdown("---")
                 st.subheader(f"Análisis de Variaciones de Legajos: {periodo_actual_sipaf} vs. {periodo_previo_sipaf}")
 
-                # Definir columnas de detalle y de comparación
-                detail_cols = ['LEGAJO', 'Apellido y Nombre', 'Periodo', 'Nivel', 'Subnivel', 'CECO', 'Gerencia', 'Ministerio', 'Distrito', 'Función']
-                compare_cols = ['Nivel', 'Subnivel'] # Columnas que si cambian, marcan una modificación
-
-                # Asegurarnos que solo tomamos las columnas que existen en el DF
-                detail_cols_existentes = [col for col in detail_cols if col in filtered_df.columns]
-                compare_cols_existentes = [col for col in compare_cols if col in filtered_df.columns]
-
-                # Preparar DataFrames base (solo legajos únicos por período)
-                df_actual_legajos = df_actual_raw[detail_cols_existentes].drop_duplicates(subset=['LEGAJO'])
-                df_previo_legajos = df_previo_raw[detail_cols_existentes].drop_duplicates(subset=['LEGAJO'])
-
-                # Realizar el merge 'outer' para encontrar todas las diferencias
-                df_merged = pd.merge(
-                    df_actual_legajos,
-                    df_previo_legajos,
-                    on='LEGAJO',
-                    how='outer',
-                    suffixes=('_actual', '_previo')
+                # --- INICIO MODIFICACIÓN: Llamar a la función helper ---
+                df_ingresos, df_egresos, df_cambios, df_cambios_final, df_variaciones_total = get_legajo_variations(
+                    filtered_df, 
+                    periodo_actual_sipaf, 
+                    periodo_previo_sipaf, 
+                    detail_cols_existentes, 
+                    compare_cols_existentes
                 )
+                # --- FIN MODIFICACIÓN: El bloque de ~60 líneas fue reemplazado ---
 
-                # 1. Identificar INGRESOS (En actual, no en previo)
-                # Usamos una columna clave que siempre debería estar (ej: Nivel) para chequear NaT
-                col_check_prev = f"{compare_cols_existentes[0]}_previo"
-                df_ingresos_raw = df_merged[df_merged[col_check_prev].isna()]
-
-                # Formatear para la tabla final
-                # --- INICIO CORRECCIÓN KEYERROR ---
-                cols_ingresos = [col if col == 'LEGAJO' else f"{col}_actual" for col in detail_cols_existentes]
-                df_ingresos = df_ingresos_raw[cols_ingresos].rename(
-                # --- FIN CORRECCIÓN KEYERROR ---
-                    columns=lambda x: x.replace('_actual', '')
-                )
-                df_ingresos['Tipo_Variacion'] = 'Ingreso'
-
-                # 2. Identificar EGRESOS (En previo, no en actual)
-                col_check_actual = f"{compare_cols_existentes[0]}_actual"
-                df_egresos_raw = df_merged[df_merged[col_check_actual].isna()]
-
-                # Formatear para la tabla final
-                # --- INICIO CORRECCIÓN KEYERROR ---
-                cols_egresos = [col if col == 'LEGAJO' else f"{col}_previo" for col in detail_cols_existentes]
-                df_egresos = df_egresos_raw[cols_egresos].rename(
-                # --- FIN CORRECCIÓN KEYERROR ---
-                    columns=lambda x: x.replace('_previo', '')
-                )
-                df_egresos['Tipo_Variacion'] = 'Egreso'
-
-                # 3. Identificar CAMBIOS (En ambos, pero con diferencias)
-                df_comunes = df_merged.dropna(subset=[col_check_actual, col_check_prev]).copy() # .copy() para evitar warnings
-
-                df_comunes['hubo_cambio'] = False
-                for col in compare_cols_existentes:
-                    df_comunes.loc[df_comunes[f'{col}_actual'] != df_comunes[f'{col}_previo'], 'hubo_cambio'] = True
-
-                df_cambios = df_comunes[df_comunes['hubo_cambio'] == True]
 
                 # --- INICIO: NUEVO (REQ 1) - Preparar datos para el gráfico ---
                 # Renombrar "Cambios" a "Nivelaciones" (REQ 2)
@@ -1041,30 +1080,8 @@ if uploaded_file is not None:
                 }
                 df_chart = pd.DataFrame(chart_data).query('Cantidad > 0') # Solo mostrar si hay datos
                 # --- FIN: NUEVO (REQ 1) ---
-
-                df_cambios_display_list = []
-                for _, row in df_cambios.iterrows():
-                    # Fila "Anterior"
-                    row_prev = {col: row[col] if col == 'LEGAJO' else row[f'{col}_previo'] for col in detail_cols_existentes}
-                    # --- MODIFICADO: REQ 2 ---
-                    row_prev['Tipo_Variacion'] = f"Nivelación ({row['LEGAJO']} - Anterior)"
-                    df_cambios_display_list.append(row_prev)
-                    
-                    # Fila "Actual"
-                    row_actual = {col: row[col] if col == 'LEGAJO' else row[f'{col}_actual'] for col in detail_cols_existentes}
-                    # --- MODIFICADO: REQ 2 ---
-                    row_actual['Tipo_Variacion'] = f"Nivelación ({row['LEGAJO']} - Actual)"
-                    df_cambios_display_list.append(row_actual)
-
-                df_cambios_final = pd.DataFrame(df_cambios_display_list)
-
-                # 4. Combinar todas las variaciones
-                df_variaciones_total = pd.concat([df_ingresos, df_egresos, df_cambios_final], ignore_index=True)
-
-                # Reordenar columnas para la tabla final
-                cols_final_orden = ['Tipo_Variacion', 'Periodo'] + [col for col in detail_cols_existentes if col != 'Periodo']
-                df_variaciones_total = df_variaciones_total[cols_final_orden]
-                df_variaciones_total = df_variaciones_total.sort_values(by=['Tipo_Variacion', 'LEGAJO'])
+                
+                # (El código de df_cambios_final y df_variaciones_total ahora está dentro de la función)
 
                 # Formatear Legajo para visualización
                 df_display_variaciones = df_variaciones_total.copy()
@@ -1100,16 +1117,157 @@ if uploaded_file is not None:
                         st.info("No se encontraron variaciones de legajos (Ingresos, Egresos o Nivelaciones) entre los períodos seleccionados.")
 
                 with col_table_var:
-                    st.dataframe(df_display_variaciones, use_container_width=True, hide_index=True)
+                    st.dataframe(df_display_variaciones, use_container_width=True, height=400, hide_index=True)
                     
                     generate_download_buttons(
                         df_variaciones_total, # Descargar el DF sin formato de legajo
                         f'detalle_variaciones_sipaf_{periodo_actual_sipaf}_vs_{periodo_previo_sipaf}',
                         key_suffix="_sipaf_variaciones"
                     )
-                # --- FIN: NUEVA SECCIÓN DE ANÁLISIS DE VARIACIONES ---
+                # --- FIN: SECCIÓN DE ANÁLISIS DE VARIACIONES (MODIFICADA) ---
+            
+            # --- INICIO: NUEVA SECCIÓN DE EVOLUCIÓN MENSUAL ---
+            st.markdown("---")
+            st.subheader("Análisis de Evolución Mensual (desde Dic-23)")
+            
+            start_period = "Dic-23"
+            month_to_month_periods = []
+            
+            # Usamos 'sorted_selected_periods' que ya respeta los filtros del sidebar
+            if start_period in sorted_selected_periods:
+                start_index = sorted_selected_periods.index(start_period)
+                month_to_month_periods = sorted_selected_periods[start_index:]
+            
+            if len(month_to_month_periods) < 2:
+                st.warning(f"No hay suficientes datos de períodos (desde {start_period}) seleccionados en el filtro lateral para mostrar la evolución mensual.")
+            else:
+                evolution_data = []
+                # Usar st.spinner para operaciones largas
+                with st.spinner(f"Calculando evolución mes a mes desde {start_period}..."):
+                    for i in range(1, len(month_to_month_periods)):
+                        p_actual = month_to_month_periods[i]
+                        p_previo = month_to_month_periods[i-1]
+                        
+                        # Llamar a la función de variaciones
+                        df_ing, df_eg, df_camb, _, _ = get_legajo_variations(
+                            filtered_df, 
+                            p_actual, 
+                            p_previo, 
+                            detail_cols_existentes, 
+                            compare_cols_existentes
+                        )
+                        
+                        # Obtener dotación total (legajos únicos)
+                        dotacion_actual = filtered_df[filtered_df['Periodo'] == p_actual]['LEGAJO'].nunique()
+                        
+                        evolution_data.append({
+                            "Periodo": p_actual,
+                            "Dotación": dotacion_actual,
+                            "Ingresos": len(df_ing),
+                            "Egresos": len(df_eg),
+                            "Nivelaciones": len(df_camb),
+                            "Var. Neta (I-E)": len(df_ing) - len(df_eg)
+                        })
+                
+                if not evolution_data:
+                    st.info("No se generaron datos de evolución.")
+                else:
+                    df_evolution = pd.DataFrame(evolution_data)
+                    
+                    # --- Mostrar Gráfico y Tabla ---
+                    col_evo_chart, col_evo_table = st.columns([2, 1])
+                    
+                    with col_evo_chart:
+                        st.markdown("##### Gráfico de Evolución de Legajos")
+                        fig_evo = make_subplots(specs=[[{"secondary_y": True}]])
+                        
+                        # Eje 1: Dotación
+                        fig_evo.add_trace(go.Bar(
+                            x=df_evolution['Periodo'], 
+                            y=df_evolution['Dotación'], 
+                            name='Dotación Total',
+                            marker_color='#5b9bd5',
+                            text=df_evolution['Dotación'],
+                            textposition='outside'
+                        ), secondary_y=False)
+                        
+                        # Eje 2: Variaciones
+                        fig_evo.add_trace(go.Scatter(
+                            x=df_evolution['Periodo'], 
+                            y=df_evolution['Ingresos'], 
+                            name='Ingresos', 
+                            mode='lines+markers', 
+                            line=dict(color='#28a745')
+                        ), secondary_y=True)
+                        
+                        fig_evo.add_trace(go.Scatter(
+                            x=df_evolution['Periodo'], 
+                            y=df_evolution['Egresos'], 
+                            name='Egresos', 
+                            mode='lines+markers', 
+                            line=dict(color='#dc3545')
+                        ), secondary_y=True)
 
-    # --- FIN: NUEVA SOLAPA SIPAF ---
+                        fig_evo.add_trace(go.Scatter(
+                            x=df_evolution['Periodo'], 
+                            y=df_evolution['Nivelaciones'], 
+                            name='Nivelaciones', 
+                            mode='lines+markers', 
+                            line=dict(color='#007bff', dash='dot')
+                        ), secondary_y=True)
+
+                        # Ajustar Eje Y (Dotación)
+                        try:
+                            min_v, max_v = df_evolution['Dotación'].min(), df_evolution['Dotación'].max()
+                            rng = max_v - min_v
+                            pad = max(1, rng * 0.1) if rng > 0 else max(1, abs(min_v * 0.1))
+                            fig_evo.update_yaxes(
+                                title_text="Dotación Total", 
+                                range=[min_v - pad, max_v + pad * 1.5], 
+                                secondary_y=False, 
+                                showgrid=False
+                            )
+                        except: # Fallback si hay datos vacíos
+                             fig_evo.update_yaxes(title_text="Dotación Total", secondary_y=False, showgrid=False)
+                        
+                        
+                        # Ajustar Eje Y (Variaciones)
+                        fig_evo.update_yaxes(
+                            title_text="Variaciones (Ing/Egr/Niv)", 
+                            secondary_y=True, 
+                            showgrid=True
+                        )
+
+                        fig_evo.update_xaxes(
+                            categoryorder='array', 
+                            categoryarray=df_evolution['Periodo']
+                        )
+                        fig_evo.update_layout(
+                            title_text="Evolución Mensual de Dotación vs. Variaciones", 
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                            height=500,
+                            hovermode="x unified"
+                        )
+                        st.plotly_chart(fig_evo, use_container_width=True)
+
+                    with col_evo_table:
+                        st.markdown("##### Resumen de Evolución")
+                        st.dataframe(
+                            df_evolution.style.format(
+                                {"Dotación": format_integer_es, "Ingresos": format_integer_es, "Egresos": format_integer_es, "Nivelaciones": format_integer_es, "Var. Neta (I-E)": format_integer_es}
+                            ),
+                            height=500,
+                            hide_index=True
+                        )
+                        generate_download_buttons(
+                            df_evolution, 
+                            'evolucion_mensual_sipaf_dic23_en_adelante', 
+                            key_suffix="_sipaf_evolucion"
+                        )
+            # --- FIN: NUEVA SECCIÓN DE EVOLUCIÓN MENSUAL ---
+
+
+    # --- FIN: SOLAPA SIPAF (MODIFICADA) ---
 
     # --- INICIO: CORRECCIÓN LÓGICA DE SOLAPAS (REQ 2) ---
     # El código de las solapas de mapa ahora se comprueba y se ejecuta DESPUÉS de SIPAF
