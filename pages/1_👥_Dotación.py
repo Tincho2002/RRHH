@@ -943,7 +943,7 @@ if uploaded_file is not None:
             categorias_sipaf = st.multiselect(
                 "Seleccionar categorías para el desglose (el orden importa):",
                 options=["Ministerio", "Gerencia", "Función", "Nivel", "Subnivel"],
-                default=["Función", "Nivel", "Subnivel"], # Default como la imagen
+                default=["Ministerio", "Nivel", "Subnivel"], # Default como la imagen
                 key="sipaf_categorias"
             )
             st.markdown("---")
@@ -1149,7 +1149,7 @@ if uploaded_file is not None:
                 categorias_evolucion = st.multiselect(
                     "Seleccionar categorías para el desglose de la planta (el orden importa):",
                     options=["Ministerio", "Gerencia", "Función", "Nivel", "Subnivel"],
-                    default=["Función", "Nivel", "Subnivel"], # Mismo default que A vs B
+                    default=["Ministerio", "Nivel", "Subnivel"], # Mismo default que A vs B
                     key="sipaf_categorias_evolucion" # Nueva key
                 )
                 
