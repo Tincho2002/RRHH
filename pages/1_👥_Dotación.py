@@ -902,6 +902,27 @@ if uploaded_file is not None:
 
     # --- INICIO: SOLAPA SIPAF (MODIFICADA) ---
     with tab_sipaf:
+        
+        # --- INICIO: FUNCIÓN HELPER DE ORDENAMIENTO (NUEVA) ---
+        # Definimos la función aquí para que esté en scope.
+        def sort_period_key(period_str):
+            """Convierte 'Mes-Año' (ej: 'Dic-23') a una tupla (Año, Mes) (ej: (2023, 12)) para ordenar."""
+            if not isinstance(period_str, str) or '-' not in period_str:
+                return (0, 0) # Fallback
+            
+            month_map = {
+                'Ene': 1, 'Feb': 2, 'Mar': 3, 'Abr': 4, 'May': 5, 'Jun': 6,
+                'Jul': 7, 'Ago': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dic': 12
+            }
+            try:
+                month_str, year_str = period_str.split('-')
+                month = month_map.get(month_str.capitalize(), 0)
+                year = int(f"20{year_str}")
+                return (year, month)
+            except Exception:
+                return (0, 0) # Fallback
+        # --- FIN: FUNCIÓN HELPER DE ORDENAMIENTO ---
+        
         st.header("Análisis Comparativo de Dotación (SIPAF)")
         
         # --- INICIO MODIFICACIÓN: Definir columnas de análisis aquí ---
@@ -1456,6 +1477,7 @@ if uploaded_file is not None:
 
 
 # --- FIN: SOLAPA SIPAF (MODIFICADA) ---
+
     # --- INICIO: CORRECCIÓN LÓGICA DE SOLAPAS (REQ 2) ---
     # El código de las solapas de mapa ahora se comprueba y se ejecuta DESPUÉS de SIPAF
     if tab_map_comparador and period_to_display:
