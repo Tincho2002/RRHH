@@ -900,11 +900,10 @@ if uploaded_file is not None:
                 text_var = chart_var.mark_text(align='center', baseline='middle', dy=alt.expr("datum.Variacion_Cantidad > 0 ? -10 : 15"), color='white').encode(text='label:N')
                 st.altair_chart(chart_var + text_var, use_container_width=True)
 
-    # --- INICIO: SOLAPA SIPAF (MODIFICADA) ---
+# --- INICIO: SOLAPA SIPAF (MODIFICADA) ---
     with tab_sipaf:
         
-        # --- INICIO: FUNCIÓN HELPER DE ORDENAMIENTO (NUEVA) ---
-        # Definimos la función aquí para que esté en scope.
+        # --- INICIO: FUNCIÓN HELPER DE ORDENAMIENTO ---
         def sort_period_key(period_str):
             """Convierte 'Mes-Año' (ej: 'Dic-23') a una tupla (Año, Mes) (ej: (2023, 12)) para ordenar."""
             if not isinstance(period_str, str) or '-' not in period_str:
@@ -925,7 +924,6 @@ if uploaded_file is not None:
         
         st.header("Análisis Comparativo de Dotación (SIPAF)")
         
-        # --- INICIO MODIFICACIÓN: Definir columnas de análisis aquí ---
         # Definir columnas de detalle y de comparación
         detail_cols = ['LEGAJO', 'Apellido y Nombre', 'Periodo', 'Nivel', 'Subnivel', 'CECO', 'Gerencia', 'Ministerio', 'Distrito', 'Función']
         compare_cols = ['Nivel', 'Subnivel'] # Columnas que si cambian, marcan una modificación
@@ -933,7 +931,6 @@ if uploaded_file is not None:
         # Asegurarnos que solo tomamos las columnas que existen en el DF
         detail_cols_existentes = [col for col in detail_cols if col in filtered_df.columns]
         compare_cols_existentes = [col for col in compare_cols if col in filtered_df.columns]
-        # --- FIN MODIFICACIÓN ---
 
         if filtered_df.empty or len(sorted_selected_periods) < 1:
             st.warning("No hay datos para mostrar con los filtros seleccionados. Por favor, ajuste los filtros en la barra lateral.")
@@ -960,7 +957,6 @@ if uploaded_file is not None:
 
             # Selector de Categoría
             st.subheader("Desglose por Categoría")
-            # --- MODIFICADO REQ 1: Selector Múltiple ---
             categorias_sipaf = st.multiselect(
                 "Seleccionar categorías para el desglose (el orden importa):",
                 options=["Ministerio", "Gerencia", "Función", "Nivel", "Subnivel"],
@@ -973,10 +969,8 @@ if uploaded_file is not None:
                 st.warning("Por favor, seleccione al menos una categoría para el desglose.")
             else:
                 # Data Processing
-                # --- INICIO MODIFICACIÓN: Usar filtered_df para el análisis de legajos ---
                 df_actual_raw = filtered_df[filtered_df['Periodo'] == periodo_actual_sipaf]
                 df_previo_raw = filtered_df[filtered_df['Periodo'] == periodo_previo_sipaf]
-                # --- FIN MODIFICACIÓN ---
 
                 # Renombrar columnas para claridad en la tabla final
                 col_actual = f"Dotación {periodo_actual_sipaf} (A)"
@@ -995,19 +989,13 @@ if uploaded_file is not None:
                 # Ordenar por el período actual
                 df_comparativo = df_comparativo.sort_values(by=categorias_sipaf)
 
-                # --- INICIO: NUEVA LÓGICA DE SUBTOTALES (REQ 1) ---
+                # --- INICIO: LÓGICA DE SUBTOTALES ---
                 df_display_list = []
-
-                # Columnas de agrupación (ej: Función, Nivel, Subnivel)
                 group_cols = df_comparativo.index.names
-
-                # Nivel principal de agrupación (ej: Función)
                 main_group_col = group_cols[0]
 
-                # Iterar por cada grupo principal (ej: 'Personal administrativo', 'Personal operativo')
                 for main_group_name, df_main_group in df_comparativo.groupby(level=0):
-
-                    # 1. Crear y añadir la fila de SUBTOTAL para este grupo
+                    # 1. Subtotal
                     subtotal = df_main_group.sum()
                     subtotal_row = {
                         main_group_col: f"**{main_group_name}**",
@@ -1015,23 +1003,20 @@ if uploaded_file is not None:
                         col_previo: subtotal[col_previo],
                         col_var: subtotal[col_var]
                     }
-                    # Rellenar otras columnas de agrupación con ''
                     for col in group_cols[1:]:
                         subtotal_row[col] = ''
                     df_display_list.append(subtotal_row)
 
-                    # 2. Añadir las filas de DETALLE para este grupo
+                    # 2. Detalle
                     df_detail_reset = df_main_group.reset_index()
                     for _, detail_row in df_detail_reset.iterrows():
                         detail_dict = detail_row.to_dict()
-                        # "Indentar" visualmente borrando el nombre del grupo principal
                         detail_dict[main_group_col] = ''
                         df_display_list.append(detail_dict)
 
-                # 3. Crear el DataFrame final
                 df_display = pd.DataFrame(df_display_list)
 
-                # 4. Añadir Fila de TOTAL GENERAL
+                # 3. Total General
                 total_actual = df_comparativo[col_actual].sum()
                 total_previo = df_comparativo[col_previo].sum()
                 total_variacion = df_comparativo[col_var].sum()
@@ -1046,43 +1031,35 @@ if uploaded_file is not None:
                     total_row_data[col] = ['']
 
                 total_row_df = pd.DataFrame(total_row_data)
-
                 df_display = pd.concat([df_display, total_row_df], ignore_index=True)
-
-                # Reordenar columnas para que las de agrupación estén primero
                 ordered_cols = list(group_cols) + [col_actual, col_previo, col_var]
                 df_display = df_display[ordered_cols]
-                # --- FIN: NUEVA LÓGICA DE SUBTOTALES ---
+                # --- FIN: LÓGICA DE SUBTOTALES ---
 
                 # Mostrar la tabla
                 st.subheader(f"Comparativa por: {', '.join(categorias_sipaf)}")
-
-                # Formatear columnas numéricas
                 format_dict = {
                     col_actual: format_integer_es,
                     col_previo: format_integer_es,
                     col_var: format_integer_es
                 }
-
                 st.dataframe(
                     df_display.style.format(format_dict),
                     use_container_width=True,
-                    hide_index=True # Ocultar el índice numérico
+                    hide_index=True
                 )
 
-                # Botones de descarga (usar el df comparativo original, reseteado)
                 download_filename = f'comparativa_sipaf_{"_".join(categorias_sipaf)}_{periodo_actual_sipaf}_vs_{periodo_previo_sipaf}'
                 generate_download_buttons(
-                    df_comparativo.reset_index(), # Descargar los datos crudos, sin subtotales
+                    df_comparativo.reset_index(), 
                     download_filename,
                     key_suffix="_sipaf"
                 )
 
-                # --- INICIO: SECCIÓN DE ANÁLISIS DE VARIACIONES (MODIFICADA) ---
+                # --- SECCIÓN DE ANÁLISIS DE VARIACIONES ---
                 st.markdown("---")
                 st.subheader(f"Análisis de Variaciones de Legajos: {periodo_actual_sipaf} vs. {periodo_previo_sipaf}")
 
-                # --- INICIO MODIFICACIÓN: Llamar a la función helper ---
                 df_ingresos, df_egresos, df_cambios, df_cambios_final, df_variaciones_total = get_legajo_variations(
                     filtered_df, 
                     periodo_actual_sipaf, 
@@ -1090,29 +1067,20 @@ if uploaded_file is not None:
                     detail_cols_existentes, 
                     compare_cols_existentes
                 )
-                # --- FIN MODIFICACIÓN: El bloque de ~60 líneas fue reemplazado ---
 
-
-                # --- INICIO: NUEVO (REQ 1) - Preparar datos para el gráfico ---
-                # Renombrar "Cambios" a "Nivelaciones" (REQ 2)
                 chart_data = {
                     'Tipo': ['Ingresos', 'Egresos', 'Nivelaciones'],
                     'Cantidad': [len(df_ingresos), len(df_egresos), len(df_cambios)]
                 }
-                df_chart = pd.DataFrame(chart_data).query('Cantidad > 0') # Solo mostrar si hay datos
-                # --- FIN: NUEVO (REQ 1) ---
-                
-                # (El código de df_cambios_final y df_variaciones_total ahora está dentro de la función)
+                df_chart = pd.DataFrame(chart_data).query('Cantidad > 0') 
 
-                # Formatear Legajo para visualización
                 df_display_variaciones = df_variaciones_total.copy()
                 if 'LEGAJO' in df_display_variaciones.columns:
                     df_display_variaciones['LEGAJO'] = df_display_variaciones['LEGAJO'].apply(
                         lambda x: format_integer_es(int(x)) if (pd.notna(x) and x != 'no disponible' and str(x).isdigit()) else ('' if x=='no disponible' else x)
                     )
-                # --- INICIO: MODIFICACIÓN (REQ 1) - Añadir gráfico y columnas ---
-                col_chart_var, col_table_var = st.columns(2)
 
+                col_chart_var, col_table_var = st.columns(2)
                 with col_chart_var:
                     if not df_chart.empty:
                         fig_donut = px.pie(
@@ -1120,17 +1088,13 @@ if uploaded_file is not None:
                             names='Tipo', 
                             values='Cantidad', 
                             title=f'Composición de la Variación ({df_chart["Cantidad"].sum()} legajos)', 
-                            hole=0.4, # Esto lo hace un gráfico de anillo
-                            color_discrete_map={ # Asignar colores fijos
-                                'Ingresos': '#28a745', # verde
-                                'Egresos': '#dc3545',  # rojo
-                                'Nivelaciones': '#007bff' # azul
-                            }
+                            hole=0.4, 
+                            color_discrete_map={'Ingresos': '#28a745', 'Egresos': '#dc3545', 'Nivelaciones': '#007bff'}
                         )
                         fig_donut.update_traces(
                             textinfo='percent+label+value', 
                             textposition='outside',
-                            pull=[0.05 if t == 'Ingresos' or t == 'Egresos' else 0 for t in df_chart['Tipo']] # Destacar
+                            pull=[0.05 if t == 'Ingresos' or t == 'Egresos' else 0 for t in df_chart['Tipo']]
                         )
                         fig_donut.update_layout(legend_title_text='Tipo de Variación')
                         st.plotly_chart(fig_donut, use_container_width=True)
@@ -1139,25 +1103,17 @@ if uploaded_file is not None:
 
                 with col_table_var:
                     st.dataframe(df_display_variaciones, use_container_width=True, height=400, hide_index=True)
-                    
                     generate_download_buttons(
-                        df_variaciones_total, # Descargar el DF sin formato de legajo
+                        df_variaciones_total, 
                         f'detalle_variaciones_sipaf_{periodo_actual_sipaf}_vs_{periodo_previo_sipaf}',
                         key_suffix="_sipaf_variaciones"
                     )
-                # --- FIN: SECCIÓN DE ANÁLISIS DE VARIACIONES (MODIFICADA) ---
             
-            # --- INICIO: NUEVA SECCIÓN DE EVOLUCIÓN MENSUAL ---
+            # --- SECCIÓN DE EVOLUCIÓN MENSUAL ---
             st.markdown("---")
             st.subheader("Análisis de Evolución Mensual (desde Dic-23)")
             
             start_period = "Dic-23"
-            # month_to_month_periods = [] # Eliminada
-
-            # --- INICIO MODIFICACIÓN: Lógica de filtro de período ---
-            # En lugar de buscar "Dic-23", tomamos todos los períodos seleccionados
-            # que sean "Dic-23" o posteriores.
-            # Esto asume que 'sort_period_key' está definida globalmente.
             try:
                 start_key = sort_period_key(start_period)
                 month_to_month_periods = [
@@ -1166,33 +1122,27 @@ if uploaded_file is not None:
                 ]
             except Exception as e:
                 st.error(f"Error al definir períodos de evolución: {e}")
-                st.info("Asegúrese de que 'sort_period_key' esté disponible.")
-                month_to_month_periods = [] # Fallback
-            # --- FIN MODIFICACIÓN ---
+                month_to_month_periods = [] 
             
-            if len(month_to_month_periods) < 2:
-                st.warning(f"No hay suficientes datos de períodos (desde {start_period}) seleccionados en el filtro lateral para mostrar la evolución mensual.")
+            if len(month_to_month_periods) < 1: # Cambiado a 1 para permitir mostrar solo Dic-23 si es lo único
+                 st.warning(f"No hay suficientes datos de períodos (desde {start_period}) seleccionados.")
             else:
-                
-                # --- INICIO: NUEVA SECCIÓN "PLANTA DE CARGOS MES A MES" ---
-                st.markdown("---") # Separador
+                # --- PLANTA DE CARGOS MES A MES ---
+                st.markdown("---") 
                 st.markdown("##### Planta de Cargos Mes a Mes")
                 
                 categorias_evolucion = st.multiselect(
                     "Seleccionar categorías para el desglose de la planta (el orden importa):",
                     options=["Ministerio", "Gerencia", "Función", "Nivel", "Subnivel"],
-                    default=["Ministerio", "Nivel", "Subnivel"], # Mismo default que A vs B
-                    key="sipaf_categorias_evolucion" # Nueva key
+                    default=["Ministerio", "Nivel", "Subnivel"], 
+                    key="sipaf_categorias_evolucion" 
                 )
                 
                 if not categorias_evolucion:
                     st.warning("Por favor, seleccione al menos una categoría para el desglose de la planta.")
                 else:
                     with st.spinner("Generando grilla de planta de cargos..."):
-                        # 1. Filtrar DF a solo los períodos de evolución
                         df_planta_raw = filtered_df[filtered_df['Periodo'].isin(month_to_month_periods)]
-                        
-                        # 2. Crear la tabla pivoteada
                         try:
                             df_planta_pivot = pd.pivot_table(
                                 df_planta_raw,
@@ -1201,101 +1151,79 @@ if uploaded_file is not None:
                                 aggfunc='size',
                                 fill_value=0
                             )
-                            
-                            # 3. Reordenar columnas cronológicamente
                             df_planta_pivot = df_planta_pivot.reindex(columns=month_to_month_periods, fill_value=0)
 
-                            # 4. Lógica de Subtotales (adaptada de "A vs B")
+                            # Lógica Subtotales
                             df_display_list = []
                             group_cols = df_planta_pivot.index.names
                             main_group_col = group_cols[0]
-                            period_cols = list(month_to_month_periods) # Columnas de datos
+                            period_cols = list(month_to_month_periods) 
 
                             for main_group_name, df_main_group in df_planta_pivot.groupby(level=0):
-                                # Fila de Subtotal
                                 subtotal_row = {}
                                 subtotal_row[main_group_col] = f"**{main_group_name}**"
-                                for col in group_cols[1:]: # Rellenar cols de categoría
-                                    subtotal_row[col] = ''
-                                
-                                subtotal_data = df_main_group.sum() # Suma todas las columnas de período
-                                for p_col in period_cols: # Rellenar cols de período
-                                    if p_col in subtotal_data:
-                                        subtotal_row[p_col] = subtotal_data[p_col]
-                                    else:
-                                        subtotal_row[p_col] = 0 # Asegurar que la columna existe
+                                for col in group_cols[1:]: subtotal_row[col] = ''
+                                subtotal_data = df_main_group.sum() 
+                                for p_col in period_cols:
+                                    subtotal_row[p_col] = subtotal_data.get(p_col, 0)
                                 df_display_list.append(subtotal_row)
-
-                                # Filas de Detalle
                                 df_detail_reset = df_main_group.reset_index()
                                 for _, detail_row in df_detail_reset.iterrows():
                                     detail_dict = detail_row.to_dict()
-                                    detail_dict[main_group_col] = '' # Indentar
+                                    detail_dict[main_group_col] = '' 
                                     df_display_list.append(detail_dict)
 
-                            # 5. DataFrame final y Fila de Total
                             df_display_planta = pd.DataFrame(df_display_list)
-                            
-                            total_row_data = {}
-                            total_row_data[main_group_col] = ['**TOTAL GENERAL**']
-                            for col in group_cols[1:]:
-                                total_row_data[col] = ['']
-                            
-                            total_general_data = df_planta_pivot.sum() # Suma total
-                            for p_col in period_cols:
-                                if p_col in total_general_data:
-                                    total_row_data[p_col] = [total_general_data[p_col]]
-                                else:
-                                    total_row_data[p_col] = [0] # Asegurar que la columna existe
+                            total_row_data = {main_group_col: ['**TOTAL GENERAL**']}
+                            for col in group_cols[1:]: total_row_data[col] = ['']
+                            total_general_data = df_planta_pivot.sum() 
+                            for p_col in period_cols: total_row_data[p_col] = [total_general_data.get(p_col, 0)]
                             
                             total_row_df = pd.DataFrame(total_row_data)
                             df_display_planta = pd.concat([df_display_planta, total_row_df], ignore_index=True)
 
-                            # 6. Ordenar columnas y mostrar
                             ordered_cols = list(group_cols) + period_cols
-                            # Asegurarse que todas las columnas existan en el df final
                             ordered_cols_existentes = [c for c in ordered_cols if c in df_display_planta.columns]
                             df_display_planta = df_display_planta[ordered_cols_existentes]
                             
                             format_dict = {p_col: format_integer_es for p_col in period_cols}
+                            st.dataframe(df_display_planta.style.format(format_dict), use_container_width=True, hide_index=True)
                             
-                            st.dataframe(
-                                df_display_planta.style.format(format_dict),
-                                use_container_width=True,
-                                hide_index=True
-                            )
-                            
-                            # 7. Botón de Descarga
                             generate_download_buttons(
-                                df_planta_pivot.reset_index(), # Descargar datos pivoteados (sin subtotales)
+                                df_planta_pivot.reset_index(), 
                                 'planta_cargos_mes_a_mes',
                                 key_suffix="_sipaf_planta_evolucion"
                             )
-
                         except Exception as e:
-                            st.error(f"Ocurrió un error al generar la grilla de planta de cargos: {e}")
-                            st.info("Intente seleccionar menos categorías o verifique los datos.")
-                
-                st.markdown("---") # Separador antes del gráfico de evolución
-                # --- FIN: NUEVA SECCIÓN "PLANTA DE CARGOS MES A MES" ---
+                            st.error(f"Ocurrió un error al generar la grilla: {e}")
+
+                st.markdown("---") 
 
                 evolution_data = []
-                # Usar st.spinner para operaciones largas
                 with st.spinner(f"Calculando evolución mes a mes desde {start_period}..."):
+                    
+                    # --- INICIO CAMBIO: AGREGAR PRIMER PERÍODO (BASE) ---
+                    # Agregamos el primer período manualmente para que aparezca en la gráfica con valor 0 en variaciones
+                    if len(month_to_month_periods) > 0:
+                        p_inicial = month_to_month_periods[0]
+                        dotacion_inicial = filtered_df[filtered_df['Periodo'] == p_inicial]['LEGAJO'].nunique()
+                        evolution_data.append({
+                            "Periodo": p_inicial,
+                            "Dotación": dotacion_inicial,
+                            "Ingresos": 0, # 0 porque es el punto de partida
+                            "Egresos": 0,
+                            "Nivelaciones": 0,
+                            "Var. Neta (I-E)": 0
+                        })
+                    # --- FIN CAMBIO ---
+
                     for i in range(1, len(month_to_month_periods)):
                         p_actual = month_to_month_periods[i]
                         p_previo = month_to_month_periods[i-1]
                         
-                        # Llamar a la función de variaciones
                         df_ing, df_eg, df_camb, _, _ = get_legajo_variations(
-                            filtered_df, 
-                            p_actual, 
-                            p_previo, 
-                            detail_cols_existentes, 
-                            compare_cols_existentes
+                            filtered_df, p_actual, p_previo, detail_cols_existentes, compare_cols_existentes
                         )
-                        
-                        # Obtener dotación total (legajos únicos)
                         dotacion_actual = filtered_df[filtered_df['Periodo'] == p_actual]['LEGAJO'].nunique()
                         
                         evolution_data.append({
@@ -1311,169 +1239,108 @@ if uploaded_file is not None:
                     st.info("No se generaron datos de evolución.")
                 else:
                     df_evolution = pd.DataFrame(evolution_data)
-                    
-                    # --- Mostrar Gráfico y Tabla ---
                     col_evo_chart, col_evo_table = st.columns([2, 1])
                     
                     with col_evo_chart:
                         st.markdown("##### Gráfico de Evolución de Legajos")
                         fig_evo = make_subplots(specs=[[{"secondary_y": True}]])
                         
-                        # Eje 1: Dotación
                         fig_evo.add_trace(go.Bar(
-                            x=df_evolution['Periodo'], 
-                            y=df_evolution['Dotación'], 
-                            name='Dotación Total',
-                            marker_color='#5b9bd5',
-                            text=df_evolution['Dotación'],
-                            textposition='outside'
+                            x=df_evolution['Periodo'], y=df_evolution['Dotación'], name='Dotación Total',
+                            marker_color='#5b9bd5', text=df_evolution['Dotación'], textposition='outside'
                         ), secondary_y=False)
                         
-                        # Eje 2: Variaciones
                         fig_evo.add_trace(go.Scatter(
-                            x=df_evolution['Periodo'], 
-                            y=df_evolution['Ingresos'], 
-                            name='Ingresos', 
-                            mode='lines+markers', 
-                            line=dict(color='#28a745')
+                            x=df_evolution['Periodo'], y=df_evolution['Ingresos'], name='Ingresos', 
+                            mode='lines+markers', line=dict(color='#28a745')
                         ), secondary_y=True)
                         
                         fig_evo.add_trace(go.Scatter(
-                            x=df_evolution['Periodo'], 
-                            y=df_evolution['Egresos'], 
-                            name='Egresos', 
-                            mode='lines+markers', 
-                            line=dict(color='#dc3545')
+                            x=df_evolution['Periodo'], y=df_evolution['Egresos'], name='Egresos', 
+                            mode='lines+markers', line=dict(color='#dc3545')
                         ), secondary_y=True)
 
                         fig_evo.add_trace(go.Scatter(
-                            x=df_evolution['Periodo'], 
-                            y=df_evolution['Nivelaciones'], 
-                            name='Nivelaciones', 
-                            mode='lines+markers', 
-                            line=dict(color='#007bff', dash='dot')
+                            x=df_evolution['Periodo'], y=df_evolution['Nivelaciones'], name='Nivelaciones', 
+                            mode='lines+markers', line=dict(color='#007bff', dash='dot')
                         ), secondary_y=True)
 
-                        # Ajustar Eje Y (Dotación)
                         try:
                             min_v, max_v = df_evolution['Dotación'].min(), df_evolution['Dotación'].max()
                             rng = max_v - min_v
                             pad = max(1, rng * 0.1) if rng > 0 else max(1, abs(min_v * 0.1))
-                            fig_evo.update_yaxes(
-                                title_text="Dotación Total", 
-                                range=[min_v - pad, max_v + pad * 1.5], 
-                                secondary_y=False, 
-                                showgrid=False
-                            )
-                        except: # Fallback si hay datos vacíos
+                            fig_evo.update_yaxes(title_text="Dotación Total", range=[min_v - pad, max_v + pad * 1.5], secondary_y=False, showgrid=False)
+                        except:
                              fig_evo.update_yaxes(title_text="Dotación Total", secondary_y=False, showgrid=False)
                         
-                        
-                        # Ajustar Eje Y (Variaciones)
-                        fig_evo.update_yaxes(
-                            title_text="Variaciones (Ing/Egr/Niv)", 
-                            secondary_y=True, 
-                            showgrid=True
-                        )
-
-                        fig_evo.update_xaxes(
-                            categoryorder='array', 
-                            categoryarray=df_evolution['Periodo']
-                        )
+                        fig_evo.update_yaxes(title_text="Variaciones (Ing/Egr/Niv)", secondary_y=True, showgrid=True)
+                        fig_evo.update_xaxes(categoryorder='array', categoryarray=df_evolution['Periodo'])
                         fig_evo.update_layout(
                             title_text="Evolución Mensual de Dotación vs. Variaciones", 
                             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                            height=500,
-                            hovermode="x unified"
+                            height=500, hovermode="x unified"
                         )
                         st.plotly_chart(fig_evo, use_container_width=True)
 
                     with col_evo_table:
                         st.markdown("##### Resumen de Evolución")
                         st.dataframe(
-                            df_evolution.style.format(
-                                {"Dotación": format_integer_es, "Ingresos": format_integer_es, "Egresos": format_integer_es, "Nivelaciones": format_integer_es, "Var. Neta (I-E)": format_integer_es}
-                            ),
-                            height=500,
-                            hide_index=True
+                            df_evolution.style.format({"Dotación": format_integer_es, "Ingresos": format_integer_es, "Egresos": format_integer_es, "Nivelaciones": format_integer_es, "Var. Neta (I-E)": format_integer_es}),
+                            height=500, hide_index=True
                         )
-                        generate_download_buttons(
-                            df_evolution, 
-                            'evolucion_mensual_sipaf_dic23_en_adelante', 
-                            key_suffix="_sipaf_evolucion"
-                        )
+                        generate_download_buttons(df_evolution, 'evolucion_mensual_sipaf', key_suffix="_sipaf_evolucion")
                     
-                    # --- INICIO: MODIFICACIÓN (REQ 2) - Análisis de Variaciones (Extremos de la Evolución) ---
-                    st.markdown("---")
-                    
-                    # Definir los períodos de comparación (primero vs. último de la evolución)
-                    p_actual_evo = month_to_month_periods[-1]
-                    p_previo_evo = month_to_month_periods[0]
-                    
-                    st.subheader(f"Análisis de Variaciones (Neto de la Evolución): {p_actual_evo} vs. {p_previo_evo}")
-                    
-                    with st.spinner(f"Calculando variaciones netas entre {p_actual_evo} y {p_previo_evo}..."):
-                        # 1. Obtener variaciones de legajos
-                        df_ing_evo, df_eg_evo, df_camb_evo, df_camb_final_evo, df_var_total_evo = get_legajo_variations(
-                            filtered_df, 
-                            p_actual_evo, 
-                            p_previo_evo, 
-                            detail_cols_existentes, 
-                            compare_cols_existentes
-                        )
-
-                        # 2. Preparar datos para el gráfico
-                        chart_data_evo = {
-                            'Tipo': ['Ingresos', 'Egresos', 'Nivelaciones'],
-                            'Cantidad': [len(df_ing_evo), len(df_eg_evo), len(df_camb_evo)]
-                        }
-                        df_chart_evo = pd.DataFrame(chart_data_evo).query('Cantidad > 0')
-
-                        # 3. Formatear Legajo para visualización
-                        df_display_variaciones_evo = df_var_total_evo.copy()
-                        if 'LEGAJO' in df_display_variaciones_evo.columns:
-                            df_display_variaciones_evo['LEGAJO'] = df_display_variaciones_evo['LEGAJO'].apply(
-                                lambda x: format_integer_es(int(x)) if (pd.notna(x) and x != 'no disponible' and str(x).isdigit()) else ('' if x=='no disponible' else x)
+                    # --- VARIACIONES NETAS DE EVOLUCIÓN ---
+                    # Solo mostrar si hay al menos 2 períodos para comparar extremos
+                    if len(month_to_month_periods) >= 2:
+                        st.markdown("---")
+                        p_actual_evo = month_to_month_periods[-1]
+                        p_previo_evo = month_to_month_periods[0]
+                        
+                        st.subheader(f"Análisis de Variaciones (Neto de la Evolución): {p_actual_evo} vs. {p_previo_evo}")
+                        
+                        with st.spinner(f"Calculando variaciones netas..."):
+                            df_ing_evo, df_eg_evo, df_camb_evo, df_camb_final_evo, df_var_total_evo = get_legajo_variations(
+                                filtered_df, p_actual_evo, p_previo_evo, detail_cols_existentes, compare_cols_existentes
                             )
 
-                        # 4. Mostrar Gráfico y Tabla (copiado de la sección A vs B)
-                        col_chart_var_evo, col_table_var_evo = st.columns(2)
+                            chart_data_evo = {
+                                'Tipo': ['Ingresos', 'Egresos', 'Nivelaciones'],
+                                'Cantidad': [len(df_ing_evo), len(df_eg_evo), len(df_camb_evo)]
+                            }
+                            df_chart_evo = pd.DataFrame(chart_data_evo).query('Cantidad > 0')
 
-                        with col_chart_var_evo:
-                            if not df_chart_evo.empty:
-                                fig_donut_evo = px.pie(
-                                    df_chart_evo, 
-                                    names='Tipo', 
-                                    values='Cantidad', 
-                                    title=f'Composición de la Variación Neta ({df_chart_evo["Cantidad"].sum()} legajos)', 
-                                    hole=0.4,
-                                    color_discrete_map={
-                                        'Ingresos': '#28a745', 
-                                        'Egresos': '#dc3545', 
-                                        'Nivelaciones': '#007bff'
-                                    }
+                            df_display_variaciones_evo = df_var_total_evo.copy()
+                            if 'LEGAJO' in df_display_variaciones_evo.columns:
+                                df_display_variaciones_evo['LEGAJO'] = df_display_variaciones_evo['LEGAJO'].apply(
+                                    lambda x: format_integer_es(int(x)) if (pd.notna(x) and x != 'no disponible' and str(x).isdigit()) else ('' if x=='no disponible' else x)
                                 )
-                                fig_donut_evo.update_traces(
-                                    textinfo='percent+label+value', 
-                                    textposition='outside',
-                                    pull=[0.05 if t == 'Ingresos' or t == 'Egresos' else 0 for t in df_chart_evo['Tipo']]
+
+                            col_chart_var_evo, col_table_var_evo = st.columns(2)
+
+                            with col_chart_var_evo:
+                                if not df_chart_evo.empty:
+                                    fig_donut_evo = px.pie(
+                                        df_chart_evo, names='Tipo', values='Cantidad', 
+                                        title=f'Composición de la Variación Neta ({df_chart_evo["Cantidad"].sum()} legajos)', hole=0.4,
+                                        color_discrete_map={'Ingresos': '#28a745', 'Egresos': '#dc3545', 'Nivelaciones': '#007bff'}
+                                    )
+                                    fig_donut_evo.update_traces(
+                                        textinfo='percent+label+value', textposition='outside',
+                                        pull=[0.05 if t == 'Ingresos' or t == 'Egresos' else 0 for t in df_chart_evo['Tipo']]
+                                    )
+                                    fig_donut_evo.update_layout(legend_title_text='Tipo de Variación')
+                                    st.plotly_chart(fig_donut_evo, use_container_width=True)
+                                else:
+                                    st.info(f"No se encontraron variaciones netas entre {p_actual_evo} y {p_previo_evo}.")
+
+                            with col_table_var_evo:
+                                st.dataframe(df_display_variaciones_evo, use_container_width=True, height=400, hide_index=True)
+                                generate_download_buttons(
+                                    df_var_total_evo, 
+                                    f'detalle_variaciones_netas_sipaf_{p_actual_evo}_vs_{p_previo_evo}',
+                                    key_suffix="_sipaf_variaciones_evolucion"
                                 )
-                                fig_donut_evo.update_layout(legend_title_text='Tipo de Variación')
-                                st.plotly_chart(fig_donut_evo, use_container_width=True)
-                            else:
-                                st.info(f"No se encontraron variaciones de legajos (Ingresos, Egresos o Nivelaciones) entre {p_actual_evo} y {p_previo_evo}.")
-
-                        with col_table_var_evo:
-                            st.dataframe(df_display_variaciones_evo, use_container_width=True, height=400, hide_index=True)
-                            
-                            generate_download_buttons(
-                                df_var_total_evo, # Descargar el DF sin formato de legajo
-                                f'detalle_variaciones_netas_sipaf_{p_actual_evo}_vs_{p_previo_evo}',
-                                key_suffix="_sipaf_variaciones_evolucion"
-                            )
-                    # --- FIN: MODIFICACIÓN (REQ 2) ---
-
-            # --- FIN: NUEVA SECCIÓN DE EVOLUCIÓN MENSUAL ---
 
 
 # --- FIN: SOLAPA SIPAF (MODIFICADA) ---
