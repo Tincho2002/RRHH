@@ -968,6 +968,20 @@ if uploaded_file is not None:
             if not categorias_sipaf:
                 st.warning("Por favor, seleccione al menos una categoría para el desglose.")
             else:
+                # --- INICIO: CORRECCIÓN TIPOS DE DATOS (PARA DETECTAR "FC") ---
+                # Hacemos una copia explícita para evitar advertencias de Pandas
+                # Esto asegura que si 'Nivel' o 'Subnivel' tienen 'FC', se traten como texto y no se pierdan.
+                filtered_df = filtered_df.copy()
+                
+                cols_texto = ['Nivel', 'Subnivel']
+                for col in cols_texto:
+                    if col in filtered_df.columns:
+                        # Convertir a string y quitar espacios vacíos alrededor (ej: " FC " -> "FC")
+                        filtered_df[col] = filtered_df[col].astype(str).str.strip()
+                        # Limpiar nulos convertidos a string
+                        filtered_df[col] = filtered_df[col].replace('nan', '')
+                # --- FIN: CORRECCIÓN TIPOS DE DATOS ---
+
                 # Data Processing
                 df_actual_raw = filtered_df[filtered_df['Periodo'] == periodo_actual_sipaf]
                 df_previo_raw = filtered_df[filtered_df['Periodo'] == periodo_previo_sipaf]
@@ -1124,7 +1138,7 @@ if uploaded_file is not None:
                 st.error(f"Error al definir períodos de evolución: {e}")
                 month_to_month_periods = [] 
             
-            if len(month_to_month_periods) < 1: # Cambiado a 1 para permitir mostrar solo Dic-23 si es lo único
+            if len(month_to_month_periods) < 1: 
                  st.warning(f"No hay suficientes datos de períodos (desde {start_period}) seleccionados.")
             else:
                 # --- PLANTA DE CARGOS MES A MES ---
@@ -1203,14 +1217,13 @@ if uploaded_file is not None:
                 with st.spinner(f"Calculando evolución mes a mes desde {start_period}..."):
                     
                     # --- INICIO CAMBIO: AGREGAR PRIMER PERÍODO (BASE) ---
-                    # Agregamos el primer período manualmente para que aparezca en la gráfica con valor 0 en variaciones
                     if len(month_to_month_periods) > 0:
                         p_inicial = month_to_month_periods[0]
                         dotacion_inicial = filtered_df[filtered_df['Periodo'] == p_inicial]['LEGAJO'].nunique()
                         evolution_data.append({
                             "Periodo": p_inicial,
                             "Dotación": dotacion_inicial,
-                            "Ingresos": 0, # 0 porque es el punto de partida
+                            "Ingresos": 0, 
                             "Egresos": 0,
                             "Nivelaciones": 0,
                             "Var. Neta (I-E)": 0
@@ -1221,6 +1234,7 @@ if uploaded_file is not None:
                         p_actual = month_to_month_periods[i]
                         p_previo = month_to_month_periods[i-1]
                         
+                        # Como ya arreglamos filtered_df arriba, get_legajo_variations usará la data corregida
                         df_ing, df_eg, df_camb, _, _ = get_legajo_variations(
                             filtered_df, p_actual, p_previo, detail_cols_existentes, compare_cols_existentes
                         )
@@ -1291,7 +1305,6 @@ if uploaded_file is not None:
                         generate_download_buttons(df_evolution, 'evolucion_mensual_sipaf', key_suffix="_sipaf_evolucion")
                     
                     # --- VARIACIONES NETAS DE EVOLUCIÓN ---
-                    # Solo mostrar si hay al menos 2 períodos para comparar extremos
                     if len(month_to_month_periods) >= 2:
                         st.markdown("---")
                         p_actual_evo = month_to_month_periods[-1]
