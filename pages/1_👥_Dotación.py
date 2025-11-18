@@ -1134,6 +1134,8 @@ if uploaded_file is not None:
             month_to_month_periods = []
             
             # Usamos 'sorted_selected_periods' que ya respeta los filtros del sidebar
+            # NOTA: REQ 1 (Filtro de año) ya está cubierto por esta lógica.
+            # Si se filtra 2023, "Dic-23" no estará en 'sorted_selected_periods'.
             if start_period in sorted_selected_periods:
                 start_index = sorted_selected_periods.index(start_period)
                 month_to_month_periods = sorted_selected_periods[start_index:]
@@ -1370,11 +1372,81 @@ if uploaded_file is not None:
                             'evolucion_mensual_sipaf_dic23_en_adelante', 
                             key_suffix="_sipaf_evolucion"
                         )
+                    
+                    # --- INICIO: MODIFICACIÓN (REQ 2) - Análisis de Variaciones (Extremos de la Evolución) ---
+                    st.markdown("---")
+                    
+                    # Definir los períodos de comparación (primero vs. último de la evolución)
+                    p_actual_evo = month_to_month_periods[-1]
+                    p_previo_evo = month_to_month_periods[0]
+                    
+                    st.subheader(f"Análisis de Variaciones (Neto de la Evolución): {p_actual_evo} vs. {p_previo_evo}")
+                    
+                    with st.spinner(f"Calculando variaciones netas entre {p_actual_evo} y {p_previo_evo}..."):
+                        # 1. Obtener variaciones de legajos
+                        df_ing_evo, df_eg_evo, df_camb_evo, df_camb_final_evo, df_var_total_evo = get_legajo_variations(
+                            filtered_df, 
+                            p_actual_evo, 
+                            p_previo_evo, 
+                            detail_cols_existentes, 
+                            compare_cols_existentes
+                        )
+
+                        # 2. Preparar datos para el gráfico
+                        chart_data_evo = {
+                            'Tipo': ['Ingresos', 'Egresos', 'Nivelaciones'],
+                            'Cantidad': [len(df_ing_evo), len(df_eg_evo), len(df_camb_evo)]
+                        }
+                        df_chart_evo = pd.DataFrame(chart_data_evo).query('Cantidad > 0')
+
+                        # 3. Formatear Legajo para visualización
+                        df_display_variaciones_evo = df_var_total_evo.copy()
+                        if 'LEGAJO' in df_display_variaciones_evo.columns:
+                            df_display_variaciones_evo['LEGAJO'] = df_display_variaciones_evo['LEGAJO'].apply(
+                                lambda x: format_integer_es(int(x)) if (pd.notna(x) and x != 'no disponible' and str(x).isdigit()) else ('' if x=='no disponible' else x)
+                            )
+
+                        # 4. Mostrar Gráfico y Tabla (copiado de la sección A vs B)
+                        col_chart_var_evo, col_table_var_evo = st.columns(2)
+
+                        with col_chart_var_evo:
+                            if not df_chart_evo.empty:
+                                fig_donut_evo = px.pie(
+                                    df_chart_evo, 
+                                    names='Tipo', 
+                                    values='Cantidad', 
+                                    title=f'Composición de la Variación Neta ({df_chart_evo["Cantidad"].sum()} legajos)', 
+                                    hole=0.4,
+                                    color_discrete_map={
+                                        'Ingresos': '#28a745', 
+                                        'Egresos': '#dc3545', 
+                                        'Nivelaciones': '#007bff'
+                                    }
+                                )
+                                fig_donut_evo.update_traces(
+                                    textinfo='percent+label+value', 
+                                    textposition='outside',
+                                    pull=[0.05 if t == 'Ingresos' or t == 'Egresos' else 0 for t in df_chart_evo['Tipo']]
+                                )
+                                fig_donut_evo.update_layout(legend_title_text='Tipo de Variación')
+                                st.plotly_chart(fig_donut_evo, use_container_width=True)
+                            else:
+                                st.info(f"No se encontraron variaciones de legajos (Ingresos, Egresos o Nivelaciones) entre {p_actual_evo} y {p_previo_evo}.")
+
+                        with col_table_var_evo:
+                            st.dataframe(df_display_variaciones_evo, use_container_width=True, height=400, hide_index=True)
+                            
+                            generate_download_buttons(
+                                df_var_total_evo, # Descargar el DF sin formato de legajo
+                                f'detalle_variaciones_netas_sipaf_{p_actual_evo}_vs_{p_previo_evo}',
+                                key_suffix="_sipaf_variaciones_evolucion"
+                            )
+                    # --- FIN: MODIFICACIÓN (REQ 2) ---
+
             # --- FIN: NUEVA SECCIÓN DE EVOLUCIÓN MENSUAL ---
 
 
-    # --- FIN: SOLAPA SIPAF (MODIFICADA) ---
-
+# --- FIN: SOLAPA SIPAF (MODIFICADA) ---
     # --- INICIO: CORRECCIÓN LÓGICA DE SOLAPAS (REQ 2) ---
     # El código de las solapas de mapa ahora se comprueba y se ejecuta DESPUÉS de SIPAF
     if tab_map_comparador and period_to_display:
