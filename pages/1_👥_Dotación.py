@@ -1131,14 +1131,23 @@ if uploaded_file is not None:
             st.subheader("Análisis de Evolución Mensual (desde Dic-23)")
             
             start_period = "Dic-23"
-            month_to_month_periods = []
-            
-            # Usamos 'sorted_selected_periods' que ya respeta los filtros del sidebar
-            # NOTA: REQ 1 (Filtro de año) ya está cubierto por esta lógica.
-            # Si se filtra 2023, "Dic-23" no estará en 'sorted_selected_periods'.
-            if start_period in sorted_selected_periods:
-                start_index = sorted_selected_periods.index(start_period)
-                month_to_month_periods = sorted_selected_periods[start_index:]
+            # month_to_month_periods = [] # Eliminada
+
+            # --- INICIO MODIFICACIÓN: Lógica de filtro de período ---
+            # En lugar de buscar "Dic-23", tomamos todos los períodos seleccionados
+            # que sean "Dic-23" o posteriores.
+            # Esto asume que 'sort_period_key' está definida globalmente.
+            try:
+                start_key = sort_period_key(start_period)
+                month_to_month_periods = [
+                    p for p in sorted_selected_periods 
+                    if sort_period_key(p) >= start_key
+                ]
+            except Exception as e:
+                st.error(f"Error al definir períodos de evolución: {e}")
+                st.info("Asegúrese de que 'sort_period_key' esté disponible.")
+                month_to_month_periods = [] # Fallback
+            # --- FIN MODIFICACIÓN ---
             
             if len(month_to_month_periods) < 2:
                 st.warning(f"No hay suficientes datos de períodos (desde {start_period}) seleccionados en el filtro lateral para mostrar la evolución mensual.")
