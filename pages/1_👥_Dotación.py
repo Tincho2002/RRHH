@@ -900,7 +900,7 @@ if uploaded_file is not None:
                 text_var = chart_var.mark_text(align='center', baseline='middle', dy=alt.expr("datum.Variacion_Cantidad > 0 ? -10 : 15"), color='white').encode(text='label:N')
                 st.altair_chart(chart_var + text_var, use_container_width=True)
 
-    # --- INICIO: SOLAPA SIPAF (MODIFICADA) ---
+# --- INICIO: SOLAPA SIPAF (MODIFICADA) ---
     with tab_sipaf:
         st.header("Análisis Comparativo de Dotación (SIPAF)")
         
@@ -1144,7 +1144,7 @@ if uploaded_file is not None:
                 
                 # --- INICIO: NUEVA SECCIÓN "PLANTA DE CARGOS MES A MES" ---
                 st.markdown("---") # Separador
-                st.markdown("##### Planta de Cargos Mes a Mes")
+                st.markdown("##### Planta de Cargos Mes a Mes (con Variaciones)")
                 
                 categorias_evolucion = st.multiselect(
                     "Seleccionar categorías para el desglose de la planta (el orden importa):",
@@ -1170,14 +1170,49 @@ if uploaded_file is not None:
                                 fill_value=0
                             )
                             
-                            # 3. Reordenar columnas cronológicamente
-                            df_planta_pivot = df_planta_pivot.reindex(columns=month_to_month_periods, fill_value=0)
+                            # 3. Reordenar columnas cronológicamente Y AÑADIR VARIACIONES
+                            
+                            # --- INICIO DE MODIFICACIÓN: Añadir Variaciones ---
+                            
+                            # Lista de todas las columnas (períodos y variaciones) en orden
+                            new_ordered_cols = []
+                            # Lista solo de las columnas de formato numérico
+                            format_cols = [] 
+                            
+                            # Iterar por los períodos para construir el DF final
+                            for i, p_actual in enumerate(month_to_month_periods):
+                                # Añadir la columna del período actual
+                                new_ordered_cols.append(p_actual)
+                                format_cols.append(p_actual)
+                                
+                                # Si no es el primer período, calcular y añadir la variación
+                                if i > 0:
+                                    p_previo = month_to_month_periods[i-1]
+                                    
+                                    # Crear nombre corto para la columna de variación
+                                    p_actual_short = p_actual.split('-')[0]
+                                    p_previo_short = p_previo.split('-')[0]
+                                    var_col_name = f"Var. ({p_actual_short} vs {p_previo_short})"
+                                    
+                                    # Calcular la variación
+                                    df_planta_pivot[var_col_name] = df_planta_pivot[p_actual] - df_planta_pivot[p_previo]
+                                    
+                                    # Añadir la columna de variación al orden
+                                    new_ordered_cols.append(var_col_name)
+                                    format_cols.append(var_col_name)
+
+                            # Reordenar el pivot original con las nuevas columnas
+                            df_planta_pivot = df_planta_pivot.reindex(columns=new_ordered_cols, fill_value=0)
+                            # --- FIN DE MODIFICACIÓN ---
 
                             # 4. Lógica de Subtotales (adaptada de "A vs B")
                             df_display_list = []
                             group_cols = df_planta_pivot.index.names
                             main_group_col = group_cols[0]
-                            period_cols = list(month_to_month_periods) # Columnas de datos
+                            
+                            # --- MODIFICACIÓN: Usar new_ordered_cols ---
+                            period_cols_with_vars = new_ordered_cols 
+                            # --- FIN MODIFICACIÓN ---
 
                             for main_group_name, df_main_group in df_planta_pivot.groupby(level=0):
                                 # Fila de Subtotal
@@ -1187,7 +1222,9 @@ if uploaded_file is not None:
                                     subtotal_row[col] = ''
                                 
                                 subtotal_data = df_main_group.sum() # Suma todas las columnas de período
-                                for p_col in period_cols: # Rellenar cols de período
+                                
+                                # --- MODIFICACIÓN: Usar period_cols_with_vars ---
+                                for p_col in period_cols_with_vars: # Rellenar cols de período y var
                                     if p_col in subtotal_data:
                                         subtotal_row[p_col] = subtotal_data[p_col]
                                     else:
@@ -1210,7 +1247,9 @@ if uploaded_file is not None:
                                 total_row_data[col] = ['']
                             
                             total_general_data = df_planta_pivot.sum() # Suma total
-                            for p_col in period_cols:
+                            
+                            # --- MODIFICACIÓN: Usar period_cols_with_vars ---
+                            for p_col in period_cols_with_vars:
                                 if p_col in total_general_data:
                                     total_row_data[p_col] = [total_general_data[p_col]]
                                 else:
@@ -1220,12 +1259,18 @@ if uploaded_file is not None:
                             df_display_planta = pd.concat([df_display_planta, total_row_df], ignore_index=True)
 
                             # 6. Ordenar columnas y mostrar
-                            ordered_cols = list(group_cols) + period_cols
+                            
+                            # --- MODIFICACIÓN: Usar period_cols_with_vars ---
+                            ordered_cols = list(group_cols) + period_cols_with_vars
+                            # --- FIN MODIFICACIÓN ---
+                            
                             # Asegurarse que todas las columnas existan en el df final
                             ordered_cols_existentes = [c for c in ordered_cols if c in df_display_planta.columns]
                             df_display_planta = df_display_planta[ordered_cols_existentes]
                             
-                            format_dict = {p_col: format_integer_es for p_col in period_cols}
+                            # --- MODIFICACIÓN: Usar format_cols ---
+                            format_dict = {p_col: format_integer_es for p_col in format_cols}
+                            # --- FIN MODIFICACIÓN ---
                             
                             st.dataframe(
                                 df_display_planta.style.format(format_dict),
@@ -1236,7 +1281,7 @@ if uploaded_file is not None:
                             # 7. Botón de Descarga
                             generate_download_buttons(
                                 df_planta_pivot.reset_index(), # Descargar datos pivoteados (sin subtotales)
-                                'planta_cargos_mes_a_mes',
+                                'planta_cargos_mes_a_mes_con_variacion',
                                 key_suffix="_sipaf_planta_evolucion"
                             )
 
