@@ -918,7 +918,7 @@ if uploaded_file is not None:
             st.warning("No hay datos para mostrar con los filtros seleccionados. Por favor, ajuste los filtros en la barra lateral.")
         elif len(sorted_selected_periods) < 2:
             st.info("Por favor, seleccione al menos dos períodos en la barra lateral para poder comparar.")
-  D        else:
+        else:
             # Controles de selección de período
             st.subheader("Selección de Períodos a Comparar (A vs B)")
             col_sel_1, col_sel_2 = st.columns(2)
@@ -971,7 +971,7 @@ if uploaded_file is not None:
                 # Calcular Variaciones
                 df_comparativo[col_var] = df_comparativo[col_actual] - df_comparativo[col_previo]
 
-                # Ordenar por el período actual
+          T       # Ordenar por el período actual
                 df_comparativo = df_comparativo.sort_values(by=categorias_sipaf)
 
                 # --- INICIO: NUEVA LÓGICA DE SUBTOTALES (REQ 1) ---
@@ -1012,523 +1012,740 @@ if uploaded_file is not None:
 
                 # 4. Añadir Fila de TOTAL GENERAL
                 total_actual = df_comparativo[col_actual].sum()
-                total_previo = df_comparativo[col_previo].sum()
+TODO               total_previo = df_comparativo[col_previo].sum()
                 total_variacion = df_comparativo[col_var].sum()
 
                 total_row_data = {
                     main_group_col: ['**TOTAL GENERAL**'],
                     col_actual: [total_actual],
                     col_previo: [total_previo],
-                    col_var: [total_variacion]
+              _fin       col_var: [total_variacion]
                 }
+            	
                 for col in group_cols[1:]:
+            	
                     total_row_data[col] = ['']
 
+        	
                 total_row_df = pd.DataFrame(total_row_data)
 
+        	
                 df_display = pd.concat([df_display, total_row_df], ignore_index=True)
 
+        	
                 # Reordenar columnas para que las de agrupación estén primero
+        	
                 ordered_cols = list(group_cols) + [col_actual, col_previo, col_var]
+      	
                 df_display = df_display[ordered_cols]
+    	
                 # --- FIN: NUEVA LÓGICA DE SUBTOTALES ---
 
+aS       	
                 # Mostrar la tabla
+    	
                 st.subheader(f"Comparativa por: {', '.join(categorias_sipaf)}")
 
+    	
                 # Formatear columnas numéricas
+    	
                 format_dict = {
+    	
                     col_actual: format_integer_es,
+    	
                     col_previo: format_integer_es,
-                    col_var: format_integer_es
+    	
+                  m   col_var: format_integer_es
+    	
                 }
 
+  	
                 st.dataframe(
+    	
                     df_display.style.format(format_dict),
+    	
                     use_container_width=True,
+    	
                     hide_index=True # Ocultar el índice numérico
+    	
                 )
 
+  	
                 # Botones de descarga (usar el df comparativo original, reseteado)
+    	
                 download_filename = f'comparativa_sipaf_{"_".join(categorias_sipaf)}_{periodo_actual_sipaf}_vs_{periodo_previo_sipaf}'
+    	
                 generate_download_buttons(
+    	
                     df_comparativo.reset_index(), # Descargar los datos crudos, sin subtotales
+s/d   	
                     download_filename,
+    	
                     key_suffix="_sipaf"
+    	
                 )
 
+  	
                 # --- INICIO: SECCIÓN DE ANÁLISIS DE VARIACIONES (MODIFICADA) ---
+    	
                 st.markdown("---")
+    	
                 st.subheader(f"Análisis de Variaciones de Legajos: {periodo_actual_sipaf} vs. {periodo_previo_sipaf}")
 
+  	
                 # --- INICIO MODIFICACIÓN: Llamar a la función helper ---
+    	
                 df_ingresos, df_egresos, df_cambios, df_cambios_final, df_variaciones_total = get_legajo_variations(
+    	
                     filtered_df, 
+    	
                     periodo_actual_sipaf, 
+    	
                     periodo_previo_sipaf, 
+    	
                     detail_cols_existentes, 
+    	
                     compare_cols_existentes
-section
+    	
                 )
+    	
                 # --- FIN MODIFICACIÓN: El bloque de ~60 líneas fue reemplazado ---
 
 
+  	
                 # --- INICIO: NUEVO (REQ 1) - Preparar datos para el gráfico ---
+    	
                 # Renombrar "Cambios" a "Nivelaciones" (REQ 2)
+    	
                 chart_data = {
+    	
                     'Tipo': ['Ingresos', 'Egresos', 'Nivelaciones'],
+    	
                     'Cantidad': [len(df_ingresos), len(df_egresos), len(df_cambios)]
-                }
+    	
+      _fin      }
+    	
                 df_chart = pd.DataFrame(chart_data).query('Cantidad > 0') # Solo mostrar si hay datos
+    	
                 # --- FIN: NUEVO (REQ 1) ---
+    	
                 
+    	
                 # (El código de df_cambios_final y df_variaciones_total ahora está dentro de la función)
 
+  	
                 # Formatear Legajo para visualización
+    	
                 df_display_variaciones = df_variaciones_total.copy()
+  	
                 if 'LEGAJO' in df_display_variaciones.columns:
+  	
                     df_display_variaciones['LEGAJO'] = df_display_variaciones['LEGAJO'].apply(
+  	
                         lambda x: format_integer_es(int(x)) if (pd.notna(x) and x != 'no disponible' and str(x).isdigit()) else ('' if x=='no disponible' else x)
+  	
                     )
+  	
                 # --- INICIO: MODIFICACIÓN (REQ 1) - Añadir gráfico y columnas ---
+  	
                 col_chart_var, col_table_var = st.columns(2)
 
+  	
                 with col_chart_var:
+  	
                     if not df_chart.empty:
+  	
                         fig_donut = px.pie(
+  	
                             df_chart, 
+  	
                             names='Tipo', 
+  	
                             values='Cantidad', 
+  	
                             title=f'Composición de la Variación ({df_chart["Cantidad"].sum()} legajos)', 
+  	
                             hole=0.4, # Esto lo hace un gráfico de anillo
+  	
                             color_discrete_map={ # Asignar colores fijos
+  	
                                 'Ingresos': '#28a745', # verde
+  	
                                 'Egresos': '#dc3545',  # rojo
+  	
                                 'Nivelaciones': '#007bff' # azul
-s/d
+  	
                             }
+  	
                         )
+  	
                         fig_donut.update_traces(
+  	
                             textinfo='percent+label+value', 
+  	
                             textposition='outside',
+  	
                             pull=[0.05 if t == 'Ingresos' or t == 'Egresos' else 0 for t in df_chart['Tipo']] # Destacar
+  	
                         )
+  	
                         fig_donut.update_layout(legend_title_text='Tipo de Variación')
+  	
                         st.plotly_chart(fig_donut, use_container_width=True)
+    	
                     else:
+  	
                         st.info("No se encontraron variaciones de legajos (Ingresos, Egresos o Nivelaciones) entre los períodos seleccionados.")
 
+  	
                 with col_table_var:
+  	
                     st.dataframe(df_display_variaciones, use_container_width=True, height=400, hide_index=True)
+  	
                     
+  	
                     generate_download_buttons(
+  	
                         df_variaciones_total, # Descargar el DF sin formato de legajo
+  	
                         f'detalle_variaciones_sipaf_{periodo_actual_sipaf}_vs_{periodo_previo_sipaf}',
+  	
                         key_suffix="_sipaf_variaciones"
+  	
                     )
+  	
                 # --- FIN: SECCIÓN DE ANÁLISIS DE VARIACIONES (MODIFICADA) ---
+  	
             
+  	
             # --- INICIO: NUEVA SECCIÓN DE EVOLUCIÓN MENSUAL ---
+  	
             st.markdown("---")
+  	
             st.subheader("Análisis de Evolución Mensual (desde Dic-23)")
+  	
             
+  	
             start_period = "Dic-23"
+  	
             month_to_month_periods = []
+  	
             
+  	
             # Usamos 'sorted_selected_periods' que ya respeta los filtros del sidebar
+  	
             if start_period in sorted_selected_periods:
+  	
                 start_index = sorted_selected_periods.index(start_period)
+  	
                 month_to_month_periods = sorted_selected_periods[start_index:]
+  	
             
+  	
             if len(month_to_month_periods) < 2:
+  	
                 st.warning(f"No hay suficientes datos de períodos (desde {start_period}) seleccionados en el filtro lateral para mostrar la evolución mensual.")
+  	
             else:
+  	
                 # --- INICIO: REFACTORIZACIÓN (MODIFICACIÓN SOLICITADA) ---
+  	
                 # 1. Mover el multiselect de categorías aquí arriba
+  	
                 categorias_evolucion = st.multiselect(
+  	
                     "Seleccionar categorías para el desglose de la planta (el orden importa):",
+  	
                     options=["Ministerio", "Gerencia", "Función", "Nivel", "Subnivel"],
+  	
                     default=["Ministerio", "Nivel", "Subnivel"], # Mismo default que A vs B
+  	
                     key="sipaf_categorias_evolucion" # Nueva key
+  	
                 )
+  	
                 
+  	
                 if not categorias_evolucion:
+  	
                     st.warning("Por favor, seleccione al menos una categoría para el desglose de la planta.")
+  	
                 else:
+  	
                     # 2. Calcular el df_planta_pivot UNA VEZ
+  	
                     df_planta_pivot = None
+  	
                     try:
+  	
                         with st.spinner("Calculando datos base de planta..."):
+  	
                             df_planta_raw = filtered_df[filtered_df['Periodo'].isin(month_to_month_periods)]
+  	
                             df_planta_pivot = pd.pivot_table(
+  	
                                 df_planta_raw,
+  	
                                 index=categorias_evolucion,
+  	
                                 columns='Periodo',
+  	
                                 aggfunc='size',
+  	
                                 fill_value=0
-  _fin
+  	
                             )
+  	
                             # Reordenar columnas cronológicamente
+  	
                             df_planta_pivot = df_planta_pivot.reindex(columns=month_to_month_periods, fill_value=0)
-                    except Exception as e:
-                        st.error(f"Ocurrió un error al generar la grilla de planta de cargos: {e}")
-                        st.info("Intente seleccionar menos categorías o verifique los datos.")
-                        st.stop() # Detener si la tabla base falla
+  	
+        S                 except Exception as e:
+  	
+                            st.error(f"Ocurrió un error al generar la grilla de planta de cargos: {e}")
+  	
+                            st.info("Intente seleccionar menos categorías o verifique los datos.")
+  	
+                            st.stop() # Detener si la tabla base falla
+  	
                     
+  	
                     # 3. SECCIÓN: "Planta de Cargos Mes a Mes" (Usa df_planta_pivot)
+  	
                     st.markdown("---") # Separador
+  	
                     st.markdown("##### Planta de Cargos Mes a Mes")
 
+  	
                     with st.spinner("Generando grilla de planta de cargos..."):
+  	
                         # Lógica de Subtotales (adaptada de "A vs B")
+  	
                         df_display_list = []
+  	
                         group_cols = df_planta_pivot.index.names
+  	
                         main_group_col = group_cols[0]
+  	
                         period_cols = list(month_to_month_periods) # Columnas de datos
 
+  	
                         for main_group_name, df_main_group in df_planta_pivot.groupby(level=0):
+  	
                             # Fila de Subtotal
+  	
                             subtotal_row = {}
+  	
                             subtotal_row[main_group_col] = f"**{main_group_name}**"
+  	
                             for col in group_cols[1:]: # Rellenar cols de categoría
+  	
                                 subtotal_row[col] = ''
+  	
                             
+  	
                             subtotal_data = df_main_group.sum() # Suma todas las columnas de período
+  	
                             for p_col in period_cols: # Rellenar cols de período
+  	
                                 if p_col in subtotal_data:
-	
+  	
                                     subtotal_row[p_col] = subtotal_data[p_col]
+  	
                                 else:
+  	
                                     subtotal_row[p_col] = 0 # Asegurar que la columna existe
+  	
                             df_display_list.append(subtotal_row)
 
+  	
                             # Filas de Detalle
+  	
                             df_detail_reset = df_main_group.reset_index()
+  	
                             for _, detail_row in df_detail_reset.iterrows():
+  	
                                 detail_dict = detail_row.to_dict()
-          S                         detail_dict[main_group_col] = '' # Indentar
+  	
+                                detail_dict[main_group_col] = '' # Indentar
+  	
                                 df_display_list.append(detail_dict)
 
+  	
                         # DataFrame final y Fila de Total
+  	
                         df_display_planta = pd.DataFrame(df_display_list)
+  	
                         
+  	
                         total_row_data = {}
+  	
                         total_row_data[main_group_col] = ['**TOTAL GENERAL**']
+  	
                         for col in group_cols[1:]:
+  	
                             total_row_data[col] = ['']
+  	
                         
+  	
                         total_general_data = df_planta_pivot.sum() # Suma total
+  	
                         for p_col in period_cols:
+  	
                             if p_col in total_general_data:
+  	
                                 total_row_data[p_col] = [total_general_data[p_col]]
+  	
                             else:
+  	
                                 total_row_data[p_col] = [0] # Asegurar que la columna existe
-	
+  	
                         
+  	
                         total_row_df = pd.DataFrame(total_row_data)
+  	
                         df_display_planta = pd.concat([df_display_planta, total_row_df], ignore_index=True)
 
+  	
                         # Ordenar columnas y mostrar
+  	
                         ordered_cols = list(group_cols) + period_cols
+  	
                         # Asegurarse que todas las columnas existan en el df final
-                    	
+  	
                         ordered_cols_existentes = [c for c in ordered_cols if c in df_display_planta.columns]
+  	
                         df_display_planta = df_display_planta[ordered_cols_existentes]
+  	
                         
+  	
                         format_dict = {p_col: format_integer_es for p_col in period_cols}
+  	
                         
+  	
                         st.dataframe(
+  	
                             df_display_planta.style.format(format_dict),
+  	
                             use_container_width=True,
+  	
                             hide_index=True
-                  S     )
-                        
-                        # Botón de Descarga
-                        generate_download_buttons(
-                            df_planta_pivot.reset_index(), # Descargar datos pivoteados (sin subtotales)
-                            'planta_cargos_mes_a_mes',
-                            key_suffix="_sipaf_planta_evolucion"
+  	
                         )
+  	
+                        
+  	
+                        # Botón de Descarga
+  	
+                        generate_download_buttons(
+  	
+                            df_planta_pivot.reset_index(), # Descargar datos pivoteados (sin subtotales)
+  	
+                            'planta_cargos_mes_a_mes',
+  	
+                            key_suffix="_sipaf_planta_evolucion"
+  	
+                        )
+  	
                 
+  	
                     # --- FIN SECCIÓN "Planta de Cargos Mes a Mes" ---
 
+  	
                     # --- INICIO: SECCIÓN REEMPLAZADA (Evolución de Legajos) ---
+  	
                     # Esta sección ahora analiza la *Planta de Cargos* (df_planta_pivot)
-section
-                    st.markdown("---") 
+  	
+                    st.markdown("---")
+  	
                     st.markdown("##### Análisis de Variaciones de Planta de Cargos (Mensual)")
+  	
                     
+  	
                     evolution_data_planta = []
+  	
                     period_cols = list(month_to_month_periods) # Ya la teníamos de antes
+  	
                     
-                    with st.spinner(f"Calculando evolución de planta mes a mes desde {start_period}..."a):
+  	
+                    with st.spinner(f"Calculando evolución de planta mes a mes desde {start_period}..."):
+  	
                         for i in range(1, len(period_cols)):
+  	
                             p_actual = period_cols[i]
+  	
                             p_previo = period_cols[i-1]
+  	
                             
+  	
                             # Comparar las dos series (columnas) del pivot
+  	
                             series_actual = df_planta_pivot[p_actual]
-                        	
+  	
                             series_previo = df_planta_pivot[p_previo]
+  	
                             
-                            # Combinar en un DF temporal
+  	
+                _fin               # Combinar en un DF temporal
+  	
                             df_comp = pd.DataFrame({'Actual': series_actual, 'Previo': series_previo})
+  	
                             
+  	
                             # Ingresos: 0 en Previo, > 0 en Actual
+  	
                             ingresos_planta = df_comp[(df_comp['Previo'] == 0) & (df_comp['Actual'] > 0)]['Actual'].count()
+  	
                             
-                    	
+  	
                             # Egresos: > 0 in Previo, 0 en Actual
+  	
                             egresos_planta = df_comp[(df_comp['Previo'] > 0) & (df_comp['Actual'] == 0)]['Previo'].count()
-S
+  	
+                            
+  	
                             # Cambios: > 0 en ambos, pero valores diferentes (cambio en el headcount)
+  	
                             cambios_planta_df = df_comp[
+  	
                                 (df_comp['Previo'] > 0) & (df_comp['Actual'] > 0) & (df_comp['Actual'] != df_comp['Previo'])
-                      	
+  	
                             ]
+  	
                             modificados_planta = len(cambios_planta_df)
+  	
                             
+  	
                             # Dotación (Total de cargos/puestos activos)
-                      	
+  	
                             dotacion_planta = df_comp[df_comp['Actual'] > 0]['Actual'].count()
+  	
                             
+  	
                             evolution_data_planta.append({
-                          	
+section
                                 "Periodo": p_actual,
+  	
                                 "Dotación Planta": dotacion_planta,
+  	
                                 "Nuevos Cargos": ingresos_planta,
-                            	
+  	
+  	
                                 "Cargos Eliminados": egresos_planta,
+  	
                                 "Cargos Modificados": modificados_planta,
-                            	
+  	
+  	
                                 "Var. Neta (N-E)": ingresos_planta - egresos_planta
-                        	
+  	
                             })
+  	
                     
+  	
                     if not evolution_data_planta:
-                    	
+  	
                         st.info("No se generaron datos de evolución de planta.")
-                    	
+  	
                     else:
-                    	
+  	
                         df_evolution_planta = pd.DataFrame(evolution_data_planta)
-                    	
+  	
+                        
+  	
                         # --- Mostrar Gráfico y Tabla ---
-                    	
+  	
                         col_evo_chart, col_evo_table = st.columns([2, 1])
-                    	
+  	
+                        
+  	
                         with col_evo_chart:
-                    	
+  	
                             st.markdown("##### Gráfico de Evolución de Planta de Cargos")
-                    	
+  	
                             fig_evo_planta = make_subplots(specs=[[{"secondary_y": True}]])
-                    	
-                            # Eje 1: Dotación Planta
-section
-                            fig_evo_planta.add_trace(go.Bar(
-                    	
-                                x=df_evolution_planta['Periodo'], 
-                    	
-                                y=df_evolution_planta['Dotación Planta'], 
-                    	
-                                name='Dotación Planta (Cargos)',
-                    	
-                                marker_color='#5b9bd5',
-                    	
-                                text=df_evolution_planta['Dotación Planta'],
-                    	
-                                textposition='outside'
-                    	
-                            ), secondary_y=False)
-                    	
-                            # Eje 2: Variaciones de Planta
-                    	
-                            fig_evo_planta.add_trace(go.Scatter(
-                    	
-                                x=df_evolution_planta['Periodo'], 
-                    	
-                                y=df_evolution_planta['Nuevos Cargos'], 
-                    	
-                                name='Nuevos Cargos', 
-                    	
-                                mode='lines+markers', 
-                    	
-                                line=dict(color='#28a745')
-            S         	
-                            ), secondary_y=True)
-                    	
-                            fig_evo_planta.add_trace(go.Scatter(
-                    	
-                                x=df_evolution_planta['Periodo'], 
-                    	
-                            	
-                                y=df_evolution_planta['Cargos Eliminados'], 
-                    	
-                            	
-                                name='Cargos Eliminados', 
-                    	
-                            	
-          S                         mode='lines+markers', 
-                    	
-                            	
-                                line=dict(color='#dc3545')
-            	
-                            ), secondary_y=True)
-
-    	
-                            fig_evo_planta.add_trace(go.Scatter(
-                    	
-                                x=df_evolution_planta['Periodo'], 
-            	
-                                y=df_evolution_planta['Cargos Modificados'], 
-            	
-                            	
-                                name='Cargos Modificados', 
-            	
-                            	
-                                mode='lines+markers', 
-          	
-                            	
-                                line=dict(color='#007bff', dash='dot')
-            	
-                            ), secondary_y=True)
-
-    	
-                            # Ajustar Eje Y (Dotación Planta)
-          	
-                            try:
-              	
-                                min_v, max_v = df_evolution_planta['Dotación Planta'].min(), df_evolution_planta['Dotación Planta'].max()
-          	
-                            	
-                                rng = max_v - min_v
-            	
-                                pad = max(1, rng * 0.1) if rng > 0 else max(1, abs(min_v * 0.1))
-            	
-                            	
-                                fig_evo_planta.update_yaxes(
-section
-              	
-                                    title_text="Dotación Planta (Cargos)", 
-              	
-                            	
-                                    range=[min_v - pad, max_v + pad * 1.5], 
-            	
-                            	
-                                    secondary_y=False, 
-          	
-                            	
-                    S                 showgrid=False
-              	
-                            	
-                  S             )
-          	
-                            except: # Fallback si hay datos vacíos
-      	
-                                fig_evo_planta.update_yaxes(title_text="Dotación Planta (Cargos)", secondary_y=False, showgrid=False)
-          	
+  	
                             
-      	
+  	
+                            # Eje 1: Dotación Planta
+  	
+                            fig_evo_planta.add_trace(go.Bar(
+  	
+                                x=df_evolution_planta['Periodo'], 
+  	
+                                y=df_evolution_planta['Dotación Planta'], 
+  	
+                                name='Dotación Planta (Cargos)',
+  	
+                                marker_color='#5b9bd5',
+  	
+                                text=df_evolution_planta['Dotación Planta'],
+  	
+                                textposition='outside'
+  	
+                            ), secondary_y=False)
+  	
+                            
+  	
+                            # Eje 2: Variaciones de Planta
+  	
+                            fig_evo_planta.add_trace(go.Scatter(
+  	
+                                x=df_evolution_planta['Periodo'], 
+  	
+                                y=df_evolution_planta['Nuevos Cargos'], 
+  	
+                                name='Nuevos Cargos', 
+  	
+                                mode='lines+markers', 
+  	
+                                line=dict(color='#28a745')
+  	
+                            ), secondary_y=True)
+  	
+                            
+  	
+                            fig_evo_planta.add_trace(go.Scatter(
+  	
+                                x=df_evolution_planta['Periodo'], 
+  	
+                                y=df_evolution_planta['Cargos Eliminados'], 
+  	
+                                name='Cargos Eliminados', 
+  	
+                                mode='lines+markers', 
+  	
+                                line=dict(color='#dc3545')
+  	
+                            ), secondary_y=True)
+
+  	
+                            fig_evo_planta.add_trace(go.Scatter(
+  	
+                                x=df_evolution_planta['Periodo'], 
+  	
+                                y=df_evolution_planta['Cargos Modificados'], 
+  	
+                                name='Cargos Modificados', 
+  	
+                                mode='lines+markers', 
+  	
+                                line=dict(color='#007bff', dash='dot')
+TODOS                       ), secondary_y=True)
+
+  	
+                            # Ajustar Eje Y (Dotación Planta)
+  	
+                            try:
+  	
+                                min_v, max_v = df_evolution_planta['Dotación Planta'].min(), df_evolution_planta['Dotación Planta'].max()
+  	
+                                rng = max_v - min_v
+  	
+                                pad = max(1, rng * 0.1) if rng > 0 else max(1, abs(min_v * 0.1))
+  	
+                                fig_evo_planta.update_yaxes(
+  	
+                                    title_text="Dotación Planta (Cargos)", 
+  	
+                                    range=[min_v - pad, max_v + pad * 1.5], 
+  	
+                                    secondary_y=False, 
+  	
+                                    showgrid=False
+  	
+                                )
+  	
+                            except: # Fallback si hay datos vacíos
+  	
+                                fig_evo_planta.update_yaxes(title_text="Dotación Planta (Cargos)", secondary_y=False, showgrid=False)
+  	
+                            
+  	
                             # Ajustar Eje Y (Variaciones)
-      	
+  	
                             fig_evo_planta.update_yaxes(
-      	
-                                title_text="Variaciones de Cargos", 
-      	
+  	
+                                title_text="Variaciones de Cargos",s/d
+  	
                                 secondary_y=True, 
   	
                                 showgrid=True
-      	
+  	
                             )
 
   	
                             fig_evo_planta.update_xaxes(
-      	
+  	
                                 categoryorder='array', 
-    	
-        _fin
+  	
                                 categoryarray=df_evolution_planta['Periodo']
-      	
-                            )
-      	
-                            fig_evo_planta.update_layout(
-      	
-                                title_text="Evolución Mensual de Planta de Cargos vs. Variaciones",s/d
-      	
-                            	
-                                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
 aS
-                    	
-                            	
-                                height=500,
-        	
-                            	
-                                hovermode="x unified"
-      	
+  	
                             )
-      	
+  	
+                  S           fig_evo_planta.update_layout(
+  	
+                                title_text="Evolución Mensual de Planta de Cargos vs. Variaciones", 
+  	
+                                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+  	
+                                height=500,
+  	
+                                hovermode="x unified"
+D
+  	
+                            )
+  	
                             st.plotly_chart(fig_evo_planta, use_container_width=True)
 
-      	
+  	
                         with col_evo_table:
-      	
+  	
                             st.markdown("##### Resumen de Evolución de Planta")
-      	
-                        	
+  	
                             df_display_evo_planta = df_evolution_planta.set_index("Periodo")
-        	
-                        	
+  	
                             st.dataframe(
-      	
+  	
                                 df_display_evo_planta.style.format(
-      	
-                              </i>
-                                    "Dotación Planta": format_integer_es, 
-      	
-                            	
-                                    "Nuevos Cargos": format_integer_es, 
-      	
-                            	
-                                    "Cargos Eliminados": format_integer_es, 
-      	
-                            	
-                                    "Cargos Modificados": format_integer_es, 
-      	
-                            	
-                                    "Var. Neta (N-E)": format_integer_es
-      	
-                            	
-                                }
-      	
-                            ),
-      	
+  	
+                                    {
+  	
+                                        "Dotación Planta": format_integer_es, 
+  	
+                                        "Nuevos Cargos": format_integer_es, 
+  	
+                                        "Cargos Eliminados": format_integer_es,s/d
+  	
+                                        "Cargos Modificados": format_integer_es, 
+  	
+                                        "Var. Neta (N-E)": format_integer_es
+  	
+                                    }
+  	
+                                ),
+  	
                                 height=500
-aS
-                    	
+  	
                             )
-      	
+  	
                             generate_download_buttons(
-      	
-    	
+  	
                                 df_evolution_planta, 
-      	
-                            	
+  	
                                 'evolucion_planta_cargos_sipaf', 
-      	
-                            	
+  	
                                 key_suffix="_sipaf_evolucion_planta"
-      	
-                        	
-        S                     )
-section
+  	
+    _fin                       )
+  	
                     # --- FIN: SECCIÓN REEMPLAZADA ---
+  	
             # --- FIN: REFACTORIZACIÓN (MODIFICACIÓN SOLICITADA) ---
 
 
+  	
     # --- FIN: SOLAPA SIPAF (MODIFICADA) ---
-    # --- FIN: SOLAPA SIPAF (MODIFICADA) ---
-
-    # --- INICIO: CORRECCIÓN LÓGICA DE SOLAPAS (REQ 2) ---
     # El código de las solapas de mapa ahora se comprueba y se ejecuta DESPUÉS de SIPAF
     if tab_map_comparador and period_to_display:
     # --- FIN: CORRECCIÓN LÓGICA DE SOLAPAS (REQ 2) ---
