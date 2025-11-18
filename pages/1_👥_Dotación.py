@@ -145,6 +145,252 @@ def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
         st.download_button(label="📊 Descargar como Excel", data=excel_buffer.getvalue(), file_name=f"{filename_prefix}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"excel_download_{filename_prefix}{key_suffix}")
 
 # --- INICIO: NUEVA FUNCIÓN HELPER PARA SIPAF ---
+def update_evolucion_data(df_cargos, df_bajas, df_altas, periodo_seleccionado):
+    """
+    Calcula todos los DataFrames necesarios para la solapa Dotación SIPAF
+    basado en los filtros seleccionados.
+    
+    Retorna: (df_evolucion, df_resumen, df_planta_cargos_variaciones, meses_periodo)
+    """
+    
+    # 1. SETUP DE PERÍODO
+    try:
+        if not periodo_seleccionado:
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), []
+
+        meses_periodo_calculo = sorted(periodo_seleccionado)
+        if not meses_periodo_calculo:
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), []
+            
+        mes_inicio_str = meses_periodo_calculo[0]
+        mes_fin_str = meses_periodo_calculo[-1]
+        
+        # Generar rango de fechas para filtros de movimientos
+        fecha_inicio_dt = pd.to_datetime(f"01-{mes_inicio_str}", format='%d-%b-%y')
+        # + MonthEnd(0) para incluir el mes final completo
+        fecha_fin_dt = pd.to_datetime(f"01-{mes_fin_str}", format='%d-%b-%y') + pd.offsets.MonthEnd(0)
+        rango_fechas = (fecha_inicio_dt, fecha_fin_dt)
+
+    except Exception as e:
+        st.error(f"Error preparando el período: {e}")
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), []
+
+    # 2. CÁLCULO DE EVOLUCIÓN (GRÁFICO DE LÍNEAS)
+    try:
+        evolucion_data = []
+        
+        # Asegurarse que las columnas de agrupación existen y rellenar NaNs
+        df_cargos_proc = df_cargos.copy()
+        for col in CARGOS_COLS_DISPLAY:
+            if col not in df_cargos_proc.columns:
+                df_cargos_proc[col] = "[No Asignado]"
+        df_cargos_proc[CARGOS_COLS_DISPLAY] = df_cargos_proc[CARGOS_COLS_DISPLAY].fillna("[No Asignado]")
+
+        df_altas_proc = df_altas.copy()
+        for col in CARGOS_COLS_DISPLAY:
+            if col not in df_altas_proc.columns:
+                df_altas_proc[col] = "[No Asignado]"
+        df_altas_proc[CARGOS_COLS_DISPLAY] = df_altas_proc[CARGOS_COLS_DISPLAY].fillna("[No Asignado]")
+
+        df_bajas_proc = df_bajas.copy()
+        for col in CARGOS_COLS_DISPLAY:
+            if col not in df_bajas_proc.columns:
+                df_bajas_proc[col] = "[No Asignado]"
+        df_bajas_proc[CARGOS_COLS_DISPLAY] = df_bajas_proc[CARGOS_COLS_DISPLAY].fillna("[No Asignado]")
+
+        # Calcular dotación mes a mes
+        for mes in meses_periodo_calculo:
+            dotacion_mes = df_cargos_proc[df_cargos_proc['MES_CARGO_STR'] == mes].shape[0]
+            evolucion_data.append({'Periodo': mes, 'Tipo': 'Dotación Total', 'Valor': dotacion_mes})
+
+        # Calcular movimientos (altas y bajas) en el período
+        # Usamos operadores bitwise (&) que son correctos para Pandas
+        filtro_altas = (df_altas_proc['FECHA_ALTA'] >= rango_fechas[0]) & (df_altas_proc['FECHA_ALTA'] <= rango_fechas[1])
+        df_altas_periodo = df_altas_proc[filtro_altas]
+        
+        filtro_bajas = (df_bajas_proc['FECHA_BAJA'] >= rango_fechas[0]) & (df_bajas_proc['FECHA_BAJA'] <= rango_fechas[1])
+        df_bajas_periodo = df_bajas_proc[filtro_bajas]
+
+        # Calcular Nivelaciones (cambios de Nivel)
+        df_cargos_sorted = df_cargos_proc.sort_values(by=['LEGAJO', 'MES_CARGO_DATE'])
+        df_cargos_sorted['NIVEL_ANTERIOR'] = df_cargos_sorted.groupby('LEGAJO')['Nivel'].shift(1)
+        
+        # Filtro de nivelaciones (solo cambios, no NaNs, y dentro del período)
+        # Usamos operadores bitwise (&)
+        filtro_nivelaciones = (
+            (df_cargos_sorted['Nivel'] != df_cargos_sorted['NIVEL_ANTERIOR']) &
+            (df_cargos_sorted['NIVEL_ANTERIOR'].notna()) &
+            (df_cargos_sorted['MES_CARGO_STR'].isin(meses_periodo_calculo[1:])) # Cambios desde el 2do mes
+        )
+        df_nivelaciones = df_cargos_sorted[filtro_nivelaciones].copy()
+
+        # Agrupar movimientos por mes (para el gráfico)
+        altas_por_mes = df_altas_periodo.groupby('MES_ALTA_STR').size().reset_index(name='Ingresos')
+        bajas_por_mes = df_bajas_periodo.groupby('MES_BAJA_STR').size().reset_index(name='Egresos')
+        nivel_por_mes = df_nivelaciones.groupby('MES_CARGO_STR').size().reset_index(name='Nivelaciones')
+
+        for mes in meses_periodo_calculo:
+            ingresos = altas_por_mes[altas_por_mes['MES_ALTA_STR'] == mes]['Ingresos'].sum() # .sum() maneja series vacías
+            egresos = bajas_por_mes[bajas_por_mes['MES_BAJA_STR'] == mes]['Egresos'].sum()
+            nivelaciones = nivel_por_mes[nivel_por_mes['MES_CARGO_STR'] == mes]['Nivelaciones'].sum()
+            
+            evolucion_data.append({'Periodo': mes, 'Tipo': 'Ingresos', 'Valor': ingresos})
+            evolucion_data.append({'Periodo': mes, 'Tipo': 'Egresos', 'Valor': egresos})
+            evolucion_data.append({'Periodo': mes, 'Tipo': 'Nivelaciones', 'Valor': nivelaciones})
+        
+        df_evolucion = pd.DataFrame(evolucion_data)
+
+        # 2b. CÁLCULO DE RESUMEN (TABLA)
+        dotacion_inicio = df_cargos_proc[df_cargos_proc['MES_CARGO_STR'] == mes_inicio_str].shape[0]
+        dotacion_fin = df_cargos_proc[df_cargos_proc['MES_CARGO_STR'] == mes_fin_str].shape[0]
+        
+        total_ingresos = df_altas_periodo.shape[0]
+        total_egresos = df_bajas_periodo.shape[0]
+        total_nivelaciones = df_nivelaciones.shape[0]
+        
+        df_resumen = pd.DataFrame([
+            {'Periodo': mes_fin_str, 'Dotación': dotacion_fin, 'Ingresos': total_ingresos, 'Egresos': total_egresos, 'Nivelaciones': total_nivelaciones}
+        ])
+
+    except Exception as e:
+        st.error(f"Error al calcular evolución y resumen: {e}")
+        df_evolucion = pd.DataFrame()
+        df_resumen = pd.DataFrame()
+
+    # 3. CÁLCULO DE PLANTA DE CARGOS (GRILLA)
+    try:
+        # 3a. Planta mes a mes
+        df_planta_meses = []
+        for mes in meses_periodo_calculo:
+            df_mes = df_cargos_proc[df_cargos_proc['MES_CARGO_STR'] == mes]
+            df_planta_mes = df_mes.groupby(CARGOS_COLS_DISPLAY).size().reset_index(name=mes)
+            df_planta_meses.append(df_planta_mes)
+
+        if not df_planta_meses:
+            df_planta_final = pd.DataFrame(columns=CARGOS_COLS_DISPLAY)
+        else:
+            df_planta_final = df_planta_meses[0]
+            for df_p in df_planta_meses[1:]:
+                df_planta_final = pd.merge(df_planta_final, df_p, on=CARGOS_COLS_DISPLAY, how='outer')
+        
+        df_planta_final[meses_periodo_calculo] = df_planta_final[meses_periodo_calculo].fillna(0).astype(int)
+
+        # 3b. Movimientos agrupados
+        pivot_altas = df_altas_periodo.groupby(CARGOS_COLS_DISPLAY).size().reset_index(name='Ingresos')
+        pivot_bajas = df_bajas_periodo.groupby(CARGOS_COLS_DISPLAY).size().reset_index(name='Egresos')
+        pivot_nivelaciones = df_nivelaciones.groupby(CARGOS_COLS_DISPLAY).size().reset_index(name='Nivelaciones')
+
+        # 3c. Merge de todo
+        df_planta_final = pd.merge(df_planta_final, pivot_altas, on=CARGOS_COLS_DISPLAY, how='outer')
+        df_planta_final = pd.merge(df_planta_final, pivot_bajas, on=CARGOS_COLS_DISPLAY, how='outer')
+        df_planta_final = pd.merge(df_planta_final, pivot_nivelaciones, on=CARGOS_COLS_DISPLAY, how='outer')
+        
+        cols_movimiento = ['Ingresos', 'Egresos', 'Nivelaciones']
+        df_planta_final[cols_movimiento] = df_planta_final[cols_movimiento].fillna(0).astype(int)
+
+        # 3d. Cálculos finales de Dotación y Variación
+        df_planta_final['Dotación Total'] = df_planta_final[mes_fin_str]
+        df_planta_final['Variación Absoluta'] = df_planta_final[mes_fin_str] - df_planta_final[mes_inicio_str]
+        
+        # Cálculo seguro de Variación Relativa
+        df_planta_final['Variación Relativa (%)'] = 100 * (df_planta_final['Variación Absoluta'] / df_planta_final[mes_inicio_str])
+        
+        # Reemplazar infinitos (por división por cero) y NaNs
+        df_planta_final['Variación Relativa (%)'] = df_planta_final['Variación Relativa (%)'].replace([np.inf, -np.inf], 0)
+        df_planta_final['Variación Relativa (%)'] = df_planta_final['Variación Relativa (%)'].fillna(0)
+
+        # Llenar NaNs en columnas categóricas (importante para el groupby)
+        df_planta_final[CARGOS_COLS_DISPLAY] = df_planta_final[CARGOS_COLS_DISPLAY].fillna("[No Asignado]")
+        
+    except Exception as e:
+        st.error(f"Error al calcular la planta de cargos: {e}")
+        df_planta_final = pd.DataFrame()
+
+    return df_evolucion, df_resumen, df_planta_final, meses_periodo_calculo
+
+
+def display_planta_cargos_grid(df_planta, selected_cols, meses_periodo):
+    """
+    Genera y muestra la grilla de planta de cargos de forma segura.
+    """
+    try:
+        if df_planta.empty:
+            st.info("No hay datos de planta de cargos para el período seleccionado.")
+            return
+
+        df_display = df_planta.copy()
+
+        # Columnas numéricas que SIEMPRE deben sumarse
+        numeric_cols_base = [
+            'Dotación Total', 'Ingresos', 'Egresos', 'Nivelaciones',
+            'Variación Absoluta', 'Variación Relativa (%)'
+        ] + meses_periodo
+        
+        # Filtrar solo las columnas numéricas que existen en df_display
+        numeric_cols_to_sum = [col for col in numeric_cols_base if col in df_display.columns]
+
+        if not selected_cols:
+            # Si no se selecciona nada, mostrar totales
+            df_agg = df_display[numeric_cols_to_sum].sum().to_frame().T
+            df_agg.insert(0, 'Agrupador', 'Total General')
+            # Las columnas de agrupación ahora son ['Agrupador']
+            cols_agrupacion = ['Agrupador']
+        else:
+            # Si se seleccionaron columnas, agrupar
+            # Asegurarse que las columnas seleccionadas existen
+            valid_selected_cols = [col for col in selected_cols if col in df_display.columns]
+            
+            if not valid_selected_cols:
+                st.warning("Las categorías seleccionadas no son válidas. Mostrando totales.")
+                df_agg = df_display[numeric_cols_to_sum].sum().to_frame().T
+                df_agg.insert(0, 'Agrupador', 'Total General')
+                cols_agrupacion = ['Agrupador']
+            else:
+                # Agrupar
+                df_agg = df_display.groupby(valid_selected_cols, as_index=False, dropna=False)[numeric_cols_to_sum].sum()
+                cols_agrupacion = valid_selected_cols
+
+        if df_agg.empty:
+            st.info("No hay datos para mostrar con las categorías seleccionadas.")
+            return
+            
+        # Formateo
+        df_formatted = df_agg.copy()
+        
+        # Columnas a mostrar (agrupación + numéricas)
+        cols_to_show = cols_agrupacion + numeric_cols_to_sum
+
+        # Formato de meses
+        for col in meses_periodo:
+            if col in df_formatted.columns:
+                df_formatted[col] = df_formatted[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else '0')
+        
+        # Formato de columnas base (Dotación, Movimientos)
+        base_format_cols = ['Dotación Total', 'Ingresos', 'Egresos', 'Nivelaciones', 'Variación Absoluta']
+        for col in base_format_cols:
+             if col in df_formatted.columns:
+                df_formatted[col] = df_formatted[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else '0')
+
+        # Formato de Variación Relativa
+        if 'Variación Relativa (%)' in df_formatted.columns:
+            df_formatted['Variación Relativa (%)'] = df_formatted['Variación Relativa (%)'].apply(lambda x: f"{x:,.2f}%" if pd.notnull(x) else '0.00%')
+
+        # Llenar NaNs en columnas de agrupación (ya hecho en update, pero por si acaso)
+        for col in cols_agrupacion:
+             if col in df_formatted.columns:
+                df_formatted[col] = df_formatted[col].fillna("[No Asignado]")
+
+        st.dataframe(
+            df_formatted[cols_to_show], # Mostrar solo las columnas relevantes
+            use_container_width=True,
+            hide_index=True
+        )
+
+    except Exception as e:
+        # Este es el error que estás viendo
+        st.error(f"Ocurrió un error al generar la grilla de planta de cargos: {e}")
+        import traceback
+        st.error(f"Detalle del error: {traceback.format_exc()}")
 def get_legajo_variations(df_base, periodo_actual, periodo_previo, detail_cols, compare_cols):
     """
     Compara dos períodos y devuelve dataframes de Ingresos, Egresos,
