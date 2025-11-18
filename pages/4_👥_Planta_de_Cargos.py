@@ -197,85 +197,101 @@ def create_event_category_breakdown(df, breakdown_column, title):
         create_download_buttons(display_df, f"composicion_{file_event_type}_{breakdown_column.lower()}", f"evt_{file_event_type}_{breakdown_column}")
 
 
-# --- NUEVA FUNCIÓN: VISTA DE EVENTOS COMBINADA ---
+# --- FUNCIÓN MODIFICADA: VISTA DE EVENTOS COMBINADA CON DOBLE EJE Y ---
 def create_combined_event_view(df_ingresos, df_egresos, all_months_list):
-    st.subheader("Gráfico: Ingresos vs. Egresos por Mes/Año")
+    st.subheader("Gráfico Combinado: Ingresos, Egresos y Variación Neta Mensual")
 
-    # 1. Preparar datos de Ingresos
-    df_ing = df_ingresos.dropna(subset=['Mes Ingreso', 'Año Ingreso']).copy()
-    if df_ing.empty:
-        st.info("No hay datos de Ingresos para el período seleccionado.")
-        ingresos_counts = pd.DataFrame(columns=['Periodo', 'Cantidad', 'Tipo'])
-    else:
-        df_ing['Periodo'] = df_ing['Mes Ingreso'] + ' ' + df_ing['Año Ingreso'].astype(int).astype(str)
-        ingresos_counts = df_ing.groupby('Periodo').size().reset_index(name='Cantidad')
-        ingresos_counts['Tipo'] = 'Ingresos'
+    # 1. Preparar y combinar datos
+    def prepare_counts(df, month_col, year_col, event_type):
+        """Calcula los conteos mensuales de un tipo de evento y los formatea."""
+        df_clean = df.dropna(subset=[month_col, year_col]).copy()
+        if df_clean.empty:
+            return pd.DataFrame(columns=['Periodo', event_type])
+        df_clean['Periodo'] = df_clean[month_col] + ' ' + df_clean[year_col].astype(int).astype(str)
+        counts = df_clean.groupby('Periodo').size().reset_index(name=event_type)
+        return counts
 
-    # 2. Preparar datos de Egresos
-    df_eg = df_egresos.dropna(subset=['Mes Egreso', 'Año Egreso']).copy()
-    if df_eg.empty:
-        st.info("No hay datos de Egresos para el período seleccionado.")
-        egresos_counts = pd.DataFrame(columns=['Periodo', 'Cantidad', 'Tipo'])
-    else:
-        df_eg['Periodo'] = df_eg['Mes Egreso'] + ' ' + df_eg['Año Egreso'].astype(int).astype(str)
-        egresos_counts = df_eg.groupby('Periodo').size().reset_index(name='Cantidad')
-        egresos_counts['Tipo'] = 'Egresos'
+    ingresos_counts = prepare_counts(df_ingresos, 'Mes Ingreso', 'Año Ingreso', 'Ingresos')
+    egresos_counts = prepare_counts(df_egresos, 'Mes Egreso', 'Año Egreso', 'Egresos')
 
-    # 3. Combinar y Ordenar
-    df_combined = pd.concat([ingresos_counts, egresos_counts], ignore_index=True)
-    if df_combined.empty:
+    # 2. Pivotar y Ordenar (Crear la tabla base con Ingresos y Egresos en columnas)
+    df_pivot = pd.merge(ingresos_counts, egresos_counts, on='Periodo', how='outer').fillna(0).astype({'Ingresos': int, 'Egresos': int})
+    
+    if df_pivot.empty:
         st.warning("No hay Ingresos ni Egresos para mostrar.")
         return
 
-    # Generar orden de Periodos (combinando año y mes)
-    period_order = []
-    # Usamos los años y meses seleccionados en el filtro para generar la lista de periodos ordenados
-    
-    # Lista de años únicos y ordenados
-    all_years = sorted(list(set(df_ing['Año Ingreso'].dropna().astype(int)) | set(df_eg['Año Egreso'].dropna().astype(int))))
-    
-    for year in all_years:
-        for month in all_months_list:
-            period_str = f"{month} {year}"
-            # Solo si existe alguna entrada para ese período en el combined DF
-            if period_str in df_combined['Periodo'].unique():
-                period_order.append(period_str)
+    # Generar orden de Periodos (Fecha para sortear, luego string)
+    def period_to_date(period_str):
+        parts = period_str.split(' ')
+        month_name = parts[0]
+        year = int(parts[1])
+        # Usamos la lista de meses para obtener el número de mes
+        month_num = all_months_list.index(month_name) + 1
+        return datetime(year, month_num, 1)
 
+    # Ordenar por fecha real y guardar el orden de Periodo
+    df_pivot['SortDate'] = df_pivot['Periodo'].apply(period_to_date)
+    df_pivot = df_pivot.sort_values('SortDate').drop(columns=['SortDate']).reset_index(drop=True)
+    period_order = df_pivot['Periodo'].tolist()
 
-    # 4. Crear Gráfico (Barras Agrupadas)
-    chart = alt.Chart(df_combined).mark_bar().encode(
-        # Eje X: Periodo, usando el orden generado
-        x=alt.X('Periodo:N', sort=period_order, title='Período (Mes/Año)'),
-        
-        # Eje Y: Cantidad
-        y=alt.Y('Cantidad:Q', title='Cantidad de Eventos'),
-        
-        # Color: Tipo (Ingreso/Egreso)
-        color=alt.Color('Tipo:N', scale=alt.Scale(domain=['Ingresos', 'Egresos'], range=['#28a745', '#dc3545']), title='Tipo de Evento'),
-        
-        # Columnas: Agrupar por Tipo (para tener barras lado a lado)
-        column=alt.Column('Tipo:N', header=alt.Header(titleOrient="bottom", labelOrient="bottom", title='')),
-        
-        # Tooltip
-        tooltip=['Periodo:N', 'Tipo:N', 'Cantidad:Q']
-    ).properties(
-        title="Ingresos vs. Egresos Mensuales",
-        height=400
+    # 3. Calcular Variación Neta (para el eje secundario)
+    df_pivot['Variación Neta'] = df_pivot['Ingresos'] - df_pivot['Egresos']
+    
+    # 4. Preparar datos para el gráfico de barras agrupadas (Formato Long)
+    df_bars = df_pivot[['Periodo', 'Ingresos', 'Egresos']].melt(
+        id_vars='Periodo', 
+        value_vars=['Ingresos', 'Egresos'], 
+        var_name='Tipo', 
+        value_name='Cantidad'
+    )
+    
+    # --- Creación del Gráfico Combinado con Doble Eje Y ---
+
+    # A. Escala y Color para Barras (Eje Y Principal)
+    color_scale = alt.Scale(domain=['Ingresos', 'Egresos'], range=['#28a745', '#dc3545'])
+
+    # B. Gráfico de Barras (Ingresos/Egresos - Eje Y Principal)
+    # Usamos xOffset para lograr las columnas agrupadas (side-by-side)
+    bars = alt.Chart(df_bars).mark_bar(opacity=0.8, size=15).encode(
+        # Eje X con orden definido y etiquetas rotadas
+        x=alt.X('Periodo:N', sort=period_order, title='Período (Mes/Año)', axis=alt.Axis(labelAngle=-45)),
+        # xOffset para agrupar (barras lado a lado)
+        xOffset=alt.XOffset('Tipo:N', title='Tipo'),
+        # Eje Y Principal para la Cantidad
+        y=alt.Y('Cantidad:Q', title='Cantidad (Ingresos/Egresos)', axis=alt.Axis(titleColor='#333333')),
+        color=alt.Color('Tipo:N', scale=color_scale, legend=alt.Legend(title="Eventos")),
+        tooltip=['Periodo', 'Tipo', 'Cantidad']
+    )
+    
+    # C. Gráfico de Línea (Variación Neta - Eje Y Secundario)
+    line = alt.Chart(df_pivot).mark_line(point=True, strokeWidth=3).encode(
+        x=alt.X('Periodo:N', sort=period_order),
+        # Eje Y Secundario para la Variación Neta (línea azul)
+        y=alt.Y('Variación Neta:Q', title='Variación Neta (Ingresos - Egresos)', axis=alt.Axis(titleColor='#007bff')),
+        color=alt.value('#007bff'), # Color para la línea
+        tooltip=[
+            alt.Tooltip('Periodo:N'),
+            alt.Tooltip('Ingresos:Q'),
+            alt.Tooltip('Egresos:Q'),
+            alt.Tooltip('Variación Neta:Q', title='Var. Neta')
+        ]
     )
 
-    st.altair_chart(chart, use_container_width=True)
+    # D. Combinar y resolver ejes
+    # Usar layer para superponer las barras y la línea
+    # resolve_scale(y='independent') es clave para tener dos ejes Y.
+    final_chart = alt.layer(bars, line).resolve_scale(
+        y='independent' 
+    ).resolve_axis(
+        x='shared'
+    ).properties(height=450)
+
+
+    st.altair_chart(final_chart, use_container_width=True)
 
     # 5. Tabla de Resumen
-    summary = df_combined.pivot(index='Periodo', columns='Tipo', values='Cantidad').fillna(0).astype(int).reset_index()
-    if 'Ingresos' not in summary.columns: summary['Ingresos'] = 0
-    if 'Egresos' not in summary.columns: summary['Egresos'] = 0
-
-    summary['Variación Neta'] = summary['Ingresos'] - summary['Egresos']
-    
-    # Reordenar filas y columnas
-    summary['Periodo'] = pd.Categorical(summary['Periodo'], categories=period_order, ordered=True)
-    summary = summary.sort_values('Periodo').reset_index(drop=True)
-    summary = summary[['Periodo', 'Ingresos', 'Egresos', 'Variación Neta']]
+    summary = df_pivot[['Periodo', 'Ingresos', 'Egresos', 'Variación Neta']]
     
     # Fila de totales
     total_row = pd.DataFrame([['**TOTAL**', summary['Ingresos'].sum(), summary['Egresos'].sum(), summary['Variación Neta'].sum()]], 
@@ -598,6 +614,5 @@ if uploaded_file:
                 st.dataframe(df_egresos)
                 # BOTONES DE DESCARGA
                 create_download_buttons(df_egresos, "detalle_egresos", "egresos_full_detail")
-
 else:
     st.info("Esperando a que se cargue un archivo Excel...")
