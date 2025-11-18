@@ -199,7 +199,7 @@ def create_event_category_breakdown(df, breakdown_column, title):
 
 # --- FUNCIÓN MODIFICADA: VISTA DE EVENTOS COMBINADA CON DOBLE EJE Y ---
 def create_combined_event_view(df_ingresos, df_egresos, all_months_list):
-    st.subheader("Gráfico Combinado: Ingresos, Egresos y Variación Neta Mensual")
+    st.subheader("Gráfico Combinado: Ingresos, Egresos, Variación Neta y Dotación Acumulada")
 
     # 1. Preparar y combinar datos
     def prepare_counts(df, month_col, year_col, event_type):
@@ -207,7 +207,9 @@ def create_combined_event_view(df_ingresos, df_egresos, all_months_list):
         df_clean = df.dropna(subset=[month_col, year_col]).copy()
         if df_clean.empty:
             return pd.DataFrame(columns=['Periodo', event_type])
-        df_clean['Periodo'] = df_clean[month_col] + ' ' + df_clean[year_col].astype(int).astype(str)
+        # Convertir el año a entero y luego a string para el periodo
+        df_clean[year_col] = df_clean[year_col].astype(int).astype(str)
+        df_clean['Periodo'] = df_clean[month_col] + ' ' + df_clean[year_col]
         counts = df_clean.groupby('Periodo').size().reset_index(name=event_type)
         return counts
 
@@ -235,8 +237,10 @@ def create_combined_event_view(df_ingresos, df_egresos, all_months_list):
     df_pivot = df_pivot.sort_values('SortDate').drop(columns=['SortDate']).reset_index(drop=True)
     period_order = df_pivot['Periodo'].tolist()
 
-    # 3. Calcular Variación Neta (para el eje secundario)
+    # 3. Calcular Variación Neta y Dotación Acumulada
     df_pivot['Variación Neta'] = df_pivot['Ingresos'] - df_pivot['Egresos']
+    # Dotación Acumulada: Suma acumulada de la variación neta. Representa el cambio neto de headcount desde el primer periodo.
+    df_pivot['Dotación Acumulada'] = df_pivot['Variación Neta'].cumsum()
     
     # 4. Preparar datos para el gráfico de barras agrupadas (Formato Long)
     df_bars = df_pivot[['Periodo', 'Ingresos', 'Egresos']].melt(
@@ -247,29 +251,42 @@ def create_combined_event_view(df_ingresos, df_egresos, all_months_list):
     )
     
     # --- Creación del Gráfico Combinado con Doble Eje Y ---
-
+    
     # A. Escala y Color para Barras (Eje Y Principal)
     color_scale = alt.Scale(domain=['Ingresos', 'Egresos'], range=['#28a745', '#dc3545'])
 
-    # B. Gráfico de Barras (Ingresos/Egresos - Eje Y Principal)
-    # Usamos xOffset para lograr las columnas agrupadas (side-by-side)
+    # B. Gráfico de Barras (Ingresos/Egresos - Eje Y Izquierdo)
     bars = alt.Chart(df_bars).mark_bar(opacity=0.8, size=15).encode(
         # Eje X con orden definido y etiquetas rotadas
         x=alt.X('Periodo:N', sort=period_order, title='Período (Mes/Año)', axis=alt.Axis(labelAngle=-45)),
         # xOffset para agrupar (barras lado a lado)
-        xOffset=alt.XOffset('Tipo:N', title='Tipo'),
+        xOffset=alt.XOffset('Tipo:N', title=''),
         # Eje Y Principal para la Cantidad
         y=alt.Y('Cantidad:Q', title='Cantidad (Ingresos/Egresos)', axis=alt.Axis(titleColor='#333333')),
         color=alt.Color('Tipo:N', scale=color_scale, legend=alt.Legend(title="Eventos")),
         tooltip=['Periodo', 'Tipo', 'Cantidad']
     )
     
-    # C. Gráfico de Línea (Variación Neta - Eje Y Secundario)
-    line = alt.Chart(df_pivot).mark_line(point=True, strokeWidth=3).encode(
+    # C. Gráfico de Línea (Dotación Acumulada - Eje Y Izquierdo)
+    # Se superpone con las barras, usando el mismo eje Y pero con distinto color para distinguirlo.
+    dotacion_line = alt.Chart(df_pivot).mark_line(point=True, strokeWidth=3, opacity=0.8).encode(
         x=alt.X('Periodo:N', sort=period_order),
-        # Eje Y Secundario para la Variación Neta (línea azul)
+        y=alt.Y('Dotación Acumulada:Q', title='Dotación Acumulada (Cambio Neto)', axis=alt.Axis(titleColor='#1e8449', titlePadding=35)),
+        color=alt.value('#1e8449'), # Verde Oscuro para Dotación Acumulada
+        tooltip=[
+            alt.Tooltip('Periodo:N'),
+            alt.Tooltip('Ingresos:Q'),
+            alt.Tooltip('Egresos:Q'),
+            alt.Tooltip('Variación Neta:Q', title='Var. Neta'),
+            alt.Tooltip('Dotación Acumulada:Q', title='Dot. Acum.')
+        ]
+    )
+    
+    # D. Gráfico de Línea (Variación Neta - Eje Y Derecho)
+    # Este se dibuja usando el eje Y secundario.
+    net_variation_line = alt.Chart(df_pivot).mark_line(point=True, strokeWidth=3, color='#007bff').encode(
+        x=alt.X('Periodo:N', sort=period_order),
         y=alt.Y('Variación Neta:Q', title='Variación Neta (Ingresos - Egresos)', axis=alt.Axis(titleColor='#007bff')),
-        color=alt.value('#007bff'), # Color para la línea
         tooltip=[
             alt.Tooltip('Periodo:N'),
             alt.Tooltip('Ingresos:Q'),
@@ -278,10 +295,13 @@ def create_combined_event_view(df_ingresos, df_egresos, all_months_list):
         ]
     )
 
-    # D. Combinar y resolver ejes
-    # Usar layer para superponer las barras y la línea
+    # E. Combinar y resolver ejes
+    # Layer 1: Barras + Línea de Dotación Acumulada (Comparten el Eje Y Izquierdo)
+    left_axis_chart = alt.layer(bars, dotacion_line).properties(title="Análisis de Dinámica Mensual de Personal")
+    
+    # Layer 2: Agregar la Línea de Variación Neta (Usa el Eje Y Derecho)
     # resolve_scale(y='independent') es clave para tener dos ejes Y.
-    final_chart = alt.layer(bars, line).resolve_scale(
+    final_chart = alt.layer(left_axis_chart, net_variation_line).resolve_scale(
         y='independent' 
     ).resolve_axis(
         x='shared'
@@ -289,13 +309,14 @@ def create_combined_event_view(df_ingresos, df_egresos, all_months_list):
 
 
     st.altair_chart(final_chart, use_container_width=True)
+    st.info("ℹ️ **Dotación Acumulada (Línea Verde)**: Muestra la variación neta acumulada de personal (Ingresos - Egresos) desde el primer período registrado en el filtro.")
 
     # 5. Tabla de Resumen
-    summary = df_pivot[['Periodo', 'Ingresos', 'Egresos', 'Variación Neta']]
+    summary = df_pivot[['Periodo', 'Ingresos', 'Egresos', 'Variación Neta', 'Dotación Acumulada']]
     
     # Fila de totales
-    total_row = pd.DataFrame([['**TOTAL**', summary['Ingresos'].sum(), summary['Egresos'].sum(), summary['Variación Neta'].sum()]], 
-                             columns=['Periodo', 'Ingresos', 'Egresos', 'Variación Neta'])
+    total_row = pd.DataFrame([['**TOTAL**', summary['Ingresos'].sum(), summary['Egresos'].sum(), summary['Variación Neta'].sum(), summary['Dotación Acumulada'].iloc[-1] if not summary.empty else 0]], 
+                             columns=['Periodo', 'Ingresos', 'Egresos', 'Variación Neta', 'Dotación Acumulada'])
     summary_display = pd.concat([summary, total_row], ignore_index=True)
 
     st.markdown("---")
