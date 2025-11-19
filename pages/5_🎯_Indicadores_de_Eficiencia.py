@@ -1,5 +1,5 @@
 # ===============================================================
-# Visualizador de Eficiencia - V Estética (Azules/Violetas & Compacto)
+# Visualizador de Eficiencia - V Estética (Separación Ajustada)
 # ===============================================================
 
 import streamlit as st
@@ -837,8 +837,9 @@ CSS_STYLE = """
     }
     
     /* Ajuste para contenedores de columnas para que las tarjetas se vean uniformes */
+    /* AQUI ES DONDE CONTROLAS LA SEPARACIÓN HORIZONTAL */
     [data-testid="column"] {
-        padding: 0 0.2rem;
+        padding: 0 0.75rem; /* Aumentado de 0.2rem a 0.75rem para separar las tarjetas */
     }
 </style>
 """
