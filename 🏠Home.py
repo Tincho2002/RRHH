@@ -1,10 +1,9 @@
 import streamlit as st
 
-# Se agrega 'layout="wide"' a la configuración de la página.
+# --- Configuración de la página ---
 st.set_page_config(
     page_title="Portal de RRHH",
-    # --- URL CORREGIDA ---
-    page_icon="https://cdn.jsdelivr.net/gh/Tincho2002/RRHH@main/assets/logo_assa.jpg", # URL pública del logo (vía CDN)
+    page_icon="https://cdn.jsdelivr.net/gh/Tincho2002/RRHH@main/assets/logo_assa.jpg",
     layout="wide"
 )
 
@@ -13,10 +12,14 @@ st.set_page_config(
 # ----------------------------------------------------------------------------------
 st.markdown("""
 <style>
-    /* Importar fuente moderna para las tarjetas */
+    /* Importar fuente moderna */
     @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
 
-    /* --- Pantalla de Carga (Splash Screen) --- */
+    /* =========================================
+       1. ESTILOS DE ANIMACIÓN (SPLASH & UI)
+       ========================================= */
+    
+    /* Pantalla de Carga (Splash Screen) */
     #splash-screen {
         position: fixed;
         top: 0;
@@ -24,7 +27,7 @@ st.markdown("""
         width: 100vw;
         height: 100vh;
         background: linear-gradient(180deg, #005A7A, #00A7C4);
-        z-index: 1000;
+        z-index: 9999; /* Z-index alto para tapar todo */
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -32,7 +35,7 @@ st.markdown("""
         color: white;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         
-        /* Animación de salida */
+        /* Animación de salida: se va hacia arriba */
         animation: slideUpSplash 1s ease-out 2.5s forwards;
     }
 
@@ -43,9 +46,11 @@ st.markdown("""
     }
 
     #splash-title {
+        margin-top: 20px;
         animation: fadeInSlide 1.5s 1s ease-out forwards;
     }
 
+    /* Keyframes Animaciones */
     @keyframes slideUpSplash {
         from { transform: translateY(0); }
         to { transform: translateY(-100vh); visibility: hidden; }
@@ -60,7 +65,7 @@ st.markdown("""
         to { opacity: 1; transform: translateY(0); }
     }
 
-    /* --- Animación de Gotas --- */
+    /* Animación de Gotas */
     .droplet {
         position: absolute;
         bottom: 100%;
@@ -70,7 +75,6 @@ st.markdown("""
         border-radius: 50%;
         animation: fall linear infinite;
     }
-
     @keyframes fall { to { transform: translateY(100vh); } }
 
     /* --- Estilos del Contenido Principal (Fade In) --- */
@@ -78,7 +82,6 @@ st.markdown("""
         opacity: 0; 
         animation: showContent 1.5s ease-in 2.5s forwards;
     }
-
     @keyframes showContent {
         from { opacity: 0; }
         to { opacity: 1; }
@@ -91,16 +94,16 @@ st.markdown("""
         transform: translateY(-20px); 
         animation: showUI 0.75s ease-out 2.5s forwards;
     }
-
     @keyframes showUI {
         to { opacity: 1; transform: translateY(0); }
     }
 
-    /* ------------------------------------------------------------ */
-    /* --- ESTILOS DE LAS NUEVAS TARJETAS (AZULES/VIOLETAS) --- */
-    /* ------------------------------------------------------------ */
+
+    /* =========================================
+       2. ESTILOS DE LAS TARJETAS (NUEVO DISEÑO)
+       ========================================= */
     
-    /* Grid Flexbox */
+    /* Grid Flexbox Responsivo */
     .cards-grid {
         display: flex;
         flex-wrap: wrap;
@@ -130,6 +133,7 @@ st.markdown("""
         text-align: center;
         flex-grow: 1; 
         max-width: 350px;
+        cursor: pointer;
     }
 
     /* Efecto Hover */
@@ -140,43 +144,28 @@ st.markdown("""
 
     /* --- PALETA DE COLORES (Gama Azul/Violeta) --- */
     
-    /* 1. Dotación (Cyan) */
-    .card-cyan {
-        background: linear-gradient(145deg, #ffffff 0%, #e0f7fa 100%);
-        border-top: 6px solid #00bcd4;
-    }
+    /* Dotación (Cyan) */
+    .card-cyan { background: linear-gradient(145deg, #ffffff 0%, #e0f7fa 100%); border-top: 6px solid #00bcd4; }
     .card-cyan .card-icon { color: #00bcd4; }
     .card-cyan:hover .go-btn { background-color: #00bcd4; color: white; }
 
-    /* 2. Horas Extras (Indigo) */
-    .card-indigo {
-        background: linear-gradient(145deg, #ffffff 0%, #e8eaf6 100%);
-        border-top: 6px solid #3f51b5;
-    }
+    /* Horas Extras (Indigo) */
+    .card-indigo { background: linear-gradient(145deg, #ffffff 0%, #e8eaf6 100%); border-top: 6px solid #3f51b5; }
     .card-indigo .card-icon { color: #3f51b5; }
     .card-indigo:hover .go-btn { background-color: #3f51b5; color: white; }
 
-    /* 3. Masa Salarial (Violeta) */
-    .card-violet {
-        background: linear-gradient(145deg, #ffffff 0%, #f3e5f5 100%);
-        border-top: 6px solid #9c27b0;
-    }
+    /* Masa Salarial (Violeta) */
+    .card-violet { background: linear-gradient(145deg, #ffffff 0%, #f3e5f5 100%); border-top: 6px solid #9c27b0; }
     .card-violet .card-icon { color: #9c27b0; }
     .card-violet:hover .go-btn { background-color: #9c27b0; color: white; }
 
-    /* 4. Planta de Cargos (Slate) */
-    .card-slate {
-        background: linear-gradient(145deg, #ffffff 0%, #eceff1 100%);
-        border-top: 6px solid #607d8b;
-    }
+    /* Planta de Cargos (Slate) */
+    .card-slate { background: linear-gradient(145deg, #ffffff 0%, #eceff1 100%); border-top: 6px solid #607d8b; }
     .card-slate .card-icon { color: #607d8b; }
     .card-slate:hover .go-btn { background-color: #607d8b; color: white; }
 
-    /* 5. Indicadores (Azul) */
-    .card-blue {
-        background: linear-gradient(145deg, #ffffff 0%, #e3f2fd 100%);
-        border-top: 6px solid #2196f3;
-    }
+    /* Indicadores (Azul) */
+    .card-blue { background: linear-gradient(145deg, #ffffff 0%, #e3f2fd 100%); border-top: 6px solid #2196f3; }
     .card-blue .card-icon { color: #2196f3; }
     .card-blue:hover .go-btn { background-color: #2196f3; color: white; }
 
@@ -228,47 +217,27 @@ st.markdown("""
         transform: scale(1.1);
     }
     
-    /* Estilos del Header (Mantenidos del original) */
+    /* Header Responsive */
     .header-container {
         display: flex;
         justify-content: space-between;
         align-items: center;
         gap: 20px;
     }
-    .header-text {
-        text-align: center;
-        flex-grow: 1;
-    }
-    .header-logo {
-        width: 200px;
-        flex-shrink: 0;
-        height: auto;
-        border-radius: 15px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
+    .header-text { text-align: center; flex-grow: 1; }
+    .header-logo { width: 200px; flex-shrink: 0; height: auto; border-radius: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
 
     @media (max-width: 768px) {
-        .header-container {
-            flex-direction: column;
-            justify-content: center;
-        }
-        .header-logo {
-            width: 180px;
-        }
-        .cards-grid {
-            flex-direction: column;
-            align-items: center;
-        }
-        .nav-card {
-            width: 100%;
-            max-width: 100%;
-        }
+        .header-container { flex-direction: column; justify-content: center; }
+        .header-logo { width: 180px; }
+        .cards-grid { flex-direction: column; align-items: center; }
+        .nav-card { width: 100%; max-width: 100%; }
     }
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------
-# --- PANTALLA DE CARGA (SOLO HTML - MANTENIDO) ---
+# --- PANTALLA DE CARGA (HTML) ---
 # -----------------------------------------------------------------------
 st.html("""
 <div id="splash-screen">
@@ -285,18 +254,18 @@ st.html("""
     </script>
     
     <img id="splash-logo" src="https://cdn.jsdelivr.net/gh/Tincho2002/RRHH@main/assets/logo_assa.jpg" width="500">
-    <h1 id="splash-title">Portal de Análisis de RRHH</h1>
+    <h1 id="splash-title" style="margin-top:20px;">Portal de Análisis de RRHH</h1>
 </div>
 """)
 
 # -----------------------------------------------------------------------
-# --- CONTENIDO PRINCIPAL COMPLETO DE LA APP ---
+# --- CONTENIDO PRINCIPAL ---
 # -----------------------------------------------------------------------
 
-# Envolvemos todo el contenido en un div para poder controlar su aparición
+# Envolvemos todo en un div 'main-content' para aplicar la animación de entrada
 st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
-# --- CABECERA (MANTENIDA) ---
+# --- CABECERA ---
 logo_url = "https://cdn.jsdelivr.net/gh/Tincho2002/RRHH@main/assets/logo_assa.jpg"
 
 st.markdown(f"""
@@ -313,7 +282,7 @@ st.markdown(f"""
 
 st.markdown("---")
 
-# --- TEXTO INTRODUCTORIO (MANTENIDO) ---
+# --- TEXTO INTRODUCTORIO ---
 st.markdown(
     """
     <div style="text-align: center; margin-bottom: 40px;">
@@ -325,10 +294,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- NUEVAS TARJETAS NAVEGABLES (ESTÉTICAS) ---
-# Nota: Ajusta los href si tus archivos .py tienen nombres diferentes (ej: "1_Dotacion").
-# Aquí uso los nombres estándar basados en tu código anterior.
-
+# --- NUEVAS TARJETAS NAVEGABLES (HTML CORREGIDO) ---
+# Usamos la estructura 'cards-grid' y 'nav-card' definidas en el CSS de arriba.
 cards_html = """
 <div class="cards-grid">
     
@@ -388,9 +355,7 @@ cards_html = """
 st.markdown(cards_html, unsafe_allow_html=True)
 
 st.markdown("---")
-
-# Cerramos el div del contenido principal
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True) # Cierre del main-content
 
 # Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
