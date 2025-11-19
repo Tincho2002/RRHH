@@ -11,173 +11,52 @@ from PIL import Image
 from streamlit_image_comparison import image_comparison
 
 # --- Configuración de la página ---
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Horas Extras", page_icon="⏰")
 
 # --- CSS Personalizado para un Estilo Profesional y RESPONSIVE ---
 st.markdown("""
 <style>
-/* --- TEMA PERSONALIZADO PARA CONSISTENCIA VISUAL --- */
+/* --- TEMA PERSONALIZADO --- */
 :root {
     --primary-color: #6C5CE7;
     --background-color: #f0f2f6;
     --secondary-background-color: #f8f7fc;
     --text-color: #1a1a2e;
-    --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --font: 'Source Sans Pro', sans-serif;
 }
 
-/* Forzar un fondo claro y color de texto oscuro para evitar el modo oscuro del sistema */
-body, .stApp {
-    background-color: var(--background-color) !important;
-    color: var(--text-color) !important;
-}
+/* Importar fuente */
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
 
-/* Forzar color de texto oscuro en elementos genéricos que Streamlit pueda cambiar */
-p, div, span, label, li, h1, h2, h3, h4, h5, h6 {
-    color: var(--text-color);
-}
-
-/* --- GENERAL Y TIPOGRAFÍA --- */
 .stApp {
-    font-size: 0.92rem;
     font-family: var(--font);
 }
 
-/* --- COLORES BASE DEL TEMA --- */
-[data-testid="stSidebar"],
-.stTabs [data-basweb="tab"][aria-selected="true"] {
-    background-color: var(--secondary-background-color);
-}
-
-/* Estilo para Contenedores (las 'tarjetas') */
-[data-testid="stVerticalBlockBorderWrapper"] {
-    background-color: var(--secondary-background-color);
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    padding: 1rem;
-}
-
-/* --- Redondear esquinas de los gráficos --- */
-[data-testid="stAltairChart"], [data-testid="stPlotlyChart"] {
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-/* Estilo consistente para títulos y subtítulos */
-h1 { font-size: 2.2rem; border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; margin-bottom: 20px;}
-h2 { font-size: 1.6rem; color: #4a4a4a;}
-h3 { font-size: 1.3rem; color: #5a5a5a;}
-
-/* --- LAYOUT Y CONTENEDORES (REGLAS RESPONSIVE) --- */
-@media (max-width: 768px) {
-    /* Ajusta la tipografía para pantallas más pequeñas */
-    h1 { font-size: 1.9rem; }
-    h2 { font-size: 1.5rem; }
-    h3 { font-size: 1.2rem; }
-
-    /* Regla principal para apilar las columnas de Streamlit verticalmente */
-    div[data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
-    }
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        flex: 1 1 100% !important;
-        min-width: 100% !important; /* Ocupa todo el ancho */
-        margin-bottom: 1rem; /* Añade espacio entre elementos apilados */
-    }
-
-    /* Reducir el padding de los contenedores para ganar espacio */
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        padding: 0.8rem;
-    }
-
-    /* Asegura que las pestañas (tabs) no se desborden y permitan scroll horizontal si es necesario */
-    .stTabs {
-        overflow-x: auto;
-    }
-}
-
-
-/* --- VISUALIZACIÓN DE TABLAS ELABORADA --- */
-.stDataFrame {
-    width: 100%;
-    border: none;
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-}
-.stDataFrame thead th {
-    background-color: var(--primary-color);
-    color: white;
-    font-weight: bold;
-    text-align: left;
-    padding: 14px 16px;
-    font-size: 0.98rem;
-    border-bottom: 2px solid #5A4ADF;
-}
-.stDataFrame tbody tr:nth-of-type(even) {
-    background-color: #f8f7fc;
-}
-.stDataFrame tbody tr:hover {
-    background-color: #e9e6ff;
-}
-.stDataFrame tbody td {
-    padding: 12px 16px;
-    text-align: right;
-    border-bottom: 1px solid #e0e0e0;
-    color: #333;
-}
-.stDataFrame tbody td:first-child {
-    text-align: left;
-    font-weight: 500;
-}
-
-/* --- BOTONES DE DESCARGA --- */
+/* Estilos generales de tablas y botones para mantener coherencia */
 div[data-testid="stDownloadButton"] button {
     background-color: var(--primary-color);
     color: white;
-    font-weight: bold;
-    padding: 0.6rem 1rem;
-    border-radius: 0.5rem;
-    border: 1px solid #5A4ADF;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: all 0.2s ease-in-out;
-    font-size: 0.9rem;
+    border: none;
+    transition: all 0.3s ease;
 }
 div[data-testid="stDownloadButton"] button:hover {
     background-color: #5A4ADF;
     transform: translateY(-2px);
-    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 
-/* --- PESTAÑAS (TABS) --- */
-.stTabs [data-basweb="tab"] {
-    border-radius: 6px 6px 0 0;
-    padding: 10px 20px;
-    font-weight: 600;
-}
-.stTabs [data-basweb="tab"][aria-selected="true"] {
-    border-bottom: 3px solid var(--primary-color);
+/* Redondear bordes de gráficos */
+[data-testid="stAltairChart"], [data-testid="stPlotlyChart"] {
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    background: white;
+    padding: 10px;
 }
 
-/* --- KPI Metrics Card --- */
-[data-testid="stMetric"] {
-    background-color: #FFFFFF;
-    border: 1px solid #E0E0E0;
-    border-radius: 8px;
-    padding: 1rem;
-    text-align: center;
-    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
-}
-[data-testid="stMetric"]:hover {
-    background-color: #e3f2fd;
-    border-color: #90caf9;
-}
-
-[data-testid="stMetricLabel"] {
-    font-weight: 600;
-    font-size: 0.95rem;
-}
-[data-testid="stMetricValue"] {
-    font-size: 1.75rem;
-    color: var(--primary-color);
+/* Ajuste Responsive */
+@media (max-width: 768px) {
+    div[data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { flex: 1 1 100% !important; min-width: 100% !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -198,28 +77,16 @@ def format_currency_es(num):
     if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
     return f"${format_number_es(num, 2)}"
 
-# =============================================================================
-# --- MODIFICACIÓN 1: create_format_dict ---
-# Se ajusta la lógica para:
-# 1. Formatear 'Nivel', 'Subnivel', 'CECO' y 'Legajo' con 0 decimales.
-# 2. Formatear Cantidades ('Cant', 'Q', etc.) con 2 decimales.
-# 3. Mantener otros enteros con 0 decimales.
-# 4. Dejar el resto (costos) con 2 decimales.
-# =============================================================================
 def create_format_dict(df):
     numeric_cols = df.select_dtypes(include=np.number).columns
     formatters = {}
     for col in numeric_cols:
-        # 1. Nivel/Subnivel/CECO/Legajo/Codigo ubicación sin decimales
         if 'Nivel' in col or 'Subnivel' in col or 'CECO' in col or 'Legajo' in col or 'Codigo ubicación' in col:
             formatters[col] = lambda x: format_number_es(x, 0)
-        # 2. Cantidades con dos decimales
         elif any(keyword in col for keyword in ['Cant', 'Q', 'Total_Cantidades', 'Cantidad Total']):
             formatters[col] = lambda x: format_number_es(x, 2)
-        # 3. Mantener otros enteros (como Legajo si fuera numérico) sin decimales
         elif 'int' in str(df[col].dtype):
             formatters[col] = lambda x: format_number_es(x, 0)
-        # 4. El resto (costos) con dos decimales
         else:
             formatters[col] = lambda x: format_number_es(x, 2)
     return formatters
@@ -368,7 +235,7 @@ def load_and_clean_data(uploaded_file):
     for col in cols_to_convert:
         if col in df_excel.columns: df_excel[col] = pd.to_numeric(df_excel[col], errors='coerce').fillna(0)
         else: df_excel[col] = 0
-    cols_for_filters = ['Gerencia', 'Ministerio', 'CECO', 'Ubicación', 'Nivel', 'Función', 'Sexo', 'Liquidación', 'Apellido y nombre', 'Legajo']
+    cols_for_filters = ['Gerencia', 'Ministerio', 'CECO', 'Ubicación', 'Función', 'Nivel', 'Sexo', 'Liquidación', 'Apellido y nombre', 'Legajo']
     for col in cols_for_filters:
         if col not in df_excel.columns: df_excel[col] = 'no disponible'
         df_excel[col] = df_excel[col].astype(str).str.strip().replace(['None', 'nan', ''], 'no disponible')
@@ -412,9 +279,6 @@ if uploaded_file is not None:
     filter_cols_config = {'Gerencia': 'Gerencia', 'Ministerio': 'Ministerio', 'CECO': 'Centro de Costo', 'Ubicación': 'Ubicación', 'Función': 'Función', 'Nivel': 'Nivel', 'Sexo': 'Sexo', 'Liquidación': 'Liquidación', 'Legajo': 'Legajo', 'Mes': 'Mes'}
     filter_cols = list(filter_cols_config.keys())
 
-    # =============================================================================
-    # CORRECCIÓN: Usar claves de session_state únicas para esta página
-    # =============================================================================
     if 'he_selections' not in st.session_state:
         st.session_state.he_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
         st.session_state.he_cost_types = list(cost_columns_options.keys())
@@ -425,7 +289,6 @@ if uploaded_file is not None:
         st.session_state.he_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
         st.session_state.he_cost_types = list(cost_columns_options.keys())
         st.session_state.he_quantity_types = list(quantity_columns_options.keys())
-        if 'show_map_comp_check' in st.session_state: st.session_state['show_map_comp_check'] = False
         st.rerun()
     
     st.sidebar.markdown("---")
@@ -437,7 +300,6 @@ if uploaded_file is not None:
         st.session_state.he_selections[col] = selected
 
     if old_selections != st.session_state.he_selections:
-        if 'show_map_comp_check' in st.session_state: st.session_state['show_map_comp_check'] = False
         st.rerun()
 
     filtered_df = apply_filters(df, st.session_state.he_selections)
@@ -451,14 +313,14 @@ if uploaded_file is not None:
     st.info(f"Mostrando **{format_number_es(len(filtered_df), 0)}** registros según los filtros aplicados.")
     st.markdown("---")
 
-    # --- TARJETA DE RESUMEN ANIMADA (CON KPIS INTEGRADOS) ---
+    # --- TARJETA DE RESUMEN ANIMADA Y ESTILIZADA ---
     if not filtered_df.empty and 'Mes' in filtered_df.columns:
         try:
             latest_month_str = filtered_df['Mes'].dropna().max()
             if pd.notna(latest_month_str):
                 df_last_month = filtered_df[filtered_df['Mes'] == latest_month_str].copy()
                 
-                # --- CÁLCULO DE COSTOS PROMEDIO (ahora dentro de esta sección) ---
+                # --- CÁLCULO DE COSTOS PROMEDIO ---
                 cost_quant_map = {
                     'Horas extras al 50 %': 'Cantidad HE 50',
                     'Horas extras al 50 % Sabados': 'Cant HE al 50 Sabados',
@@ -475,13 +337,17 @@ if uploaded_file is not None:
                             display_name = cost_col.replace("Horas extras al", "HE").replace("Importe ", "")
                             avg_costs_data[display_name] = avg_cost_per_hour
                 
-                # Generar HTML para los KPIs de costo promedio
-                avg_kpi_html = ""
+                # Generar HTML para los KPIs de costo promedio con nuevo estilo
+                avg_kpi_html_new_style = ""
+                colors_avg = ['border-blue', 'border-cyan', 'border-violet', 'border-pink']
+                i_color = 0
                 for name, value in avg_costs_data.items():
-                    avg_kpi_html += f"""
-                    <div class="summary-sub-kpi">
-                        <div class="type">Promedio {name}</div>
-                        <div class="value-cost" data-target="{value}" data-type="currency" data-decimals="2"></div>
+                    border_class = colors_avg[i_color % 4]
+                    i_color += 1
+                    avg_kpi_html_new_style += f"""
+                    <div class="kpi-mini-card {border_class}" style="justify-content: center; text-align: center;">
+                        <div class="mini-label">Promedio {name}</div>
+                        <div class="mini-value" data-target="{value}" data-type="currency" data-decimals="2"></div>
                     </div>
                     """
 
@@ -497,17 +363,12 @@ if uploaded_file is not None:
                 total_costo_mes = costo_50 + costo_50_sab + costo_100 + costo_fc
                 total_cantidad_mes = cantidad_50 + cantidad_50_sab + cantidad_100 + cantidad_fc
                 
-                # =============================================================================
-                # --- Lógica de Delta para Tarjeta Resumen ---
-                # Se calcula el mes anterior y sus totales para obtener la variación.
-                # Se extiende para las tarjetas de detalle de costos/cantidades.
-                # =============================================================================
+                # --- Lógica de Delta ---
                 all_months_sorted = sorted(filtered_df['Mes'].dropna().unique())
                 previous_month_str = None
                 
                 delta_costo_str = ""
                 delta_cantidad_str = ""
-
                 delta_costo_50_str, delta_cantidad_50_str = "", ""
                 delta_costo_50_sab_str, delta_cantidad_50_sab_str = "", ""
                 delta_costo_100_str, delta_cantidad_100_str = "", ""
@@ -533,153 +394,263 @@ if uploaded_file is not None:
                     total_costo_mes_prev = costo_50_prev + costo_50_sab_prev + costo_100_prev + costo_fc_prev
                     total_cantidad_mes_prev = cantidad_50_prev + cantidad_50_sab_prev + cantidad_100_prev + cantidad_fc_prev
 
-                    # Función auxiliar para calcular delta y formatear string
                     def get_delta_string(current_val, prev_val):
                         if prev_val > 0:
                             delta_pct = ((current_val - prev_val) / prev_val) * 100
                         else:
                             delta_pct = 100.0 if current_val > 0 else 0.0
-                        color = 'green' if delta_pct >= 0 else 'red'
+                        
+                        color_class = 'green' if delta_pct >= 0 else 'red'
                         arrow = '▲' if delta_pct >= 0 else '▼'
-                        return f'<div class="delta {color}">{arrow} {delta_pct:.1f}%</div>'
+                        
+                        if -0.05 < delta_pct < 0.05:
+                             color_class = 'grey'
+                             arrow = '▬'
 
-                    # Deltas para totales generales
+                        return f'<span class="kpi-delta {color_class}">{arrow} {delta_pct:.1f}%</span>'
+
+                    def get_mini_delta(current_val, prev_val):
+                        if prev_val > 0:
+                            delta_pct = ((current_val - prev_val) / prev_val) * 100
+                        else:
+                            delta_pct = 100.0 if current_val > 0 else 0.0
+                        
+                        color_class = 'text-green' if delta_pct >= 0 else 'text-red'
+                        arrow = '▲' if delta_pct >= 0 else '▼'
+                        if -0.05 < delta_pct < 0.05:
+                            color_class = 'text-grey'
+                            arrow = '▬'
+                        return f'<span class="{color_class}">{arrow} {delta_pct:.1f}%</span>'
+
                     delta_costo_str = get_delta_string(total_costo_mes, total_costo_mes_prev)
                     delta_cantidad_str = get_delta_string(total_cantidad_mes, total_cantidad_mes_prev)
 
-                    # Deltas para cada tipo de HE
-                    delta_costo_50_str = get_delta_string(costo_50, costo_50_prev)
-                    delta_cantidad_50_str = get_delta_string(cantidad_50, cantidad_50_prev)
-                    delta_costo_50_sab_str = get_delta_string(costo_50_sab, costo_50_sab_prev)
-                    delta_cantidad_50_sab_str = get_delta_string(cantidad_50_sab, cantidad_50_sab_prev)
-                    delta_costo_100_str = get_delta_string(costo_100, costo_100_prev)
-                    delta_cantidad_100_str = get_delta_string(cantidad_100, cantidad_100_prev)
-                    delta_costo_fc_str = get_delta_string(costo_fc, costo_fc_prev)
-                    delta_cantidad_fc_str = get_delta_string(cantidad_fc, cantidad_fc_prev)
+                    delta_costo_50_str = get_mini_delta(costo_50, costo_50_prev)
+                    delta_cantidad_50_str = get_mini_delta(cantidad_50, cantidad_50_prev)
+                    delta_costo_50_sab_str = get_mini_delta(costo_50_sab, costo_50_sab_prev)
+                    delta_cantidad_50_sab_str = get_mini_delta(cantidad_50_sab, cantidad_50_sab_prev)
+                    delta_costo_100_str = get_mini_delta(costo_100, costo_100_prev)
+                    delta_cantidad_100_str = get_mini_delta(cantidad_100, cantidad_100_prev)
+                    delta_costo_fc_str = get_mini_delta(costo_fc, costo_fc_prev)
+                    delta_cantidad_fc_str = get_mini_delta(cantidad_fc, cantidad_fc_prev)
 
                 month_dt = datetime.strptime(latest_month_str, '%Y-%m')
                 meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
                 month_name = f"{meses_espanol.get(month_dt.month, '')} {month_dt.year}"
 
-                # =============================================================================
-                # --- card_html ---
-                # Se añaden las transiciones y se inyectan los deltas en las tarjetas de detalle.
-                # =============================================================================
                 card_html = f"""
                 <style>
-                    .summary-card{{
-                        background-color:#f8f7fc;
-                        border-radius:8px;
-                        box-shadow:0 4px 10px rgba(0,0,0,0.05);
-                        padding:1.5rem;
-                        font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif !important;
-                        transition: box-shadow 0.3s ease-in-out, border-color 0.3s ease-in-out;
-                        border: 1px solid transparent;
-                    }}
-                    .summary-card:hover {{
-                        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-                        border-color: #90caf9;
-                    }}
-                    .summary-card *{{font-family:inherit !important}}
-                    .summary-header{{text-align:center;font-size:1.2rem;font-weight:600;margin-bottom:1.5rem;border-bottom:2px solid #e0e0e0;padding-bottom:1rem;color:#6C5CE7 !important}}
-                    .summary-totals{{display:flex;justify-content:space-around;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}}
-                    .summary-main-kpi{{text-align:center}}
-                    .summary-main-kpi .value{{font-size:2.5rem;font-weight:700;color:#6C5CE7}}
-                    .summary-main-kpi .label{{font-size:1rem;color:#5a5a5a}}
-                    .summary-main-kpi .delta {{
-                        font-size: 1rem;
-                        font-weight: 600;
-                        margin-top: 4px;
-                    }}
-                    .summary-main-kpi .delta.green {{ color: #2ca02c; }}
-                    .summary-main-kpi .delta.red {{ color: #d62728; }}
+                    @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
                     
-                    .summary-breakdown{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
-                    .summary-sub-kpi{{
-                        background-color:#ffffff;
-                        padding:1rem;
-                        border-radius:6px;
-                        border:1px solid #e0e0e0;
-                        text-align:center;
-                        transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+                    .kpi-card-container {{
+                        font-family: 'Source Sans Pro', sans-serif;
+                        background-color: #ffffff;
+                        border-radius: 16px;
+                        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+                        overflow: hidden;
+                        margin-bottom: 20px;
+                        border: 1px solid #f0f0f0;
                     }}
-                    .summary-sub-kpi:hover {{
-                        background-color: #e3f2fd;
-                        border-color: #90caf9;
+
+                    /* HEADER HERO SECTION */
+                    .kpi-hero {{
+                        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); /* Azul Profundo */
+                        color: white;
+                        padding: 25px;
+                        text-align: center;
                     }}
-                    .summary-sub-kpi .type{{font-weight:600;font-size:0.9rem;margin-bottom:0.5rem}}
-                    .summary-sub-kpi .value-cost,.summary-sub-kpi .value-qty{{font-size:1.25rem;font-weight:600}}
-                    .summary-sub-kpi .value-cost{{color:#2a7a2a}}
-                    .summary-sub-kpi .value-qty{{color:#3a3a9a}}
-                    .summary-sub-kpi .delta {{
-                        font-size: 0.8rem;
+                    
+                    .kpi-month-title {{
+                        font-size: 1.1rem;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        opacity: 0.9;
+                        margin-bottom: 20px;
+                    }}
+
+                    .kpi-main-stats {{
+                        display: flex;
+                        justify-content: center;
+                        gap: 40px;
+                        flex-wrap: wrap;
+                    }}
+
+                    .kpi-stat-box {{
+                        flex: 1;
+                        min-width: 200px;
+                        padding: 10px;
+                        border-right: 1px solid rgba(255,255,255,0.2);
+                    }}
+                    .kpi-stat-box:last-child {{ border-right: none; }}
+
+                    .kpi-stat-value {{
+                        font-size: 2.8rem;
+                        font-weight: 700;
+                        margin-bottom: 5px;
+                        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    }}
+
+                    .kpi-stat-label {{
+                        font-size: 1rem;
                         font-weight: 500;
-                        margin-top: 2px;
+                        opacity: 0.9;
                     }}
-                    .summary-sub-kpi .delta.green {{ color: #2ca02c; }}
-                    .summary-sub-kpi .delta.red {{ color: #d62728; }}
+
+                    /* DELTAS (White glassy style) */
+                    .kpi-delta {{
+                        display: inline-block;
+                        font-size: 0.9rem;
+                        font-weight: 600;
+                        padding: 4px 10px;
+                        border-radius: 12px;
+                        background: rgba(255,255,255,0.15);
+                        margin-top: 8px;
+                    }}
+                    .kpi-delta.green {{ color: #a7f3d0; }} /* Green accent */
+                    .kpi-delta.red {{ color: #fca5a5; }}   /* Red accent */
+                    .kpi-delta.grey {{ color: #e2e8f0; }}
+
+                    /* GRID SECTION */
+                    .kpi-grid {{
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                        gap: 20px;
+                        padding: 25px;
+                        background-color: #f8fafc;
+                    }}
+
+                    /* MINI CARDS */
+                    .kpi-mini-card {{
+                        background: white;
+                        border-radius: 12px;
+                        padding: 15px;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+                        border: 1px solid #e2e8f0;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                    }}
+                    .kpi-mini-card:hover {{
+                        transform: translateY(-3px);
+                        box-shadow: 0 10px 15px rgba(0,0,0,0.05);
+                        border-color: #cbd5e1;
+                    }}
+
+                    /* BORDERS FOR TYPES */
+                    .border-blue {{ border-top: 4px solid #3b82f6; }}
+                    .border-cyan {{ border-top: 4px solid #06b6d4; }}
+                    .border-violet {{ border-top: 4px solid #8b5cf6; }}
+                    .border-pink {{ border-top: 4px solid #ec4899; }}
+
+                    .mini-label {{
+                        font-size: 0.85rem;
+                        color: #64748b;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        margin-bottom: 8px;
+                    }}
+                    
+                    .mini-value {{
+                        font-size: 1.4rem;
+                        font-weight: 700;
+                        color: #1e293b;
+                        margin-bottom: 4px;
+                    }}
+                    
+                    .mini-sub-value {{
+                        font-size: 1rem;
+                        color: #475569;
+                        font-weight: 600;
+                    }}
+
+                    .mini-delta {{
+                        font-size: 0.8rem;
+                        font-weight: 600;
+                        text-align: right;
+                        margin-top: auto;
+                    }}
+                    .text-green {{ color: #16a34a; }}
+                    .text-red {{ color: #dc2626; }}
+                    .text-grey {{ color: #94a3b8; }}
                     
                     @media (max-width: 768px) {{
-                        .summary-card {{ padding: 1rem; }}
-                        .summary-header {{ font-size: 1.1rem; }}
-                        .summary-totals {{
-                            flex-direction: column;
-                            gap: 1.5rem;
-                            align-items: center;
-                        }}
-                        .summary-main-kpi .value {{ font-size: 2.1rem; }}
-                        .summary-main-kpi .label {{ font-size: 0.9rem; }}
-                        .summary-sub-kpi {{ padding: 0.8rem; }}
+                        .kpi-main-stats {{ flex-direction: column; gap: 20px; }}
+                        .kpi-stat-box {{ border-right: none; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 20px; }}
+                        .kpi-stat-box:last-child {{ border-bottom: none; padding-bottom: 0; }}
                     }}
                 </style>
-                <div class="summary-card">
-                    <div class="summary-header">RESUMEN MENSUAL: {month_name}</div>
-                    <div class="summary-totals">
-                        <div class="summary-main-kpi">
-                            <div class="value" data-target="{total_costo_mes}" data-type="currency" data-decimals="2"></div>
-                            <div class="label">Costo Total</div>
-                            {delta_costo_str}
-                        </div>
-                        <div class="summary-main-kpi">
-                            <div class="value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
-                            <div class="label">Cantidad Total</div>
-                            {delta_cantidad_str}
+
+                <div class="kpi-card-container">
+                    <div class="kpi-hero">
+                        <div class="kpi-month-title">Resumen Mensual: {month_name}</div>
+                        <div class="kpi-main-stats">
+                            <div class="kpi-stat-box">
+                                <div class="kpi-stat-value" data-target="{total_costo_mes}" data-type="currency" data-decimals="2"></div>
+                                <div class="kpi-stat-label">Costo Total</div>
+                                {delta_costo_str}
+                            </div>
+                            <div class="kpi-stat-box">
+                                <div class="kpi-stat-value" data-target="{total_cantidad_mes}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                                <div class="kpi-stat-label">Cantidad Total</div>
+                                {delta_cantidad_str}
+                            </div>
                         </div>
                     </div>
-                    <div class="summary-breakdown">
-                        {avg_kpi_html}
-                        <div class="summary-sub-kpi">
-                            <div class="type">Total HE 50%</div>
-                            <div class="value-cost" data-target="{costo_50}" data-type="currency" data-decimals="2"></div>
-                            <div class="value-qty" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
-                            {delta_costo_50_str}
-                            {delta_cantidad_50_str}
+                    
+                    <div class="kpi-grid">
+                        <!-- 50% -->
+                        <div class="kpi-mini-card border-blue">
+                            <div class="mini-label">Total HE 50%</div>
+                            <div class="mini-value" data-target="{costo_50}" data-type="currency" data-decimals="2"></div>
+                            <div class="mini-sub-value" data-target="{cantidad_50}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                                <span class="mini-delta">{delta_costo_50_str}</span>
+                                <span class="mini-delta">{delta_cantidad_50_str}</span>
+                            </div>
                         </div>
-                        <div class="summary-sub-kpi">
-                            <div class="type">Total HE 50% Sábados</div>
-                            <div class="value-cost" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div>
-                            <div class="value-qty" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
-                            {delta_costo_50_sab_str}
-                            {delta_cantidad_50_sab_str}
+                        
+                        <!-- 50% Sab -->
+                        <div class="kpi-mini-card border-cyan">
+                            <div class="mini-label">Total HE 50% Sáb.</div>
+                            <div class="mini-value" data-target="{costo_50_sab}" data-type="currency" data-decimals="2"></div>
+                            <div class="mini-sub-value" data-target="{cantidad_50_sab}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                                <span class="mini-delta">{delta_costo_50_sab_str}</span>
+                                <span class="mini-delta">{delta_cantidad_50_sab_str}</span>
+                            </div>
                         </div>
-                        <div class="summary-sub-kpi">
-                            <div class="type">Total HE 100%</div>
-                            <div class="value-cost" data-target="{costo_100}" data-type="currency" data-decimals="2"></div>
-                            <div class="value-qty" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
-                            {delta_costo_100_str}
-                            {delta_cantidad_100_str}
+
+                        <!-- 100% -->
+                        <div class="kpi-mini-card border-violet">
+                            <div class="mini-label">Total HE 100%</div>
+                            <div class="mini-value" data-target="{costo_100}" data-type="currency" data-decimals="2"></div>
+                            <div class="mini-sub-value" data-target="{cantidad_100}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                                <span class="mini-delta">{delta_costo_100_str}</span>
+                                <span class="mini-delta">{delta_cantidad_100_str}</span>
+                            </div>
                         </div>
-                        <div class="summary-sub-kpi">
-                            <div class="type">Total HE FC</div>
-                            <div class="value-cost" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div>
-                            <div class="value-qty" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
-                            {delta_costo_fc_str}
-                            {delta_cantidad_fc_str}
+
+                        <!-- FC -->
+                        <div class="kpi-mini-card border-pink">
+                            <div class="mini-label">Total HE FC</div>
+                            <div class="mini-value" data-target="{costo_fc}" data-type="currency" data-decimals="2"></div>
+                            <div class="mini-sub-value" data-target="{cantidad_fc}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                                <span class="mini-delta">{delta_costo_fc_str}</span>
+                                <span class="mini-delta">{delta_cantidad_fc_str}</span>
+                            </div>
                         </div>
+                        
+                        <!-- PROMEDIOS -->
+                        {avg_kpi_html_new_style}
+                        
                     </div>
                 </div>
                 <script>
-                    function animateValue(obj,start,end,duration){{let startTimestamp=null;const type=obj.getAttribute('data-type')||'number';const suffix=obj.getAttribute('data-suffix')||'';const decimals=parseInt(obj.getAttribute('data-decimals'))||0;const currencyFormatter=new Intl.NumberFormat('es-AR',{{style:'currency',currency:'ARS',minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const numberFormatter=new Intl.NumberFormat('es-AR',{{minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const step=timestamp=>{{if(!startTimestamp)startTimestamp=timestamp;const progress=Math.min((timestamp-startTimestamp)/duration,1);const currentVal=progress*(end-start)+start;let formattedVal;if(type==='currency'){{formattedVal=currencyFormatter.format(currentVal).replace(/^ARS\\s/,'$')}}else{{formattedVal=numberFormatter.format(currentVal)}}obj.innerHTML=formattedVal+suffix;if(progress<1){{window.requestAnimationFrame(step)}}}};window.requestAnimationFrame(step)}}
+                    function animateValue(obj,start,end,duration){{let startTimestamp=null;const type=obj.getAttribute('data-type')||'number';const suffix=obj.getAttribute('data-suffix')||'';const decimals=parseInt(obj.getAttribute('data-decimals'))||0;const currencyFormatter=new Intl.NumberFormat('es-AR',{{style:'currency',currency:'ARS',minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const numberFormatter=new Intl.NumberFormat('es-AR',{{minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const step=timestamp=>{{if(!startTimestamp)startTimestamp=timestamp;const progress=Math.min((timestamp-startTimestamp)/duration,1);const currentVal=progress*(end-start)+start;let formattedVal;if(type==='currency'){{formattedVal=currencyFormatter.format(currentVal).replace(/^ARS\s/,'$')}}else{{formattedVal=numberFormatter.format(currentVal)}}obj.innerHTML=formattedVal+suffix;if(progress<1){{window.requestAnimationFrame(step)}}}};window.requestAnimationFrame(step)}}
                     const counters=document.querySelectorAll('[data-target]');
                     counters.forEach(counter=>{{counter.innerHTML='';const target=+counter.getAttribute('data-target');setTimeout(()=>animateValue(counter,0,target,1500),100)}});
                 </script>
@@ -720,10 +691,6 @@ if uploaded_file is not None:
                         else: st.info("No hay datos de costos para mostrar para la selección actual.")
                     with col2:
                         if monthly_trends_agg['Total_Cantidades'].sum() > 0:
-                            # =============================================================================
-                            # --- MODIFICACIÓN 3: Gráfico Tendencias Cantidad ---
-                            # Se cambia format=',.0f' a format=',.2f' para tooltips y texto.
-                            # =============================================================================
                             chart_data, max_quant = monthly_trends_agg, monthly_trends_agg['Total_Cantidades'].max()
                             y_scale_quant = alt.Scale(domain=[0, max_quant * 1.25]) if max_quant > 0 else alt.Scale()
                             quantity_bars_vars = [quantity_columns_options[k] for k in st.session_state.he_quantity_types if k in quantity_columns_options]
@@ -755,10 +722,6 @@ if uploaded_file is not None:
                         text_neg_costos = bars_var_costos.mark_text(align='center', baseline='top', dy=4, color='#333').encode(text=alt.Text('Variacion_Costos_Abs:Q', format='$,.0f')).transform_filter(alt.datum.Variacion_Costos_Abs < 0)
                         st.altair_chart((bars_var_costos + text_pos_costos + text_neg_costos).interactive(), use_container_width=True)
                     with col2:
-                        # =============================================================================
-                        # --- MODIFICACIÓN 4: Gráfico Variación Cantidad ---
-                        # Se cambia format=',.0f' a format=',.2f' para eje Y y texto.
-                        # =============================================================================
                         min_var_quant, max_var_quant = monthly_trends_for_var['Variacion_Cantidades_Abs'].min(), monthly_trends_for_var['Variacion_Cantidades_Abs'].max()
                         padding_quant = (max_var_quant - min_var_quant) * 0.15
                         domain_quant = [min_var_quant - padding_quant, max_var_quant + padding_quant]
@@ -779,12 +742,6 @@ if uploaded_file is not None:
     with tab_mapa:
         st.header("Distribución Geográfica de Horas Extras")
 
-        # =============================================================================
-        # --- Lógica de KPI con Delta ---
-        # Se reemplaza la lógica anterior (líneas 682-728) para calcular
-        # los totales del mes actual y el mes anterior, y así obtener el delta.
-        # =============================================================================
-        
         # 1. Copiar selecciones y remover el filtro de 'Mes' para obtener datos base
         selections_without_month = st.session_state.he_selections.copy()
         selected_months = selections_without_month.pop('Mes', [])
@@ -798,17 +755,14 @@ if uploaded_file is not None:
             
             if not all_available_months_sorted:
                 st.warning("No hay datos de meses válidos en los datos filtrados.")
-                # Usamos st.stop() o st.empty() si no se puede continuar
             else:
                 latest_month_map = ""
                 if selected_months:
-                    # Usar el último mes de la *selección* del usuario
                     valid_selected_months = sorted([m for m in selected_months if m in all_available_months_sorted])
                     if valid_selected_months:
                         latest_month_map = valid_selected_months[-1]
                 
                 if not latest_month_map:
-                    # Si no hay selección de mes, usar el último mes disponible en los datos filtrados
                     latest_month_map = all_available_months_sorted[-1]
 
                 previous_month_str = None
@@ -819,11 +773,10 @@ if uploaded_file is not None:
                     if latest_month_index > 0:
                         previous_month_str = all_available_months_sorted[latest_month_index - 1]
 
-                # 3. Definir columnas de costo y cantidad (esta lógica ya existía)
+                # 3. Definir columnas de costo y cantidad
                 selected_cost_cols = [cost_columns_options[k] for k in st.session_state.he_cost_types if k in cost_columns_options]
                 selected_quant_cols = [quantity_columns_options[k] for k in st.session_state.he_quantity_types if k in quantity_columns_options]
                 
-                # --- Función auxiliar para no repetir código ---
                 def calculate_map_totals(df_month, cost_cols, quant_cols):
                     if df_month.empty:
                         return 0, 0, 0, pd.DataFrame()
@@ -853,16 +806,16 @@ if uploaded_file is not None:
                 df_mapa_display = df_mapa_base_filtered[df_mapa_base_filtered['Mes'] == latest_month_map]
                 total_costo_mapa, total_cantidad_mapa, ubicaciones_unicas, df_mapa_agg = calculate_map_totals(df_mapa_display, selected_cost_cols, selected_quant_cols)
 
-                # 5. Calcular totales para el mes anterior (si existe)
+                # 5. Calcular totales para el mes anterior
                 if previous_month_str:
                     df_mapa_previous = df_mapa_base_filtered[df_mapa_base_filtered['Mes'] == previous_month_str]
                     total_costo_prev, total_cantidad_prev, ubicaciones_unicas_prev, _ = calculate_map_totals(df_mapa_previous, selected_cost_cols, selected_quant_cols)
 
-                # 6. Preparar datos del mapa (esta lógica ya existía)
+                # 6. Preparar datos del mapa
                 df_mapa_data = pd.merge(df_mapa_agg, df_coords, left_on='Ubicación', right_on="Distrito", how="left")
                 df_mapa_data.dropna(subset=['Latitud', 'Longitud'], inplace=True)
                 
-                # 7. Obtener nombre del mes (esta lógica ya existía)
+                # 7. Obtener nombre del mes
                 month_name_map = "General"
                 if pd.notna(latest_month_map):
                     month_dt_map = datetime.strptime(latest_month_map, '%Y-%m')
@@ -872,40 +825,26 @@ if uploaded_file is not None:
                 # 8. Calcular deltas
                 delta_costo_str, delta_cantidad_str, delta_ubicaciones_str = None, None, None
                 if previous_month_str:
-                    # Calcular delta de costo
-                    if total_costo_prev > 0:
-                        delta_costo = ((total_costo_mapa - total_costo_prev) / total_costo_prev) * 100
-                    else:
-                        delta_costo = 100.0 if total_costo_mapa > 0 else 0.0
+                    if total_costo_prev > 0: delta_costo = ((total_costo_mapa - total_costo_prev) / total_costo_prev) * 100
+                    else: delta_costo = 100.0 if total_costo_mapa > 0 else 0.0
                     
-                    # Calcular delta de cantidad
-                    if total_cantidad_prev > 0:
-                        delta_cantidad = ((total_cantidad_mapa - total_cantidad_prev) / total_cantidad_prev) * 100
-                    else:
-                        delta_cantidad = 100.0 if total_cantidad_mapa > 0 else 0.0
+                    if total_cantidad_prev > 0: delta_cantidad = ((total_cantidad_mapa - total_cantidad_prev) / total_cantidad_prev) * 100
+                    else: delta_cantidad = 100.0 if total_cantidad_mapa > 0 else 0.0
 
-                    # Calcular delta de ubicaciones
                     delta_ubicaciones = ubicaciones_unicas - ubicaciones_unicas_prev
                     
                     delta_costo_str = f"{delta_costo:.1f}%"
                     delta_cantidad_str = f"{delta_cantidad:.1f}%"
-                    delta_ubicaciones_str = f"{delta_ubicaciones:+.0f}" # + para mostrar aumento o disminución
+                    delta_ubicaciones_str = f"{delta_ubicaciones:+.0f}" 
                 
-                # 9. Mostrar KPIs con deltas (MODIFICACIÓN)
                 st.subheader(f"Resumen para el período: {month_name_map}")
                 st.markdown("<br>", unsafe_allow_html=True)
                 kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
-                # =============================================================================
-                # --- MODIFICACIÓN 5: KPI Mapa ---
-                # Se cambia format_number_es(..., 0) a format_number_es(..., 2)
-                # Y se añaden los deltas calculados
-                # =============================================================================
                 kpi_col1.metric("💰 Costo Total (Período)", format_currency_es(total_costo_mapa), delta=delta_costo_str)
                 kpi_col2.metric("⏱️ Cantidad Total (Período)", f"{format_number_es(total_cantidad_mapa, 2)} hs", delta=delta_cantidad_str)
                 kpi_col3.metric("📍 Ubicaciones Activas", format_number_es(ubicaciones_unicas, 0), delta=delta_ubicaciones_str, delta_color="normal")
                 st.markdown("---")
 
-                # El resto del código de la pestaña continúa aquí...
                 st.subheader(f"Comparador de Mapas para el Período: {month_name_map}")
                 map_style_options = {"Satélite con Calles": "satellite-streets", "Mapa de Calles": "open-street-map", "Estilo Claro": "carto-positron"}
                 if df_mapa_data.empty: st.warning("No se encontraron coordenadas para las ubicaciones seleccionadas para el comparador.")
@@ -921,10 +860,6 @@ if uploaded_file is not None:
                             if df_plot_data.empty: return None
                             mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
                             px.set_mapbox_access_token(mapbox_access_token)
-                            # =============================================================================
-                            # --- MODIFICACIÓN 6: Mapa Plotly (Comparador) ---
-                            # Se cambia hover_data "Cantidad_Total": ':.0f' a ':,.2f'
-                            # =============================================================================
                             fig = px.scatter_mapbox(df_plot_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':,.2f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=mapbox_style, zoom=6, center={"lat": -32.5, "lon": -61.5})
                             fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
                             return fig
@@ -944,10 +879,6 @@ if uploaded_file is not None:
                         table_data_comp.sort_values(by='Costo Total', ascending=False, inplace=True)
                         total_row_comp = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_comp['Costo Total'].sum()], 'Cantidad Total': [table_data_comp['Cantidad Total'].sum()]})
                         df_final_table_comp = pd.concat([table_data_comp, total_row_comp], ignore_index=True)
-                        # =============================================================================
-                        # --- MODIFICACIÓN 7: Tabla Mapa (Comparador) ---
-                        # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
-                        # =============================================================================
                         st.dataframe(df_final_table_comp.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
                 st.markdown("---")
                 st.subheader(f"Mapa Interactivo Individual para el Período: {month_name_map}")
@@ -956,10 +887,6 @@ if uploaded_file is not None:
                     selected_mapbox_style_single = map_style_options[selected_style_single_name]
                     single_map_col, single_table_col = st.columns([3, 2])
                     with single_map_col:
-                        # =============================================================================
-                        # --- MODIFICACIÓN 8: Mapa Plotly (Individual) ---
-                        # Se cambia hover_data "Cantidad_Total": ':.0f' a ':,.2f'
-                        # =============================================================================
                         fig_single = px.scatter_mapbox(df_mapa_data, lat="Latitud", lon="Longitud", size="Cantidad_Total", color="Costo_Total", hover_name="Distrito", hover_data={"Latitud": False, "Longitud": False, "Cantidad_Total": ':,.2f', "Costo_Total": ':$,.2f'}, color_continuous_scale=px.colors.sequential.Plasma, size_max=50, mapbox_style=selected_mapbox_style_single, zoom=6, center={"lat": -32.5, "lon": -61.5})
                         fig_single.update_layout(margin={"r":0, "t":0, "l":0, "b":0}, height=600)
                         st.plotly_chart(fig_single, use_container_width=True)
@@ -968,10 +895,6 @@ if uploaded_file is not None:
                         table_data_single.sort_values(by='Costo Total', ascending=False, inplace=True)
                         total_row_single = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_single['Costo Total'].sum()], 'Cantidad Total': [table_data_single['Cantidad Total'].sum()]})
                         df_final_table_single = pd.concat([table_data_single, total_row_single], ignore_index=True)
-                        # =============================================================================
-                        # --- MODIFICACIÓN 9: Tabla Mapa (Individual) ---
-                        # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
-                        # =============================================================================
                         st.dataframe(df_final_table_single.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
 
     with tab_desglose_org:
@@ -1003,10 +926,6 @@ if uploaded_file is not None:
                             total_labels = alt.Chart(df_grouped_chart).transform_aggregate(total='sum(Total_Costos)', groupby=[primary_col]).mark_text(align='left', baseline='middle', dx=3).encode(x='total:Q', y=y_axis, text=alt.Text('total:Q', format='$,.0f'))
                             st.altair_chart(alt.layer(bars, total_labels).properties(title='Costos').interactive(), use_container_width=True)
                         with col2:
-                            # =============================================================================
-                            # --- MODIFICACIÓN 10: Gráfico Desglose Cantidad ---
-                            # Se cambia format=',.0f' a format=',.2f' para eje X, tooltip y texto.
-                            # =============================================================================
                             sort_order = df_grouped_chart.groupby(primary_col)['Total_Cantidades'].sum().sort_values(ascending=False).index.tolist()
                             y_axis = alt.Y(f'{primary_col}:N', sort=sort_order, title=primary_col)
                             bars = alt.Chart(df_grouped_chart).mark_bar().encode(x=alt.X('sum(Total_Cantidades):Q', title="Total Cantidades", axis=alt.Axis(format=',.2f')), y=y_axis, color=alt.Color(f'{secondary_col}:N', legend=alt.Legend(orient="bottom", title=secondary_col, columns=4, labelLimit=0), scale=color_scale), tooltip=[primary_col, secondary_col, alt.Tooltip('sum(Total_Cantidades):Q', format=',.2f', title='Cantidad')])
@@ -1033,10 +952,6 @@ if uploaded_file is not None:
                     with col2:
                         st.subheader('Top por Cantidad')
                         if not top_cantidad_empleados.empty:
-                            # =============================================================================
-                            # --- MODIFICACIÓN 11: Gráfico Top Empleados Cantidad ---
-                            # Se cambia format=',.0f' a format=',.2f' para eje X, tooltip y texto.
-                            # =============================================================================
                             base = alt.Chart(top_cantidad_empleados).encode(y=alt.Y('Apellido y nombre:N', sort='-x', title='Empleado'), x=alt.X('Total_Cantidades:Q', title="Total Cantidades", axis=alt.Axis(format=',.2f')), tooltip=[alt.Tooltip('Total_Cantidades:Q', format=',.2f')])
                             bars = base.mark_bar(color='#6C5CE7')
                             text = base.mark_text(align='right', baseline='middle', dx=-5, color='white').encode(text=alt.Text('Total_Cantidades:Q', format=',.2f'))
@@ -1060,10 +975,6 @@ if uploaded_file is not None:
                         avg_cost_data.append({"Tipo de Hora Extra": cost_col.replace("Horas extras al", "HE").replace("Importe ", ""), "Costo Total": total_cost, "Cantidad Total (hs)": total_quant, "Costo Promedio por Hora": avg_cost})
                 if avg_cost_data:
                     df_avg_costs = pd.DataFrame(avg_cost_data)
-                    # =============================================================================
-                    # --- MODIFICACIÓN 12: Tabla Costo Promedio ---
-                    # Se cambia format_number_es(x, 0) a format_number_es(x, 2)
-                    # =============================================================================
                     st.dataframe(df_avg_costs.style.format({"Costo Total": format_currency_es, "Cantidad Total (hs)": lambda x: format_number_es(x, 2), "Costo Promedio por Hora": format_currency_es}), use_container_width=True)
                 else: st.info("No se encontraron datos para calcular los costos promedio por tipo de hora.")
             st.markdown("---")
