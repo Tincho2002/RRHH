@@ -5,15 +5,78 @@ from pandas.tseries.offsets import MonthEnd
 from datetime import datetime
 import numpy as np
 import plotly.express as px
-import io # Importante: necesario para manejar los datos en memoria para la descarga
+import io
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(layout="wide", page_title="Dashboard RH", page_icon="🏢")
 
+# --- ESTILOS CSS PERSONALIZADOS (Aesthetics) ---
+def local_css():
+    st.markdown("""
+    <style>
+        /* Estilo para las tarjetas de métricas con gradientes y hover */
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            color: white;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .metric-label {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Variaciones de color para las tarjetas */
+        .card-green { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: #1a472a; }
+        .card-red { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); color: #5d1818; }
+        .card-blue { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-orange { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); color: #5d3a1a; }
+
+        /* Ajustes generales de Streamlit */
+        div.stButton > button {
+            width: 100%;
+            border-radius: 8px;
+        }
+        [data-testid="stMetricValue"] {
+            font-size: 2rem;
+        }
+        h1, h2, h3 {
+            font-family: 'Helvetica Neue', sans-serif;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+local_css()
+
+# --- HELPER: RENDERING DE TARJETAS HTML ---
+def display_custom_metric(label, value, color_class="card-blue", icon="📊"):
+    html_card = f"""
+    <div class="metric-card {color_class}">
+        <div class="metric-label">{icon} {label}</div>
+        <div class="metric-value">{value}</div>
+    </div>
+    """
+    st.markdown(html_card, unsafe_allow_html=True)
+
+
 # --- FUNCIÓN AUXILIAR PARA DESCARGAS ---
 def create_download_buttons(df, file_prefix, key_suffix):
     """Genera botones de descarga para un DataFrame en CSV y Excel."""
-    # Preparar datos para descarga
     @st.cache_data
     def convert_df_to_csv(dataframe):
         return dataframe.to_csv(index=False).encode('utf-8')
@@ -29,12 +92,10 @@ def create_download_buttons(df, file_prefix, key_suffix):
     csv_data = convert_df_to_csv(df)
     excel_data = convert_df_to_excel(df)
 
-    # Crear columnas para los botones
     col1, col2 = st.columns(2)
-    
     with col1:
         st.download_button(
-            label="📥 Descargar como CSV",
+            label="📥 CSV",
             data=csv_data,
             file_name=f'{file_prefix}_{datetime.now().strftime("%Y%m%d")}.csv',
             mime='text/csv',
@@ -43,7 +104,7 @@ def create_download_buttons(df, file_prefix, key_suffix):
         )
     with col2:
         st.download_button(
-            label="📥 Descargar como Excel",
+            label="📥 Excel",
             data=excel_data,
             file_name=f'{file_prefix}_{datetime.now().strftime("%Y%m%d")}.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -117,7 +178,7 @@ def get_sorted_unique_options(dataframe, column_name):
 
 def create_dotacion_breakdown(df, breakdown_column, title, selected_gerencias):
     st.markdown("---")
-    st.subheader(title)
+    st.markdown(f"### {title}") # Usando markdown para header más limpio
     stacking_column = 'Relación' if breakdown_column == 'Gerencia' else 'Gerencia'
     pivot_df = pd.pivot_table(df, index=breakdown_column, columns=stacking_column, aggfunc='size', fill_value=0)
     if stacking_column == 'Relación':
@@ -139,8 +200,10 @@ def create_dotacion_breakdown(df, breakdown_column, title, selected_gerencias):
     total_row_data[breakdown_column] = '**TOTAL**'
     display_df = pd.concat([table_df, pd.DataFrame([total_row_data])], ignore_index=True)
     altair_df = table_df.melt(id_vars=[breakdown_column, 'Total'], value_vars=stack_cols, var_name=stacking_column, value_name='Cantidad')
+    
     col_chart, col_table = st.columns([1.5, 1])
     sort_order = table_df[breakdown_column].tolist()
+    
     with col_chart:
         base_chart = alt.Chart(altair_df).mark_bar().encode(
             x=alt.X('sum(Cantidad):Q', title='Cantidad de Empleados', stack='zero'),
@@ -154,12 +217,11 @@ def create_dotacion_breakdown(df, breakdown_column, title, selected_gerencias):
         st.altair_chart(final_chart, use_container_width=True)
     with col_table:
         st.dataframe(display_df, use_container_width=True, hide_index=True)
-        # BOTONES DE DESCARGA
         create_download_buttons(display_df, f"composicion_dotacion_{breakdown_column.lower()}", f"dot_{breakdown_column}")
 
 
 def create_event_category_breakdown(df, breakdown_column, title):
-    st.subheader(title)
+    st.markdown(f"### {title}")
     if df.empty:
         st.warning(f"No hay datos de {title.lower().split('por')[0]} para mostrar con los filtros actuales.")
         return
@@ -192,22 +254,19 @@ def create_event_category_breakdown(df, breakdown_column, title):
         st.altair_chart(final_chart, use_container_width=True)
     with col_table:
         st.dataframe(display_df, use_container_width=True, hide_index=True)
-        # BOTONES DE DESCARGA
         file_event_type = "ingresos" if "Ingresos" in title else "egresos"
         create_download_buttons(display_df, f"composicion_{file_event_type}_{breakdown_column.lower()}", f"evt_{file_event_type}_{breakdown_column}")
 
 
-# --- FUNCIÓN MODIFICADA: VISTA DE EVENTOS COMBINADA CON DOBLE EJE Y ---
+# --- FUNCIÓN MODIFICADA: VISTA COMBINADA INLINE (SOLICITUD USUARIO) ---
 def create_combined_event_view(df_ingresos, df_egresos, all_months_list):
-    st.subheader("Gráfico Combinado: Ingresos, Egresos, Variación Neta y Dotación Acumulada")
-
+    st.markdown("### Análisis de Dinámica Mensual")
+    
     # 1. Preparar y combinar datos
     def prepare_counts(df, month_col, year_col, event_type):
-        """Calcula los conteos mensuales de un tipo de evento y los formatea."""
         df_clean = df.dropna(subset=[month_col, year_col]).copy()
         if df_clean.empty:
             return pd.DataFrame(columns=['Periodo', event_type])
-        # Convertir el año a entero y luego a string para el periodo
         df_clean[year_col] = df_clean[year_col].astype(int).astype(str)
         df_clean['Periodo'] = df_clean[month_col] + ' ' + df_clean[year_col]
         counts = df_clean.groupby('Periodo').size().reset_index(name=event_type)
@@ -216,122 +275,85 @@ def create_combined_event_view(df_ingresos, df_egresos, all_months_list):
     ingresos_counts = prepare_counts(df_ingresos, 'Mes Ingreso', 'Año Ingreso', 'Ingresos')
     egresos_counts = prepare_counts(df_egresos, 'Mes Egreso', 'Año Egreso', 'Egresos')
 
-    # 2. Pivotar y Ordenar (Crear la tabla base con Ingresos y Egresos en columnas)
+    # 2. Pivotar y Ordenar
     df_pivot = pd.merge(ingresos_counts, egresos_counts, on='Periodo', how='outer').fillna(0).astype({'Ingresos': int, 'Egresos': int})
     
     if df_pivot.empty:
         st.warning("No hay Ingresos ni Egresos para mostrar.")
         return
 
-    # Generar orden de Periodos (Fecha para sortear, luego string)
     def period_to_date(period_str):
         parts = period_str.split(' ')
         month_name = parts[0]
         year = int(parts[1])
-        # Usamos la lista de meses para obtener el número de mes
         month_num = all_months_list.index(month_name) + 1
         return datetime(year, month_num, 1)
 
-    # Ordenar por fecha real y guardar el orden de Periodo
     df_pivot['SortDate'] = df_pivot['Periodo'].apply(period_to_date)
     df_pivot = df_pivot.sort_values('SortDate').drop(columns=['SortDate']).reset_index(drop=True)
     period_order = df_pivot['Periodo'].tolist()
 
-    # 3. Calcular Variación Neta y Dotación Acumulada
+    # 3. Calcular Variación y Dotación
     df_pivot['Variación Neta'] = df_pivot['Ingresos'] - df_pivot['Egresos']
-    # Dotación Acumulada: Suma acumulada de la variación neta. Representa el cambio neto de headcount desde el primer periodo.
     df_pivot['Dotación Acumulada'] = df_pivot['Variación Neta'].cumsum()
     
-    # 4. Preparar datos para el gráfico de barras agrupadas (Formato Long)
     df_bars = df_pivot[['Periodo', 'Ingresos', 'Egresos']].melt(
-        id_vars='Periodo', 
-        value_vars=['Ingresos', 'Egresos'], 
-        var_name='Tipo', 
-        value_name='Cantidad'
+        id_vars='Periodo', value_vars=['Ingresos', 'Egresos'], var_name='Tipo', value_name='Cantidad'
     )
     
-    # --- Creación del Gráfico Combinado con Doble Eje Y ---
-    
-    # A. Escala y Color para Barras (Eje Y Principal)
+    # 4. Crear Gráfico
     color_scale = alt.Scale(domain=['Ingresos', 'Egresos'], range=['#28a745', '#dc3545'])
 
-    # B. Gráfico de Barras (Ingresos/Egresos - Eje Y Izquierdo)
     bars = alt.Chart(df_bars).mark_bar(opacity=0.8, size=15).encode(
-        # Eje X con orden definido y etiquetas rotadas
         x=alt.X('Periodo:N', sort=period_order, title='Período (Mes/Año)', axis=alt.Axis(labelAngle=-45)),
-        # xOffset para agrupar (barras lado a lado)
         xOffset=alt.XOffset('Tipo:N', title=''),
-        # Eje Y Principal para la Cantidad
-        y=alt.Y('Cantidad:Q', title='Cantidad (Ingresos/Egresos)', axis=alt.Axis(titleColor='#333333')),
+        y=alt.Y('Cantidad:Q', title='Cantidad', axis=alt.Axis(titleColor='#333333')),
         color=alt.Color('Tipo:N', scale=color_scale, legend=alt.Legend(title="Eventos")),
         tooltip=['Periodo', 'Tipo', 'Cantidad']
     )
     
-    # C. Gráfico de Línea (Dotación Acumulada - Eje Y Izquierdo)
-    # Se superpone con las barras, usando el mismo eje Y pero con distinto color para distinguirlo.
     dotacion_line = alt.Chart(df_pivot).mark_line(point=True, strokeWidth=3, opacity=0.8).encode(
         x=alt.X('Periodo:N', sort=period_order),
-        y=alt.Y('Dotación Acumulada:Q', title='Dotación Acumulada (Cambio Neto)', axis=alt.Axis(titleColor='#1e8449', titlePadding=35)),
-        color=alt.value('#1e8449'), # Verde Oscuro para Dotación Acumulada
-        tooltip=[
-            alt.Tooltip('Periodo:N'),
-            alt.Tooltip('Ingresos:Q'),
-            alt.Tooltip('Egresos:Q'),
-            alt.Tooltip('Variación Neta:Q', title='Var. Neta'),
-            alt.Tooltip('Dotación Acumulada:Q', title='Dot. Acum.')
-        ]
+        y=alt.Y('Dotación Acumulada:Q', title='Dot. Acumulada', axis=alt.Axis(titleColor='#1e8449', titlePadding=35)),
+        color=alt.value('#1e8449'),
+        tooltip=[alt.Tooltip('Periodo:N'), alt.Tooltip('Dotación Acumulada:Q', title='Dot. Acum.')]
     )
     
-    # D. Gráfico de Línea (Variación Neta - Eje Y Derecho)
-    # Este se dibuja usando el eje Y secundario.
     net_variation_line = alt.Chart(df_pivot).mark_line(point=True, strokeWidth=3, color='#007bff').encode(
         x=alt.X('Periodo:N', sort=period_order),
-        y=alt.Y('Variación Neta:Q', title='Variación Neta (Ingresos - Egresos)', axis=alt.Axis(titleColor='#007bff')),
-        tooltip=[
-            alt.Tooltip('Periodo:N'),
-            alt.Tooltip('Ingresos:Q'),
-            alt.Tooltip('Egresos:Q'),
-            alt.Tooltip('Variación Neta:Q', title='Var. Neta')
-        ]
+        y=alt.Y('Variación Neta:Q', title='Var. Neta', axis=alt.Axis(titleColor='#007bff')),
+        tooltip=[alt.Tooltip('Variación Neta:Q', title='Var. Neta')]
     )
 
-    # E. Combinar y resolver ejes
-    # Layer 1: Barras + Línea de Dotación Acumulada (Comparten el Eje Y Izquierdo)
-    left_axis_chart = alt.layer(bars, dotacion_line).properties(title="Análisis de Dinámica Mensual de Personal")
-    
-    # Layer 2: Agregar la Línea de Variación Neta (Usa el Eje Y Derecho)
-    # resolve_scale(y='independent') es clave para tener dos ejes Y.
+    left_axis_chart = alt.layer(bars, dotacion_line)
     final_chart = alt.layer(left_axis_chart, net_variation_line).resolve_scale(
-        y='independent' 
+        y='independent'
     ).resolve_axis(
         x='shared'
-    ).properties(height=450)
+    ).properties(height=400) # Altura ajustada para inline
+
+    # 5. LAYOUT INLINE (Gráfico izquierda, Tabla derecha)
+    # Usamos st.columns para ponerlos uno al lado del otro
+    col_main_chart, col_main_table = st.columns([2, 1], gap="large")
+
+    with col_main_chart:
+        st.markdown("##### Evolución Gráfica")
+        st.altair_chart(final_chart, use_container_width=True)
+        st.info("ℹ️ **Verde**: Ingresos, **Rojo**: Egresos, **Línea Verde Oscuro**: Dotación Acumulada.")
+
+    with col_main_table:
+        st.markdown("##### Resumen Numérico")
+        summary = df_pivot[['Periodo', 'Ingresos', 'Egresos', 'Variación Neta', 'Dotación Acumulada']]
+        total_row = pd.DataFrame([['**TOTAL**', summary['Ingresos'].sum(), summary['Egresos'].sum(), summary['Variación Neta'].sum(), summary['Dotación Acumulada'].iloc[-1] if not summary.empty else 0]], 
+                                columns=['Periodo', 'Ingresos', 'Egresos', 'Variación Neta', 'Dotación Acumulada'])
+        summary_display = pd.concat([summary, total_row], ignore_index=True)
+        st.dataframe(summary_display, use_container_width=True, hide_index=True, height=400)
+        create_download_buttons(summary, "resumen_ingresos_vs_egresos", "combined_summary")
 
 
-    st.altair_chart(final_chart, use_container_width=True)
-    st.info("ℹ️ **Dotación Acumulada (Línea Verde)**: Muestra la variación neta acumulada de personal (Ingresos - Egresos) desde el primer período registrado en el filtro.")
-
-    # 5. Tabla de Resumen
-    summary = df_pivot[['Periodo', 'Ingresos', 'Egresos', 'Variación Neta', 'Dotación Acumulada']]
-    
-    # Fila de totales
-    total_row = pd.DataFrame([['**TOTAL**', summary['Ingresos'].sum(), summary['Egresos'].sum(), summary['Variación Neta'].sum(), summary['Dotación Acumulada'].iloc[-1] if not summary.empty else 0]], 
-                             columns=['Periodo', 'Ingresos', 'Egresos', 'Variación Neta', 'Dotación Acumulada'])
-    summary_display = pd.concat([summary, total_row], ignore_index=True)
-
-    st.markdown("---")
-    st.markdown("##### Tabla de Resumen Mensual (Ingresos vs Egresos)")
-    st.dataframe(summary_display, use_container_width=True, hide_index=True)
-    
-    create_download_buttons(summary, "resumen_ingresos_vs_egresos", "combined_summary")
-
-
-# --- FUNCIÓN ORIGINAL (SIMPLIFICADA) ---
 def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
-    # Esta función ahora solo muestra la tabla y el gráfico de variación
-    
     st.markdown("---")
-    st.subheader(title)
+    st.markdown(f"### {title}")
     if df.empty:
         st.warning(f"No hay datos de {title.lower()} para mostrar con los filtros actuales.")
         return
@@ -347,7 +369,6 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
 
     col_chart, col_table = st.columns([1.5, 1])
 
-    # Gráfico de barras (Total por Año/Mes - sin apilar)
     with col_chart:
         st.markdown("##### Tendencia por Año y Mes")
         base = alt.Chart(df_plot).mark_bar().encode(
@@ -363,8 +384,7 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
         )
         st.altair_chart((base + text).properties(height=350), use_container_width=True)
 
-        st.markdown("---")
-        st.subheader("Gráfico: Variación mensual (Total por Mes)")
+        st.markdown("##### Variación Mensual (Absoluta y %)")
         totals = df_plot.groupby(month_col).size().reindex(all_months_list, fill_value=0).rename('Total').reset_index().rename(columns={'index': month_col})
         totals[month_col] = totals[month_col].fillna('')
         totals['month_num'] = totals[month_col].map(month_order_map)
@@ -374,7 +394,7 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
 
         line = alt.Chart(totals).mark_line(point=True).encode(
             x=alt.X(f'{month_col}:N', sort=all_months_list, title='Mes'),
-            y=alt.Y('Delta:Q', title='Cambio absoluto (nuevos - prev)'),
+            y=alt.Y('Delta:Q', title='Cambio absoluto'),
             tooltip=[f'{month_col}:N', 'Total:Q', 'Delta:Q', alt.Tooltip('PctChange:Q', format='.2f')]
         )
         text_var = alt.Chart(totals).mark_text(dy=-10, fontSize=11).encode(
@@ -386,16 +406,15 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
 
 
     with col_table:
-        st.markdown("##### Tabla de Resumen Detallado")
+        st.markdown("##### Detalle Mensual")
         rel_cols = ['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'Pasantes universitarios (Pasante)']
         table_data = pd.pivot_table(df_plot, index=[year_col, month_col], columns='Relación', aggfunc='size', fill_value=0)
         for col in rel_cols:
             if col not in table_data.columns: table_data[col] = 0
         table_data = table_data.reset_index()
         table_data.rename(columns={year_col: 'Año', month_col: 'Mes'}, inplace=True)
-        # Asegurarse que 'Año' es numérico antes de convertir a int
         table_data['Año'] = pd.to_numeric(table_data['Año'], errors='coerce')
-        table_data = table_data.dropna(subset=['Año']) # Eliminar filas donde Año no sea numérico
+        table_data = table_data.dropna(subset=['Año']) 
         table_data['Año'] = table_data['Año'].astype(int)
         
         table_data['month_num'] = table_data['Mes'].map(month_order_map)
@@ -407,21 +426,19 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
         total_row = pd.DataFrame([total_row_data])
         display_df = pd.concat([table_data, total_row], ignore_index=True)
         st.dataframe(display_df, hide_index=True, use_container_width=True)
-        # BOTONES DE DESCARGA
+        
         file_event_type = "ingresos" if "Ingreso" in month_col else "egresos"
         create_download_buttons(display_df, f"detalle_mensual_{file_event_type}", f"monthly_detail_{file_event_type}")
 
-        st.markdown("---")
-        st.subheader("Tabla: Totales y variaciones mensuales")
+        st.markdown("##### Tabla Variaciones")
         totals_display = totals.copy()
         totals_display['PctChange'] = totals_display['PctChange'].round(2)
         st.dataframe(totals_display.reset_index(drop=True), use_container_width=True, hide_index=True)
-        # BOTONES DE DESCARGA
         create_download_buttons(totals_display, f"variacion_mensual_{file_event_type}", f"monthly_variation_{file_event_type}")
 
 
 # --- INICIO DE LA APLICACIÓN ---
-st.title('🏢 Planta de Cargos 2025 -Ingresos & Egresos-')
+st.title('🏢 Planta de Cargos 2025 - Analytics')
 uploaded_file = st.file_uploader("Cargue aquí su archivo de personal", type=["xlsx", "csv"])
 
 if uploaded_file:
@@ -455,7 +472,7 @@ if uploaded_file:
                 df_contexto = df_original[(df_original['F. de Ingreso'] <= fecha_referencia) & ((df_original['F. de Egreso'].isnull()) | (df_original['F. de Egreso'] > fecha_referencia))]
             else:
                 df_contexto = pd.DataFrame()
-                fecha_referencia = datetime.now() # Fallback por si no hay fechas de ingreso
+                fecha_referencia = datetime.now()
 
             filter_keys = ['Gerencia', 'Distrito', 'Función', 'Nivel', 'Sexo', 'Ministerio', 'Relación']
             session_key = 'selections_dotacion'
@@ -476,22 +493,24 @@ if uploaded_file:
             
             if selections != selections_before: st.rerun()
             
-            st.header(f"Dotación a {fecha_referencia.strftime('%B de %Y')}")
+            st.markdown(f"## Dotación a {fecha_referencia.strftime('%B de %Y')}")
             
             if df_filtered_for_options.empty:
                 st.warning("No se encontraron datos para los filtros seleccionados.")
             else:
                 resumen = df_filtered_for_options.groupby('Relación').size().reset_index(name='Cantidad')
-                col1, col2 = st.columns([0.8, 1.2])
-                with col1:
-                    st.subheader("Dotación Activa por Relación")
-                    st.dataframe(resumen, use_container_width=True, hide_index=True)
-                    # BOTONES DE DESCARGA
-                    create_download_buttons(resumen, "resumen_dotacion_relacion", "dot_relacion_summary")
+                
+                # --- TARJETA DE METRICA PERSONALIZADA ---
+                col_metric, col_pie = st.columns([1, 2])
+                with col_metric:
+                    display_custom_metric("Total Dotación", int(df_filtered_for_options.shape[0]), "card-blue", "👥")
                     
-                    st.metric("Total Dotación Activa (Según Filtros)", int(df_filtered_for_options.shape[0]))
-                with col2:
-                    st.subheader("Distribución por Relación")
+                    st.markdown("##### Dotación Activa por Relación")
+                    st.dataframe(resumen, use_container_width=True, hide_index=True)
+                    create_download_buttons(resumen, "resumen_dotacion_relacion", "dot_relacion_summary")
+
+                with col_pie:
+                    st.markdown("##### Distribución por Relación")
                     resumen['Porcentaje'] = (resumen['Cantidad'] / resumen['Cantidad'].sum() * 100).round(1)
                     resumen['Etiqueta'] = resumen.apply(lambda row: f"{row['Cantidad']} ({row['Porcentaje']}%)", axis=1)
                     colores = ['#1f77b4', '#ff7f0e', '#2ca02c']
@@ -506,23 +525,23 @@ if uploaded_file:
                     )
                     fig.update_layout(
                         showlegend=True, legend_title_text='Relación',
-                        legend=dict(orientation='h', yanchor='bottom', y=-0.25, xanchor='center', x=0.5),
-                        margin=dict(t=80, b=80, l=50, r=50)
+                        legend=dict(orientation='h', yanchor='bottom', y=-0.2, xanchor='center', x=0.5),
+                        margin=dict(t=40, b=80, l=50, r=50)
                     )
                     st.plotly_chart(fig, use_container_width=True)
                     
                 breakdown_columns = {'Gerencia': 'Composición por Gerencia', 'Nivel': 'Composición por Nivel', 'Ministerio': 'Composición por Ministerio', 'Función': 'Composición por Función', 'Distrito': 'Composición por Distrito', 'Sexo': 'Composición por Sexo'}
                 st.markdown("---")
-                st.subheader("Seleccionar Vistas de Composición")
+                st.markdown("### Seleccionar Vistas de Composición")
                 st.info("ℹ️ Para comenzar, seleccione una o más vistas de composición en el menú de abajo para generar los gráficos.")
                 selected_breakdowns = st.multiselect("Elija las aperturas que desea visualizar:", options=list(breakdown_columns.keys()))
                 selected_gerencias = selections.get('Gerencia', [])
                 if selected_breakdowns:
                     for breakdown_key in selected_breakdowns:
                         create_dotacion_breakdown(df_filtered_for_options, breakdown_key, breakdown_columns[breakdown_key], selected_gerencias)
+                
                 with st.expander("Ver detalle completo de la dotación filtrada"):
                     st.dataframe(df_filtered_for_options)
-                    # BOTONES DE DESCARGA
                     create_download_buttons(df_filtered_for_options, "detalle_dotacion_completa", "dot_full_detail")
 
         # --- INICIO: LÓGICA DE 'Ingresos y Egresos' ---
@@ -534,7 +553,7 @@ if uploaded_file:
             if st.sidebar.button("🔄 Resetear Filtros", key='reset_eventos'):
                 initial_selections = {}
                 all_years = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-                initial_selections['Año'] = all_years if all_years else [] # FIX 1: Seleccionar todos los años
+                initial_selections['Año'] = all_years if all_years else [] 
                 initial_selections['Mes'] = all_months
                 for key in sidebar_filters: initial_selections[key] = get_sorted_unique_options(df_original, key)
                 st.session_state[session_key] = initial_selections
@@ -543,7 +562,7 @@ if uploaded_file:
             if session_key not in st.session_state:
                 selections = {}
                 all_years = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-                selections['Año'] = all_years if all_years else [] # FIX 1: Seleccionar todos los años
+                selections['Año'] = all_years if all_years else [] 
                 selections['Mes'] = all_months
                 for key in sidebar_filters: selections[key] = get_sorted_unique_options(df_original, key)
                 st.session_state[session_key] = selections
@@ -551,35 +570,30 @@ if uploaded_file:
             selections = st.session_state[session_key]
             selections_before = selections.copy()
             
-            # --- INICIO DE LA CORRECCIÓN (FIX 2: Desacoplar filtros) ---
             st.header("Dinámica de Personal (Ingresos y Egresos)")
-            col_año, col_mes = st.columns(2)
-
-            # Obtener TODAS las opciones de filtros siempre desde df_original
-            options_año = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
-            options_mes = [m for m in all_months if m in set(get_sorted_unique_options(df_original, 'Mes Ingreso')) | set(get_sorted_unique_options(df_original, 'Mes Egreso'))]
-
-            # Dibujar filtros de Año y Mes (main page)
-            default_año = [s for s in selections.get('Año', []) if s in options_año]
-            selections['Año'] = col_año.multiselect("Filtrar por Año:", options_año, default=default_año)
             
-            default_mes = [s for s in selections.get('Mes', []) if s in options_mes]
-            selections['Mes'] = col_mes.multiselect("Filtrar por Mes:", options_mes, default=default_mes)
+            # Filtros principales en contenedor más limpio
+            with st.container():
+                col_año, col_mes = st.columns(2)
+                options_año = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
+                options_mes = [m for m in all_months if m in set(get_sorted_unique_options(df_original, 'Mes Ingreso')) | set(get_sorted_unique_options(df_original, 'Mes Egreso'))]
+
+                default_año = [s for s in selections.get('Año', []) if s in options_año]
+                selections['Año'] = col_año.multiselect("Filtrar por Año:", options_año, default=default_año)
+                
+                default_mes = [s for s in selections.get('Mes', []) if s in options_mes]
+                selections['Mes'] = col_mes.multiselect("Filtrar por Mes:", options_mes, default=default_mes)
             
-            # Dibujar filtros del Sidebar
             for f_key in sidebar_filters:
                 options = get_sorted_unique_options(df_original, f_key)
                 if f_key == 'Relación': 
                     options = [opt for opt in options if opt != 'No especificado']
-                
                 default = [s for s in selections.get(f_key, []) if s in options]
                 selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"evt_{f_key}")
             
             if selections != selections_before: 
                 st.rerun()
-            # --- FIN DE LA CORRECCIÓN (FIX 2) ---
 
-            # Aplicar filtros
             df_filtered = df_original.copy()
             for key, values in selections.items():
                 if values and key not in ['Año', 'Mes']: 
@@ -593,10 +607,12 @@ if uploaded_file:
             if selections.get('Año'): df_egresos = df_egresos[df_egresos['Año Egreso'].isin(selections['Año'])]
             if selections.get('Mes'): df_egresos = df_egresos[df_egresos['Mes Egreso'].isin(selections['Mes'])]
             
-            # Mostrar métricas
+            # --- TARJETAS DE MÉTRICAS MEJORADAS CON CSS ---
             col_ing_m, col_eg_m = st.columns(2)
-            col_ing_m.metric("✅ Ingresos (Según Filtros)", len(df_ingresos))
-            col_eg_m.metric("❌ Egresos (Según Filtros)", len(df_egresos))
+            with col_ing_m:
+                display_custom_metric("Ingresos", len(df_ingresos), "card-green", "✅")
+            with col_eg_m:
+                display_custom_metric("Egresos", len(df_egresos), "card-red", "❌")
 
             st.markdown("---")
             st.subheader("Seleccionar Vistas de Análisis de Eventos")
@@ -607,14 +623,11 @@ if uploaded_file:
             if selected_event_breakdowns:
                 for breakdown_key in selected_event_breakdowns:
                     st.markdown("---")
-                    st.header(event_breakdowns[breakdown_key])
                     if breakdown_key == 'Mes/Año':
-                        # LLAMADA AL NUEVO GRÁFICO COMBINADO
+                        # ESTA FUNCIÓN AHORA MUESTRA GRÁFICO Y TABLA INLINE
                         create_combined_event_view(df_ingresos, df_egresos, all_months)
                         
-                        # LLAMADAS A LOS GRÁFICOS INDIVIDUALES (ahora solo muestran tendencia y tablas detalladas)
                         create_monthly_event_view(df_ingresos, 'Mes Ingreso', 'Año Ingreso', "Tendencia y Variación de Ingresos", all_months)
-                        st.markdown("---")
                         create_monthly_event_view(df_egresos, 'Mes Egreso', 'Año Egreso', "Tendencia y Variación de Egresos", all_months)
                     elif breakdown_key == 'Motivo de Egreso':
                         if df_egresos.empty:
@@ -629,11 +642,9 @@ if uploaded_file:
             st.markdown("---")
             with st.expander("Ver detalle de Ingresos"):
                 st.dataframe(df_ingresos)
-                # BOTONES DE DESCARGA
                 create_download_buttons(df_ingresos, "detalle_ingresos", "ingresos_full_detail")
             with st.expander("Ver detalle de Egresos"):
                 st.dataframe(df_egresos)
-                # BOTONES DE DESCARGA
                 create_download_buttons(df_egresos, "detalle_egresos", "egresos_full_detail")
 else:
     st.info("Esperando a que se cargue un archivo Excel...")
