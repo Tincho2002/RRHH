@@ -237,7 +237,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------
-# --- PANTALLA DE CARGA (HTML) ---
+# --- HTML: PANTALLA DE CARGA ---
 # -----------------------------------------------------------------------
 st.html("""
 <div id="splash-screen">
@@ -252,7 +252,6 @@ st.html("""
             splash.appendChild(droplet);
         }
     </script>
-    
     <img id="splash-logo" src="https://cdn.jsdelivr.net/gh/Tincho2002/RRHH@main/assets/logo_assa.jpg" width="500">
     <h1 id="splash-title" style="margin-top:20px;">Portal de Análisis de RRHH</h1>
 </div>
@@ -262,12 +261,11 @@ st.html("""
 # --- CONTENIDO PRINCIPAL ---
 # -----------------------------------------------------------------------
 
-# Envolvemos todo en un div 'main-content' para aplicar la animación de entrada
+# Envolvemos contenido en div para animación de entrada
 st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
-# --- CABECERA ---
+# Header
 logo_url = "https://cdn.jsdelivr.net/gh/Tincho2002/RRHH@main/assets/logo_assa.jpg"
-
 st.markdown(f"""
 <div class="header-container">
     <img src="{logo_url}" class="header-logo logo-left">
@@ -282,7 +280,7 @@ st.markdown(f"""
 
 st.markdown("---")
 
-# --- TEXTO INTRODUCTORIO ---
+# Texto Intro
 st.markdown(
     """
     <div style="text-align: center; margin-bottom: 40px;">
@@ -294,68 +292,53 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- NUEVAS TARJETAS NAVEGABLES (HTML CORREGIDO) ---
-# Usamos la estructura 'cards-grid' y 'nav-card' definidas en el CSS de arriba.
+# --- TARJETAS (HTML) ---
+# DEFINICIÓN DEL HTML EN UNA VARIABLE
 cards_html = """
 <div class="cards-grid">
-    
-    <!-- 1. Dotación -->
+    <!-- Dotación -->
     <a href="Dotacion" target="_self" class="nav-card card-cyan">
         <div class="card-icon">👥</div>
         <div class="card-title">Dotación</div>
-        <div class="card-desc">
-            Consulta la estructura y distribución geográfica y por gerencia de personal.
-        </div>
-        <div class="go-btn">📎</div>
+        <div class="card-desc">Consulta la estructura y distribución geográfica y por gerencia de personal.</div>
+        <div class="go-btn">➜</div>
     </a>
-
-    <!-- 2. Horas Extras -->
+    <!-- Horas Extras -->
     <a href="Horas_Extras" target="_self" class="nav-card card-indigo">
         <div class="card-icon">⏰</div>
         <div class="card-title">Horas Extras</div>
-        <div class="card-desc">
-            Analiza el impacto de horas adicionales al 50% y al 100%.
-        </div>
-        <div class="go-btn">📎</div>
+        <div class="card-desc">Analiza el impacto de horas adicionales al 50% y al 100%.</div>
+        <div class="go-btn">➜</div>
     </a>
-
-    <!-- 3. Masa Salarial -->
+    <!-- Masa Salarial -->
     <a href="Masa_Salarial" target="_self" class="nav-card card-violet">
         <div class="card-icon">💸</div>
         <div class="card-title">Masa Salarial</div>
-        <div class="card-desc">
-            Visualiza la composición, evolución y proyecciones de costos salariales.
-        </div>
-        <div class="go-btn">📎</div>
+        <div class="card-desc">Visualiza la composición, evolución y proyecciones de costos salariales.</div>
+        <div class="go-btn">➜</div>
     </a>
-
-    <!-- 4. Planta de Cargos -->
+    <!-- Planta de Cargos -->
     <a href="Planta_de_Cargos" target="_self" class="nav-card card-slate">
         <div class="card-icon">📊</div>
         <div class="card-title">Planta de Cargos</div>
-        <div class="card-desc">
-            Analiza la dinámica de ingresos y egresos, y la composición detallada.
-        </div>
-        <div class="go-btn">📎</div>
+        <div class="card-desc">Analiza la dinámica de ingresos y egresos, y la composición detallada.</div>
+        <div class="go-btn">➜</div>
     </a>
-
-    <!-- 5. Indicadores de Eficiencia -->
+    <!-- Indicadores -->
     <a href="Indicadores_de_Eficiencia" target="_self" class="nav-card card-blue">
         <div class="card-icon">🎯</div>
         <div class="card-title">Indicadores de Eficiencia</div>
-        <div class="card-desc">
-            Mide el rendimiento y la productividad a través de KPIs clave.
-        </div>
-        <div class="go-btn">📎</div>
+        <div class="card-desc">Mide el rendimiento y la productividad a través de KPIs clave.</div>
+        <div class="go-btn">➜</div>
     </a>
-
 </div>
 """
 
-st.markdown(cards_html, unsafe_allow_html=True)
+# --- AQUÍ ESTÁ LA CORRECCIÓN: USAR st.html PARA RENDERIZAR HTML PURO ---
+st.html(cards_html)
+# -----------------------------------------------------------------------
 
 st.markdown("---")
-st.markdown('</div>', unsafe_allow_html=True) # Cierre del main-content
+st.markdown('</div>', unsafe_allow_html=True) # Cierre main-content
 
-# Mensaje lateral
 st.sidebar.success("Selecciona una aplicación arriba.")
