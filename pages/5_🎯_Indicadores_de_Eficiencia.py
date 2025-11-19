@@ -1,5 +1,5 @@
 # ===============================================================
-# Visualizador de Eficiencia - V Estética (Tarjetas con Gradiente)
+# Visualizador de Eficiencia - V Estética (Azules/Violetas & Compacto)
 # ===============================================================
 
 import streamlit as st
@@ -601,7 +601,7 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
 def show_kpi_cards(df, var_list):
     """
     Calcula y muestra las tarjetas KPI para 2024 vs 2025 usando HTML/CSS
-    con gradientes estéticos.
+    con gradientes estéticos (Azules y Violetas) y tamaño compacto.
     """
     # 1. Calcular totales
     if df.empty or 'Año' not in df.columns:
@@ -641,8 +641,8 @@ def show_kpi_cards(df, var_list):
         'ds_Total_Guardias': 'Días Total Guardias',
     }
 
-    # Lista de clases de color para asignar cíclicamente
-    color_classes = ['card-blue', 'card-orange', 'card-green', 'card-red', 'card-purple']
+    # Lista de clases de color para asignar cíclicamente (Gama Azules/Violetas)
+    color_classes = ['card-blue', 'card-azure', 'card-violet', 'card-purple', 'card-indigo']
 
     # 3. Iterar y crear métricas
     col_index = 0
@@ -686,12 +686,8 @@ def show_kpi_cards(df, var_list):
         # Estilos del delta
         delta_icon = "↑" if delta_abs >= 0 else "↓"
         
-        # En estas tarjetas con gradiente, usamos blanco para el texto, pero colores sutiles para el delta
-        # o simplemente flechas.
-        # Para mantener legibilidad sobre fondos de colores variados, usaremos blanco con opacidad
-        # o colores brillantes.
-        
-        delta_color_style = "color: #bef264;" if delta_abs >= 0 else "color: #fecaca;" # Verde claro / Rojo claro para contraste en fondo oscuro
+        # Para fondos oscuros/azules, usamos colores claros y brillantes para el delta
+        delta_color_style = "color: #86efac;" if delta_abs >= 0 else "color: #fca5a5;" # Verde Pastel / Rojo Pastel
         delta_str_html = f"<span style='{delta_color_style} font-weight: bold;'>{delta_icon} {delta_abs_fmt} ({delta_pct_fmt})</span>"
 
         current_col = cols[col_index % 5]
@@ -700,12 +696,12 @@ def show_kpi_cards(df, var_list):
         # Asignar color cíclico
         color_class = color_classes[col_index % len(color_classes)]
 
-        # HTML de la tarjeta
+        # HTML de la tarjeta (Estructura ajustada para Flexbox)
         html_card = f"""
         <div class="metric-card {color_class}">
             <div class="metric-label">{label}</div>
             <div class="metric-value">{value_fmt}</div>
-            <div style="font-size: 0.9rem; margin-top: 8px;">
+            <div class="metric-delta">
                 {delta_str_html}
             </div>
         </div>
@@ -759,60 +755,90 @@ def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_d
 
 st.title("Visualizador de Eficiencia")
 
-# --- CSS PARA ESTILOS DE TARJETAS (MODIFICADO CON GRADIENTES) ---
+# --- CSS PARA ESTILOS DE TARJETAS (MODIFICADO CON GRADIENTES AZULES/VIOLETAS Y TAMAÑO COMPACTO) ---
 CSS_STYLE = """
 <style>
-    /* Estilo base para la tarjeta */
+    /* Estilo base para la tarjeta (Más compacto y con Flexbox) */
     .metric-card {
-        border-radius: 15px;
-        padding: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-radius: 12px; /* Bordes un poco menos redondeados para compactar */
+        padding: 12px 8px;   /* Padding reducido drásticamente */
+        box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
         color: white;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: none;
+        
+        /* Flexbox para centrar y ajustar contenido */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
         text-align: center;
-        margin-bottom: 20px;
-        border: none; /* Quitar borde sólido anterior */
+        
+        min-height: 110px; /* Altura mínima reducida */
+        height: 100%;     /* Ocupar todo el alto disponible de la columna */
     }
+
     .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        transform: translateY(-3px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
     }
     
-    /* Tipografía */
+    /* Tipografía ajustada */
     .metric-value {
-        font-size: 1.8rem; /* Ajustado para que quepan bien */
-        font-weight: bold;
-        margin: 10px 0;
+        font-size: 1.4rem; /* Fuente más pequeña */
+        font-weight: 700;
+        margin: 4px 0;    /* Margen reducido */
+        line-height: 1.2;
     }
+    
     .metric-label {
-        font-size: 1rem;
-        opacity: 0.95;
+        font-size: 0.85rem; /* Etiqueta más pequeña */
+        opacity: 0.9;
         text-transform: uppercase;
         letter-spacing: 0.5px;
         font-weight: 600;
+        margin-bottom: 4px;
+        line-height: 1.1;
+    }
+
+    .metric-delta {
+        font-size: 0.75rem; /* Delta más pequeño */
+        margin-top: 4px;
     }
     
-    /* Variaciones de color (Gradientes) */
+    /* Nuevas Variaciones de color (Gama Azules, Celestes y Violáceos) */
+    
+    /* Azul Profundo */
     .card-blue { 
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); 
     }
-    .card-green { 
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); 
+    /* Celeste / Azure */
+    .card-azure { 
+        background: linear-gradient(135deg, #2193b0 0%, #6dd5fa 100%); 
     }
-    .card-orange { 
-        background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%); 
+    /* Violeta Intenso */
+    .card-violet { 
+        background: linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%); 
     }
-    .card-red { 
-        background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); 
-    }
+    /* Púrpura Suave */
     .card-purple { 
-        background: linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%); 
+        background: linear-gradient(135deg, #834d9b 0%, #d04ed6 100%); 
+    }
+    /* Índigo */
+    .card-indigo { 
+        background: linear-gradient(135deg, #3a1c71 0%, #d76d77 100%, #ffaf7b 100%); /* Gradiente sutil */
+        background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
     }
 
     /* Ajustes generales de Streamlit */
     div.stButton > button {
         width: 100%;
         border-radius: 8px;
+    }
+    
+    /* Ajuste para contenedores de columnas para que las tarjetas se vean uniformes */
+    [data-testid="column"] {
+        padding: 0 0.2rem;
     }
 </style>
 """
@@ -1225,7 +1251,7 @@ with tab2:
             df_var_anio_qty = df_var_anio_qty_raw.copy()
         # --- FIN MODIFICACIÓN ---
 
-        fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Mensual (%)")
+        fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Interanual (%)")
         st.plotly_chart(fig_var_anio_qty, use_container_width=True, key="var_anio_qty")
         show_table(df_var_anio_qty, "Cantidades_Var_Interanual", is_percentage=is_pct_anio_qty)
     elif not selected_qty_vars:
