@@ -822,8 +822,10 @@ if uploaded_file is not None:
                     meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
                     month_name_map = f"{meses_espanol.get(month_dt_map.month, '')} {month_dt_map.year}"
 
-                # 8. Calcular deltas
-                delta_costo_str, delta_cantidad_str, delta_ubicaciones_str = None, None, None
+                # 8. Calcular deltas y colores
+                delta_costo_str, delta_cantidad_str, delta_ubicaciones_str = "", "", ""
+                delta_costo_color, delta_cantidad_color = "text-grey", "text-grey"
+
                 if previous_month_str:
                     if total_costo_prev > 0: delta_costo = ((total_costo_mapa - total_costo_prev) / total_costo_prev) * 100
                     else: delta_costo = 100.0 if total_costo_mapa > 0 else 0.0
@@ -833,16 +835,133 @@ if uploaded_file is not None:
 
                     delta_ubicaciones = ubicaciones_unicas - ubicaciones_unicas_prev
                     
-                    delta_costo_str = f"{delta_costo:.1f}%"
-                    delta_cantidad_str = f"{delta_cantidad:.1f}%"
-                    delta_ubicaciones_str = f"{delta_ubicaciones:+.0f}" 
+                    delta_costo_str = f"{'▲' if delta_costo >= 0 else '▼'} {delta_costo:.1f}%"
+                    delta_cantidad_str = f"{'▲' if delta_cantidad >= 0 else '▼'} {delta_cantidad:.1f}%"
+                    delta_ubicaciones_str = f"{delta_ubicaciones:+.0f}"
+
+                    delta_costo_color = "text-green" if delta_costo >= 0 else "text-red"
+                    delta_cantidad_color = "text-green" if delta_cantidad >= 0 else "text-red"
                 
-                st.subheader(f"Resumen para el período: {month_name_map}")
-                st.markdown("<br>", unsafe_allow_html=True)
-                kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
-                kpi_col1.metric("💰 Costo Total (Período)", format_currency_es(total_costo_mapa), delta=delta_costo_str)
-                kpi_col2.metric("⏱️ Cantidad Total (Período)", f"{format_number_es(total_cantidad_mapa, 2)} hs", delta=delta_cantidad_str)
-                kpi_col3.metric("📍 Ubicaciones Activas", format_number_es(ubicaciones_unicas, 0), delta=delta_ubicaciones_str, delta_color="normal")
+                # --- NUEVA SECCIÓN DE TARJETAS ESTÉTICAS PARA MAPA ---
+                card_html_map = f"""
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
+                    .map-kpi-container {{
+                        font-family: 'Source Sans Pro', sans-serif;
+                        background-color: #ffffff;
+                        border-radius: 16px;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+                        padding: 25px;
+                        border: 1px solid #f0f0f0;
+                        margin-bottom: 20px;
+                    }}
+                    .map-kpi-header {{
+                        text-align: center;
+                        margin-bottom: 25px;
+                    }}
+                    .map-kpi-title {{
+                        background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        font-size: 1.5rem;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                    }}
+                    
+                    .map-cards-row {{
+                        display: flex;
+                        justify-content: center;
+                        gap: 20px;
+                        flex-wrap: wrap;
+                    }}
+                    
+                    .map-card {{
+                        flex: 1;
+                        min-width: 220px;
+                        background: white;
+                        border-radius: 12px;
+                        padding: 20px;
+                        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+                        border: 1px solid #e2e8f0;
+                        text-align: center;
+                        transition: transform 0.3s ease, box-shadow 0.3s ease;
+                        position: relative;
+                        overflow: hidden;
+                    }}
+                    .map-card:hover {{
+                        transform: translateY(-5px);
+                        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+                    }}
+                    
+                    /* Bordes superiores de color */
+                    .border-blue {{ border-top: 5px solid #3b82f6; }}
+                    .border-violet {{ border-top: 5px solid #8b5cf6; }}
+                    .border-cyan {{ border-top: 5px solid #06b6d4; }}
+                    
+                    .map-card-label {{
+                        font-size: 0.9rem;
+                        color: #64748b;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        margin-bottom: 10px;
+                    }}
+                    
+                    .map-card-value {{
+                        font-size: 2rem;
+                        font-weight: 700;
+                        color: #1e293b;
+                        margin-bottom: 5px;
+                    }}
+                    
+                    .map-card-delta {{
+                        font-size: 0.9rem;
+                        font-weight: 600;
+                        padding: 2px 8px;
+                        border-radius: 10px;
+                        display: inline-block;
+                    }}
+                    .text-green {{ color: #16a34a; background-color: #dcfce7; }}
+                    .text-red {{ color: #dc2626; background-color: #fee2e2; }}
+                    .text-grey {{ color: #64748b; background-color: #f1f5f9; }}
+                    .text-blue {{ color: #2563eb; background-color: #dbeafe; }}
+
+                </style>
+
+                <div class="map-kpi-container">
+                    <div class="map-kpi-header">
+                        <div class="map-kpi-title">Resumen Geográfico: {month_name_map}</div>
+                    </div>
+                    <div class="map-cards-row">
+                        <!-- Costo -->
+                        <div class="map-card border-blue">
+                            <div class="map-card-label">Costo Total</div>
+                            <div class="map-card-value" data-target="{total_costo_mapa}" data-type="currency" data-decimals="2"></div>
+                            <div class="map-card-delta {delta_costo_color}">{delta_costo_str}</div>
+                        </div>
+                        
+                        <!-- Cantidad -->
+                        <div class="map-card border-violet">
+                            <div class="map-card-label">Cantidad Total</div>
+                            <div class="map-card-value" data-target="{total_cantidad_mapa}" data-type="number" data-suffix=" hs" data-decimals="2"></div>
+                            <div class="map-card-delta {delta_cantidad_color}">{delta_cantidad_str}</div>
+                        </div>
+                        
+                        <!-- Ubicaciones -->
+                        <div class="map-card border-cyan">
+                            <div class="map-card-label">Ubicaciones Activas</div>
+                            <div class="map-card-value" data-target="{ubicaciones_unicas}" data-type="number" data-decimals="0"></div>
+                            <div class="map-card-delta text-blue">{delta_ubicaciones_str} vs. mes ant.</div>
+                        </div>
+                    </div>
+                </div>
+                <script>
+                    function animateValue(obj,start,end,duration){{let startTimestamp=null;const type=obj.getAttribute('data-type')||'number';const suffix=obj.getAttribute('data-suffix')||'';const decimals=parseInt(obj.getAttribute('data-decimals'))||0;const currencyFormatter=new Intl.NumberFormat('es-AR',{{style:'currency',currency:'ARS',minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const numberFormatter=new Intl.NumberFormat('es-AR',{{minimumFractionDigits:decimals,maximumFractionDigits:decimals}});const step=timestamp=>{{if(!startTimestamp)startTimestamp=timestamp;const progress=Math.min((timestamp-startTimestamp)/duration,1);const currentVal=progress*(end-start)+start;let formattedVal;if(type==='currency'){{formattedVal=currencyFormatter.format(currentVal).replace(/^ARS\s/,'$')}}else{{formattedVal=numberFormatter.format(currentVal)}}obj.innerHTML=formattedVal+suffix;if(progress<1){{window.requestAnimationFrame(step)}}}};window.requestAnimationFrame(step)}}
+                    const counters=document.querySelectorAll('[data-target]');
+                    counters.forEach(counter=>{{counter.innerHTML='';const target=+counter.getAttribute('data-target');setTimeout(()=>animateValue(counter,0,target,1500),100)}});
+                </script>
+                """
+                components.html(card_html_map, height=350, scrolling=False)
                 st.markdown("---")
 
                 st.subheader(f"Comparador de Mapas para el Período: {month_name_map}")
