@@ -1,5 +1,5 @@
 # ===============================================================
-# Visualizador de Eficiencia - V Corregida y Mejorada (con Tab 3 Completa)
+# Visualizador de Eficiencia - V Estética (Tarjetas con Gradiente)
 # ===============================================================
 
 import streamlit as st
@@ -193,11 +193,11 @@ def load_data(uploaded_file):
            'Período' in df_eficiencia.columns and \
            pd.api.types.is_datetime64_any_dtype(df_indicadores['Período']) and \
            pd.api.types.is_datetime64_any_dtype(df_eficiencia['Período']):
-           
+            
             try:
                 # Extraer solo 'Período' y 'Dotación' de indicadores
                 df_dotacion = df_indicadores[['Período', 'Dotación']].copy()
-                
+                 
                 # Fusionar con df_eficiencia
                 df_eficiencia = pd.merge(
                     df_eficiencia,
@@ -268,11 +268,8 @@ def format_percentage(x):
         return ""  # Devuelve un string vacío para valores nulos
     try:
         if isinstance(x, (int, float)):
-            # --- MODIFICACIÓN: Multiplicar por 100 ANTES de formatear ---
-            # El cálculo del ratio ahora es (Num/Den). Aquí se multiplica por 100 para mostrar.
-            val = float(x) * 100
             # Formato con 2 decimales, comas/puntos, y el signo %
-            formatted_num = f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            formatted_num = f"{float(x):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             return f"{formatted_num} %"
     except (ValueError, TypeError):
         pass
@@ -474,13 +471,7 @@ def calc_variation(df, columns, tipo='mensual'):
             col_prev = f"{col}_prev"
             # Hacemos la resta/división
             df_val[col] = df_merged[col] - df_merged[col_prev]
-            df_pct[col] = (df_val[col] / df_merged[col_prev])
-            
-            # --- MODIFICACIÓN: No multiplicar por 100 aquí. ---
-            # Dejar como ratio (0.1) para variaciones. 
-            # La función 'format_percentage' ahora multiplica por 100.
-            # df_pct[col] = (df_val[col] / df_merged[col_prev]) * 100 
-            
+            df_pct[col] = (df_val[col] / df_merged[col_prev]) * 100
             df_pct[col] = df_pct[col].replace([np.inf, -np.inf], np.nan)
 
         # --- FIN NUEVA LÓGICA ---
@@ -497,10 +488,7 @@ def calc_variation(df, columns, tipo='mensual'):
         for col in columns_to_process:
             shift_period = 1
             df_val[col] = df_var[col].diff(periods=shift_period)
-            
-            # --- MODIFICACIÓN: No multiplicar por 100 aquí. ---
-            df_pct[col] = (df_val[col] / df_var[col].shift(shift_period))
-            # df_pct[col] = (df_val[col] / df_var[col].shift(shift_period)) * 100
+            df_pct[col] = (df_val[col] / df_var[col].shift(shift_period)) * 100
 
     return df_val, df_pct
 
@@ -515,16 +503,7 @@ def plot_bar(df_plot, columns, yaxis_title):
             if col in df_plot.columns: # Asegurarse de que la columna Y existe
                 # --- MODIFICADO: Añadir 'Dotación' al formateo de enteros ---
                 is_int_col = col.startswith(('ds_', 'hs_')) or col in ['HE_hs', 'Guardias_ds', 'Dotación']
-                
-                # --- NUEVA LÓGICA: Detectar si el título Y es Porcentaje ---
-                is_pct_chart = "Variación Mensual (%)" in yaxis_title or "Variación Interanual (%)" in yaxis_title
-                
-                if is_pct_chart:
-                    formatter = format_percentage
-                elif is_int_col:
-                    formatter = format_number_int
-                else:
-                    formatter = format_number
+                formatter = format_number_int if is_int_col else format_number
 
                 fig.add_trace(go.Bar(
                     x=df_plot['Período_fmt'],
@@ -537,13 +516,11 @@ def plot_bar(df_plot, columns, yaxis_title):
     fig.update_traces(texttemplate='%{text}', textangle=0)
     return fig
 
-# --- MODIFICADO: show_table ahora acepta column_formats ---
-def show_table(df_table, nombre, show_totals=False, is_percentage=False, column_formats=None):
+def show_table(df_table, nombre, show_totals=False, is_percentage=False):
     """
     Muestra una tabla en Streamlit, ordenada, y agrega botones de descarga.
     Opcionalmente, añade una fila de totales.
     Acepta un flag 'is_percentage' para formatear con %.
-    NUEVO: Acepta 'column_formats' para formateo por columna.
     """
     # Usar 'Período_fmt' si 'Período' (datetime) no existe, común en tablas de variación
     sort_col = 'Período' if 'Período' in df_table.columns else 'Período_fmt'
@@ -589,40 +566,14 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False, column_
 
     df_formatted = df_display.copy()
 
-    # --- INICIO: Lógica de formateo actualizada ---
-    for col in df_formatted.columns:
-        # Saltar la columna 'Período'
-        if col == 'Período':
-            continue
-            
-        # Asegurarse de que la columna sea numérica antes de intentar formatear
-        if not pd.api.types.is_numeric_dtype(df_formatted[col]):
-            continue
-
-        # 1. Chequear 'column_formats' primero (para Tab 4)
-        if column_formats and col in column_formats:
-            format_type = column_formats[col]
-            if format_type == 'percent':
-                df_formatted[col] = df_formatted[col].apply(format_percentage)
-            elif format_type == 'currency':
-                df_formatted[col] = df_formatted[col].apply(format_number)
-            elif format_type == 'number':
-                df_formatted[col] = df_formatted[col].apply(format_number) # 2 decimales para ratios
-            elif format_type == 'integer':
-                df_formatted[col] = df_formatted[col].apply(format_number_int)
-        
-        # 2. Fallback a 'is_percentage' (para variaciones %)
-        elif is_percentage:
+    for col in df_formatted.select_dtypes(include='number').columns:
+        if is_percentage:
             df_formatted[col] = df_formatted[col].apply(format_percentage)
-            
-        # 3. Fallback a lógica original (enteros para hs/ds/dotación)
+        # MODIFICADO: Abarcar 'hs_', 'ds_' y nuevas columnas (YA INCLUYE DOTACIÓN)
         elif col.startswith(('ds_', 'hs_')) or col in ['HE_hs', 'Guardias_ds', 'Dotación']:
             df_formatted[col] = df_formatted[col].apply(format_number_int)
-            
-        # 4. Default (moneda/número 2 decimales)
         else:
             df_formatted[col] = df_formatted[col].apply(format_number)
-    # --- FIN: Lógica de formateo actualizada ---
 
     st.dataframe(df_formatted, use_container_width=True)
 
@@ -645,21 +596,18 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False, column_
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             use_container_width=True
         )
-# --- FIN: show_table modificada ---
 
-# --- FUNCIÓN PARA TARJETAS KPI (MODIFICADA) ---
+# --- FUNCIÓN PARA TARJETAS KPI (MODIFICADA CON ESTILOS) ---
 def show_kpi_cards(df, var_list):
     """
-    Calcula y muestra las tarjetas KPI para 2024 vs 2025 usando HTML/CSS.
-    Usa el DataFrame *original* (df) para ignorar los filtros de mes/año.
+    Calcula y muestra las tarjetas KPI para 2024 vs 2025 usando HTML/CSS
+    con gradientes estéticos.
     """
     # 1. Calcular totales
-    # Asegurarse de que el dataframe no esté vacío y tenga 'Año'
     if df.empty or 'Año' not in df.columns:
         st.warning("No se pueden calcular KPIs (datos base vacíos o incompletos).")
         return
 
-    # Filtrar solo las columnas var_list que SÍ existen en el df
     vars_existentes = [v for v in var_list if v in df.columns]
     if not vars_existentes:
         st.warning("Ninguna de las variables KPI especificadas existe en los datos.")
@@ -691,38 +639,33 @@ def show_kpi_cards(df, var_list):
         'ds_Guardias_3T': 'Días Guardias 3T',
         'ds_TD': 'Días TD',
         'ds_Total_Guardias': 'Días Total Guardias',
-        # 'Dotación' no está en las KPIs por defecto, pero si se añade, usaría 'Dotación'
     }
+
+    # Lista de clases de color para asignar cíclicamente
+    color_classes = ['card-blue', 'card-orange', 'card-green', 'card-red', 'card-purple']
 
     # 3. Iterar y crear métricas
     col_index = 0
-    for var in vars_existentes: # Iterar solo sobre las que existen
+    for var in vars_existentes:
         total_2024 = df_2024.get(var, 0)
         total_2025 = df_2025.get(var, 0)
 
         delta_abs = total_2025 - total_2024
 
         if total_2024 > 0 and not pd.isna(total_2024):
-            # --- MODIFICACIÓN: No multiplicar por 100 ---
-            delta_pct = (delta_abs / total_2024)
-            # delta_pct = (delta_abs / total_2024) * 100
+            delta_pct = (delta_abs / total_2024) * 100
         elif (total_2024 == 0 or pd.isna(total_2024)) and total_2025 > 0:
-            delta_pct = 1.0 # 100%
-            # delta_pct = 100.0
+            delta_pct = 100.0
         else:
-            delta_pct = 0.0 # Cubre 0 a 0
+            delta_pct = 0.0
 
-        # --- Formato con prefijo/sufijo ---
-        # --- MODIFICADO: Añadir 'Dotación' al formateo de enteros ---
+        # Formato
         is_int = var.startswith('ds_') or var.startswith('hs_') or var == 'Dotación'
         formatter_val = format_number_int if is_int else format_number
 
         val_str = formatter_val(total_2025)
-        delta_abs_str = formatter_val(abs(delta_abs)) # Usamos abs() para el color
-        
-        # --- MODIFICACIÓN: format_percentage ahora multiplica x100 ---
+        delta_abs_str = formatter_val(abs(delta_abs))
         delta_pct_fmt = format_percentage(delta_pct)
-        # delta_pct_fmt = format_percentage(delta_pct) # format_percentage ya añade el " %"
 
         if var.startswith('$K_'):
             value_fmt = f"$K {val_str}"
@@ -734,152 +677,41 @@ def show_kpi_cards(df, var_list):
             value_fmt = f"{val_str} ds"
             delta_abs_fmt = f"{delta_abs_str} ds"
         elif var == 'Dotación':
-             value_fmt = f"{val_str} pers." # Asumimos "personas"
+             value_fmt = f"{val_str} pers."
              delta_abs_fmt = f"{delta_abs_str} pers."
         else:
             value_fmt = val_str
             delta_abs_fmt = delta_abs_str
 
-        # --- Lógica de color y formato de delta ---
-        delta_class = "delta-positive" if delta_abs >= 0 else "delta-negative"
+        # Estilos del delta
         delta_icon = "↑" if delta_abs >= 0 else "↓"
-        # Usamos <br> para el salto de línea en HTML
-        delta_str_html = f"{delta_icon} {delta_abs_fmt}<br>({delta_pct_fmt})"
+        
+        # En estas tarjetas con gradiente, usamos blanco para el texto, pero colores sutiles para el delta
+        # o simplemente flechas.
+        # Para mantener legibilidad sobre fondos de colores variados, usaremos blanco con opacidad
+        # o colores brillantes.
+        
+        delta_color_style = "color: #bef264;" if delta_abs >= 0 else "color: #fecaca;" # Verde claro / Rojo claro para contraste en fondo oscuro
+        delta_str_html = f"<span style='{delta_color_style} font-weight: bold;'>{delta_icon} {delta_abs_fmt} ({delta_pct_fmt})</span>"
 
-        # Asignar a la columna correcta
         current_col = cols[col_index % 5]
-        label = label_map.get(var, var) # Usar nombre amigable
+        label = label_map.get(var, var)
+        
+        # Asignar color cíclico
+        color_class = color_classes[col_index % len(color_classes)]
 
-        # --- MODIFICACIÓN: Construir y renderizar tarjeta HTML ---
+        # HTML de la tarjeta
         html_card = f"""
-        <div class="custom-metric-card">
+        <div class="metric-card {color_class}">
             <div class="metric-label">{label}</div>
             <div class="metric-value">{value_fmt}</div>
-            <div class="custom-delta {delta_class}">
+            <div style="font-size: 0.9rem; margin-top: 8px;">
                 {delta_str_html}
             </div>
         </div>
         """
         current_col.markdown(html_card, unsafe_allow_html=True)
-        # --- FIN MODIFICACIÓN ---
-
         col_index += 1
-
-# --- NUEVA FUNCIÓN: TARJETAS ANUALES DE INDICADORES (TAB 4) ---
-def show_annual_indicator_cards(df_ind_unfiltered):
-    """
-    Calcula y muestra tarjetas de KPI anualizadas para 2024 vs 2025 (Acum.)
-    Usa el DataFrame *original* de 'masa_salarial' (sin filtrar).
-    """
-    if df_ind_unfiltered.empty or 'Año' not in df_ind_unfiltered.columns:
-        st.info("No hay datos en 'masa_salarial' para calcular indicadores anuales.")
-        return
-
-    # 1. Definir los indicadores clave (numerador, denominador, formato)
-    PREDEFINED_INDICATORS = {
-        'HExtras_$K / Msalarial_$K (%)': ('HExtras_$K', 'Msalarial_$K', 'percent'),
-        'Guardias_$K / Msalarial_$K (%)': ('Guardias_$K', 'Msalarial_$K', 'percent'),
-        'HExtras_$K / HE_hs ($)': ('HExtras_$K', 'HE_hs', 'currency'),
-        'Guardias_$K / Guardias_ds ($)': ('Guardias_$K', 'Guardias_ds', 'currency'),
-        'Msalarial_$K / Dotación ($)': ('Msalarial_$K', 'Dotación', 'currency'),
-        'HE_hs / Dotación (hs/pers)': ('HE_hs', 'Dotación', 'number'),
-        'Guardias_ds / Dotación (ds/pers)': ('Guardias_ds', 'Dotación', 'number'),
-    }
-
-    # 2. Encontrar último mes de 2025 para la etiqueta dinámica
-    df_2025_data = df_ind_unfiltered[df_ind_unfiltered['Año'] == 2025]
-    if not df_2025_data.empty and 'Período' in df_2025_data.columns:
-        last_month_2025 = df_2025_data['Período'].max()
-        label_2025 = f"2025 (Acum. a {last_month_2025.strftime('%b-%y')})"
-    else:
-        label_2025 = "2025 (Sin Datos)"
-
-    df_2024_data = df_ind_unfiltered[df_ind_unfiltered['Año'] == 2024]
-
-    st.subheader("Indicadores Anualizados (2024 vs 2025 Acum.)")
-    
-    # 3. Preparar layout (4 columnas)
-    col_layout = st.columns(4)
-    card_index = 0
-
-    # 4. Iterar y calcular
-    for key, (num_col, den_col, fmt) in PREDEFINED_INDICATORS.items():
-        
-        # Verificar que las columnas existan en el DF original
-        if not (num_col in df_ind_unfiltered.columns and den_col in df_ind_unfiltered.columns):
-            continue # Saltar este indicador si faltan datos base
-
-        # --- Cálculo 2024 ---
-        val_2024_str = "-"
-        if not df_2024_data.empty:
-            num_2024 = df_2024_data[num_col].sum()
-            
-            # Lógica especial para Dotación: usar el PROMEDIO
-            if den_col == 'Dotación':
-                den_2024 = df_2024_data[den_col].mean()
-            else:
-                den_2024 = df_2024_data[den_col].sum()
-
-            if den_2024 != 0 and not pd.isna(den_2024):
-                ratio_2024 = num_2024 / den_2024
-                # Formatear
-                if fmt == 'percent':
-                    val_2024_str = format_percentage(ratio_2024)
-                elif fmt == 'currency':
-                    val_2024_str = f"$ {format_number(ratio_2024)}" # Añadir $
-                else: # 'number'
-                    val_2024_str = format_number(ratio_2024) # 2 decimales
-            else:
-                val_2024_str = "N/A" # No hay datos o div por cero
-
-        # --- Cálculo 2025 (Acumulado) ---
-        val_2025_str = "-"
-        if not df_2025_data.empty:
-            num_2025 = df_2025_data[num_col].sum()
-            
-            # Lógica especial para Dotación: usar el PROMEDIO
-            if den_col == 'Dotación':
-                den_2025 = df_2025_data[den_col].mean()
-            else:
-                den_2025 = df_2025_data[den_col].sum()
-
-            if den_2025 != 0 and not pd.isna(den_2025):
-                ratio_2025 = num_2025 / den_2025
-                # Formatear
-                if fmt == 'percent':
-                    val_2025_str = format_percentage(ratio_2025)
-                elif fmt == 'currency':
-                    val_2025_str = f"$ {format_number(ratio_2025)}" # Añadir $
-                else: # 'number'
-                    val_2025_str = format_number(ratio_2025) # 2 decimales
-            else:
-                val_2025_str = "N/A" # No hay datos o div por cero
-
-        # --- Renderizar Tarjeta ---
-        # Extraer el nombre base del indicador (ej: 'HExtras_$K / Msalarial_$K')
-        label_base = key.split(' (')[0]
-        
-        html_card = f"""
-        <div class="custom-annual-card">
-            <div class="annual-label">{label_base}</div>
-            <div class="annual-values-grid">
-                <div class="annual-header">2024 (Anual)</div>
-                <div class="annual-header">{label_2025}</div>
-                <div class="annual-value">{val_2024_str}</div>
-                <div class="annual-value">{val_2025_str}</div>
-            </div>
-        </div>
-        """
-        
-        # Distribuir en 4 columnas
-        current_col = col_layout[card_index % 4]
-        current_col.markdown(html_card, unsafe_allow_html=True)
-        card_index += 1
-
-    # Añadir un separador antes del resto del contenido de la pestaña
-    st.markdown("---")
-# --- FIN: NUEVA FUNCIÓN ---
-
 
 # --- NUEVA FUNCIÓN DE FILTRADO (REEMPLAZA A LA JERÁRQUICA) ---
 def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_dict):
@@ -927,106 +759,61 @@ def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_d
 
 st.title("Visualizador de Eficiencia")
 
-# --- CSS PARA ESTILOS DE TARJETAS (MODIFICADO PARA CENTRAR) ---
+# --- CSS PARA ESTILOS DE TARJETAS (MODIFICADO CON GRADIENTES) ---
 CSS_STYLE = """
 <style>
-/* --- Tarjeta KPI de Delta (Tabs 1, 2) --- */
-.custom-metric-card {
-    background-color: #f0f8ff; /* Color de fondo azul claro (AliceBlue) */
-    border-radius: 10px;
-    padding: 15px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    border: 1px solid #e0e0e0;
-    /* Damos una altura mínima para alinear las tarjetas */
-    min-height: 150px;
-    /* Asegurar que el padding se respete al 100% */
-    box-sizing: border-box;
-    margin-bottom: 10px; /* Espacio por si se apilan en móvil */
+    /* Estilo base para la tarjeta */
+    .metric-card {
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        color: white;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        text-align: center;
+        margin-bottom: 20px;
+        border: none; /* Quitar borde sólido anterior */
+    }
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Tipografía */
+    .metric-value {
+        font-size: 1.8rem; /* Ajustado para que quepan bien */
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    .metric-label {
+        font-size: 1rem;
+        opacity: 0.95;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+    }
+    
+    /* Variaciones de color (Gradientes) */
+    .card-blue { 
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+    }
+    .card-green { 
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); 
+    }
+    .card-orange { 
+        background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%); 
+    }
+    .card-red { 
+        background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); 
+    }
+    .card-purple { 
+        background: linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%); 
+    }
 
-    /* --- MODIFICACIÓN: Centrar contenido --- */
-    text-align: center;
-}
-
-.custom-metric-card:hover {
-    transform: scale(1.03); /* Transición de zoom */
-    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
-}
-
-.metric-label {
-    font-size: 1rem; /* Tamaño de la etiqueta */
-    color: #333; /* Color de etiqueta */
-    margin-bottom: 5px;
-}
-.metric-value {
-    font-size: 1.5rem; /* Tamaño del valor principal */
-    font-weight: 600; /* Semi-bold */
-    color: #000; /* Color de valor */
-}
-.custom-delta {
-    font-size: 0.875rem; /* Tamaño del delta */
-    line-height: 1.3;    /* Espacio entre líneas para el <br> */
-    margin-top: 8px;   /* Ajuste para separarlo del valor */
-}
-
-.delta-positive {
-    color: #28a745; /* Verde */
-}
-.delta-negative {
-    color: #dc3545; /* Rojo */
-}
-
-/* --- NUEVO: Tarjeta de Indicador Anual (Tab 4) --- */
-.custom-annual-card {
-    background-color: #f8f9fa; /* Gris muy claro */
-    border-radius: 10px;
-    padding: 15px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    border: 1px solid #dee2e6;
-    min-height: 140px; /* Altura fija */
-    box-sizing: border-box;
-    margin-bottom: 15px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-
-.custom-annual-card:hover {
-    transform: translateY(-5px); /* Transición vertical */
-    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
-}
-
-.annual-label {
-    font-size: 0.9rem; /* Más pequeño para que entre */
-    font-weight: 600;
-    color: #007bff; /* Azul */
-    text-align: center;
-    margin-bottom: 10px;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 8px;
-    line-height: 1.3;
-}
-
-.annual-values-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px 10px;
-    text-align: center;
-}
-
-.annual-header {
-    font-size: 0.8rem;
-    color: #6c757d; /* Gris */
-    font-weight: 500;
-}
-
-.annual-value {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #343a40; /* Negro suave */
-}
-/* --- FIN NUEVO --- */
+    /* Ajustes generales de Streamlit */
+    div.stButton > button {
+        width: 100%;
+        border-radius: 8px;
+    }
 </style>
 """
 st.markdown(CSS_STYLE, unsafe_allow_html=True)
@@ -1309,7 +1096,7 @@ with tab1:
     elif not selected_k_vars:
         st.info("Seleccione al menos una variable de Costos ($K) para visualizar.")
     # else: # dff está vacío
-    #    st.info("No hay datos de Costos para los filtros seleccionados.")
+    #     st.info("No hay datos de Costos para los filtros seleccionados.")
 
 
 # ----------------- Pestaña de Cantidades -----------------
@@ -1438,13 +1225,13 @@ with tab2:
             df_var_anio_qty = df_var_anio_qty_raw.copy()
         # --- FIN MODIFICACIÓN ---
 
-        fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Interanual (%)")
+        fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Mensual (%)")
         st.plotly_chart(fig_var_anio_qty, use_container_width=True, key="var_anio_qty")
         show_table(df_var_anio_qty, "Cantidades_Var_Interanual", is_percentage=is_pct_anio_qty)
     elif not selected_qty_vars:
         st.info("Seleccione al menos una variable de Cantidad (hs / ds) para visualizar.")
     # else: # dff está vacío
-    #    st.info("No hay datos de Cantidades para los filtros seleccionados.")
+    #     st.info("No hay datos de Cantidades para los filtros seleccionados.")
 
 
 # ----------------- PESTAÑA DE RELACIONES (ANTES INDICADORES) -----------------
@@ -1692,99 +1479,63 @@ with tab3:
             else:
                 st.info("No hay datos de Relaciones de Cantidad para los filtros seleccionados.") # <-- RENOMBRADO
 
-# --- INICIO: PESTAÑA 4 MODIFICADA ---
+# --- INICIO: NUEVA PESTAÑA 4 - INDICADORES (RATIOS) ---
 with tab4:
     st.subheader("Cálculo de Indicadores (Hoja: masa_salarial)")
 
     # Verificar si los datos de indicadores se cargaron
     if df_indicadores_empty:
         st.warning("No se pueden calcular indicadores porque la hoja 'masa_salarial' no se cargó correctamente.")
-    elif dff_indicadores.empty and (not df_indicadores_empty) and df_indicadores.empty: # Comprobar ambos
+    elif dff_indicadores.empty and (not df_indicadores_empty):
         st.info("Los datos de 'masa_salarial' existen pero no coinciden con los filtros seleccionados (Año, Mes, etc.).")
     else:
-        # --- NUEVO: Llamar a la función de tarjetas anuales ---
-        # Usa el df_indicadores *original* (sin filtrar) para obtener los totales anuales
-        show_annual_indicator_cards(df_indicadores)
-        
-        # --- NUEVO: Diccionario de Indicadores Predefinidos ---
-        # Formato: 'Display Name': (numerador_col, denominador_col, format_type)
-        PREDEFINED_INDICATORS = {
-            'HExtras_$K / Msalarial_$K (%)': ('HExtras_$K', 'Msalarial_$K', 'percent'),
-            'Guardias_$K / Msalarial_$K (%)': ('Guardias_$K', 'Msalarial_$K', 'percent'),
-            'HExtras_$K / HE_hs ($)': ('HExtras_$K', 'HE_hs', 'currency'),
-            'Guardias_$K / Guardias_ds ($)': ('Guardias_$K', 'Guardias_ds', 'currency'),
-            'Msalarial_$K / Dotación ($)': ('Msalarial_$K', 'Dotación', 'currency'),
-            'HE_hs / Dotación (hs/pers)': ('HE_hs', 'Dotación', 'number'),
-            'Guardias_ds / Dotación (ds/pers)': ('Guardias_ds', 'Dotación', 'number'),
-        }
-
-        # Filtrar indicadores predefinidos basados en columnas existentes
-        # USA dff_indicadores (DATOS FILTRADOS) para las opciones
-        valid_predefined_options = []
-        for key, (num, den, fmt) in PREDEFINED_INDICATORS.items():
-            if num in dff_indicadores.columns and den in dff_indicadores.columns:
-                valid_predefined_options.append(key)
-
-        # --- NUEVO: Selector de Indicadores Predefinidos ---
-        st.subheader("Indicadores Predefinidos (Mensual)")
-        selected_predefined = st.multiselect(
-            "Seleccione indicadores clave:",
-            valid_predefined_options,
-            default=[],
-            key="ind_predefined_select"
-        )
-        
-        st.markdown("---")
-
-        # --- Selector Personalizado (Existente) ---
-        st.subheader("Indicador Personalizado (Avanzado - Mensual)")
+        # Definir la lista de opciones para los selectores
+        # Usamos un set para evitar duplicados (como 'Dotación') y luego ordenamos
         options_list = sorted(list(set(k_indicador_cols + qty_indicador_cols)))
 
         if not options_list:
             st.warning("No se encontraron columnas de indicadores ('Msalarial_$K', 'HE_hs', 'Dotación', etc.) para calcular ratios.")
         else:
+            
+            # --- NUEVA LÓGICA: Multi-select de combinaciones ---
             possible_indicators = []
+            # Crear todas las combinaciones posibles
             for num in options_list:
                 for den in options_list:
+                    # Evitar divisiones por sí mismo (ratio=1)
                     if num != den:
                         possible_indicators.append(f"{num} / {den}")
+            
+            # Ordenar la lista alfabéticamente
             possible_indicators.sort()
 
             selected_indicators = st.multiselect(
-                "Seleccione indicadores personalizados (Numerador / Denominador):",
+                "Seleccione los indicadores (Numerador / Denominador) a calcular:",
                 possible_indicators,
-                default=[],
+                default=[], # Empezar sin nada seleccionado
                 key="ind_multi_select"
             )
 
-            # --- LÓGICA DE CÁLCULO Y TABLA (MODIFICADA) ---
-            if selected_predefined or selected_indicators:
-                # USA dff_indicadores (DATOS FILTRADOS) para la tabla mensual
+            if selected_indicators:
+                # Preparar el dataframe para la tabla
+                # Usamos dff_indicadores (los datos filtrados)
                 df_indicador_calc = dff_indicadores[['Período', 'Período_fmt']].copy().sort_values('Período')
-                column_formats_dict = {} # Diccionario para pasar a show_table
-
-                # 1. Calcular Indicadores Predefinidos
-                for key in selected_predefined:
-                    if key in PREDEFINED_INDICATORS:
-                        num_col, den_col, format_type = PREDEFINED_INDICATORS[key]
-                        try:
-                            calc_col = dff_indicadores[num_col].astype(float) / dff_indicadores[den_col].astype(float)
-                            df_indicador_calc[key] = calc_col
-                            column_formats_dict[key] = format_type # Guardar formato
-                        except Exception as e:
-                            st.error(f"Error al calcular '{key}': {e}")
-                            df_indicador_calc[key] = np.nan
-
-                # 2. Calcular Indicadores Personalizados
+                
+                # Iterar sobre las selecciones (que son strings 'Num / Den')
                 for indicator_str in selected_indicators:
                     try:
+                        # Parsear el string para obtener los nombres de las columnas
                         num_col, den_col = indicator_str.split(' / ')
+                        
+                        # Asegurarse que las columnas existen (por si acaso)
                         if num_col in dff_indicadores.columns and den_col in dff_indicadores.columns:
+                            # Calcular el indicador
                             calc_col = dff_indicadores[num_col].astype(float) / dff_indicadores[den_col].astype(float)
+                            # Guardar en la tabla con el nombre 'Num / Den' (que es el indicator_str)
                             df_indicador_calc[indicator_str] = calc_col
-                            column_formats_dict[indicator_str] = 'number' # Default para personalizados
                         else:
                             df_indicador_calc[indicator_str] = np.nan
+                    
                     except Exception as e:
                         st.error(f"Error al calcular '{indicator_str}': {e}")
                         df_indicador_calc[indicator_str] = np.nan
@@ -1792,18 +1543,16 @@ with tab4:
                 # Reemplazar todos los infinitos (resultado de div por 0) con NaN
                 df_indicador_calc.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-                st.subheader("Resultados de Indicadores (Mensual)")
+                st.subheader("Resultados de Indicadores")
                 
-                # Usar show_table con el nuevo argumento column_formats
+                # Usar show_table para la tabla final
+                # Los nombres de columna ya son 'Num / Den'
                 show_table(
                     df_indicador_calc,
                     "Indicadores_Calculados",
-                    show_totals=False, # Sumar ratios no tiene sentido
-                    column_formats=column_formats_dict
+                    show_totals=False # Sumar ratios no tiene sentido
                 )
             
             else:
-                st.info("Por favor seleccione uno o más indicadores (predefinidos o personalizados) para ver la tabla mensual.")
-# --- FIN: PESTAÑA 4 MODIFICADA ---
-
-
+                st.info("Por favor seleccione uno o más indicadores de la lista para calcular.")
+# --- FIN: NUEVA PESTAÑA 4 ---
