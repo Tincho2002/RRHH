@@ -297,7 +297,7 @@ st.markdown(
 cards_html = """
 <div class="cards-grid">
     <!-- Dotación -->
-    <a href="Dotacion" target="_self" class="nav-card card-cyan">
+    <a href="Dotación" target="_self" class="nav-card card-cyan">
         <div class="card-icon">👥</div>
         <div class="card-title">Dotación</div>
         <div class="card-desc">Consulta la estructura y distribución geográfica y por gerencia de personal.</div>
