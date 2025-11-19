@@ -229,7 +229,7 @@ df_filtered = apply_filters(df, st.session_state.ms_selections)
 
 
 # =============================================================================
-# --- INICIO: LÓGICA DE MÉTRICAS CON DELTA ---
+# --- INICIO: LÓGICA DE MÉTRICAS CON DELTA Y DISEÑO DE TARJETAS ---
 # =============================================================================
 
 # 1. Identificar el mes actual y el mes anterior basado en la selección
@@ -335,49 +335,50 @@ delta_costo_fc = get_delta_pct_str(metrics_current['costo_medio_fc'], metrics_pr
 display_month_name = latest_month_name if latest_month_name else "N/A"
 
 # ----------------------------------------------------------------------------
-# --- TARJETAS DE MÉTRICAS CON DISEÑO ESTÉTICO Y ANIMACIONES ---
+# --- TARJETAS DE MÉTRICAS (NUEVO DISEÑO HTML/CSS FLUIDO) ---
 # ----------------------------------------------------------------------------
+# Aquí usamos st.markdown con HTML puro para asegurar que se apilen correctamente
+# y no se corten en iframes fijos.
+
 cards_html = f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
     
-    .metrics-container {{
-        display: flex;
-        flex-wrap: wrap;
+    /* Contenedor Grid Responsivo */
+    .metrics-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
         gap: 20px;
-        justify-content: center;
-        font-family: 'Source Sans Pro', sans-serif;
         margin-bottom: 30px;
+        font-family: 'Source Sans Pro', sans-serif;
     }}
     
+    /* Tarjeta Base */
     .metric-card {{
-        flex: 1;
-        min-width: 240px;
         background: white;
-        border-radius: 16px;
+        border-radius: 12px;
         padding: 20px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-        border: 1px solid rgba(255,255,255,0.5);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border: 1px solid #f0f2f6;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
         display: flex;
         flex-direction: column;
         align-items: center;
         text-align: center;
-        position: relative;
-        overflow: hidden;
     }}
     
     .metric-card:hover {{
         transform: translateY(-5px);
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        box-shadow: 0 10px 15px rgba(0,0,0,0.1);
     }}
     
-    /* Bordes superiores de color para diferenciar */
-    .border-indigo {{ border-top: 5px solid #6366f1; }}
-    .border-cyan {{ border-top: 5px solid #06b6d4; }}
-    .border-violet {{ border-top: 5px solid #8b5cf6; }}
-    .border-pink {{ border-top: 5px solid #ec4899; }}
+    /* Bordes de Color */
+    .border-blue {{ border-top: 4px solid #3b82f6; }}
+    .border-cyan {{ border-top: 4px solid #06b6d4; }}
+    .border-violet {{ border-top: 4px solid #8b5cf6; }}
+    .border-pink {{ border-top: 4px solid #ec4899; }}
     
+    /* Texto */
     .card-label {{
         font-size: 0.9rem;
         font-weight: 600;
@@ -391,118 +392,67 @@ cards_html = f"""
         font-size: 1.8rem;
         font-weight: 700;
         color: #1e293b;
-        margin-bottom: 5px;
+        margin-bottom: 8px;
+        line-height: 1.2;
     }}
     
-    /* Delta */
+    /* Delta (Pastillas) */
     .card-delta {{
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         font-weight: 600;
-        padding: 4px 10px;
-        border-radius: 12px;
+        padding: 4px 12px;
+        border-radius: 20px;
         display: inline-flex;
         align-items: center;
         gap: 4px;
     }}
     
-    .delta-green {{
-        background-color: #dcfce7;
-        color: #166534;
-    }}
-    
-    .delta-red {{
-        background-color: #fee2e2;
-        color: #991b1b;
-    }}
-    
-    .delta-neutral {{
-        background-color: #f1f5f9;
-        color: #64748b;
-    }}
+    .delta-green {{ background-color: #dcfce7; color: #166534; }}
+    .delta-red {{ background-color: #fee2e2; color: #991b1b; }}
+    .delta-neutral {{ background-color: #f1f5f9; color: #64748b; }}
 
-    /* Animación de conteo (Javascript) */
 </style>
 
-<div class="metrics-container">
-    <!-- Masa Salarial -->
-    <div class="metric-card border-indigo">
+<div class="metrics-grid">
+    <!-- Tarjeta 1: Masa Salarial -->
+    <div class="metric-card border-blue">
         <div class="card-label">Masa Salarial ({display_month_name})</div>
-        <div class="card-value" data-target="{metrics_current['total_masa']}" data-type="currency">$0</div>
-        <div class="card-delta {'delta-green' if delta_total >= 0 else 'delta-red'}">
-            {'▲' if delta_total >= 0 else '▼'} {abs(delta_total):.1f}%
+        <div class="card-value">${format_number_es(metrics_current['total_masa'])}</div>
+        <div class="card-delta {'delta-green' if delta_total <= 0 else 'delta-red' if delta_total > 0 else 'delta-neutral'}">
+            {'▼' if delta_total <= 0 else '▲'} {abs(delta_total):.1f}%
         </div>
     </div>
 
-    <!-- Empleados -->
+    <!-- Tarjeta 2: Empleados -->
     <div class="metric-card border-cyan">
         <div class="card-label">Empleados Únicos ({display_month_name})</div>
-        <div class="card-value" data-target="{metrics_current['empleados']}" data-type="integer">0</div>
+        <div class="card-value">{format_integer_es(metrics_current['empleados'])}</div>
         <div class="card-delta {'delta-green' if delta_empleados >= 0 else 'delta-red'}">
             {'▲' if delta_empleados >= 0 else '▼'} {abs(delta_empleados):.1f}%
         </div>
     </div>
 
-    <!-- Costo Medio Convenio -->
+    <!-- Tarjeta 3: Costo Medio Convenio -->
     <div class="metric-card border-violet">
         <div class="card-label">Costo Medio Convenio ({display_month_name})</div>
-        <div class="card-value" data-target="{metrics_current['costo_medio_conv']}" data-type="currency">$0</div>
-        <div class="card-delta {'delta-green' if delta_costo_conv >= 0 else 'delta-red'}">
-            {'▲' if delta_costo_conv >= 0 else '▼'} {abs(delta_costo_conv):.1f}%
+        <div class="card-value">${format_number_es(metrics_current['costo_medio_conv'])}</div>
+        <div class="card-delta {'delta-green' if delta_costo_conv <= 0 else 'delta-red' if delta_costo_conv > 0 else 'delta-neutral'}">
+            {'▼' if delta_costo_conv <= 0 else '▲'} {abs(delta_costo_conv):.1f}%
         </div>
     </div>
 
-    <!-- Costo Medio FC -->
+    <!-- Tarjeta 4: Costo Medio FC -->
     <div class="metric-card border-pink">
         <div class="card-label">Costo Medio F. Convenio ({display_month_name})</div>
-        <div class="card-value" data-target="{metrics_current['costo_medio_fc']}" data-type="currency">$0</div>
-        <div class="card-delta {'delta-green' if delta_costo_fc >= 0 else 'delta-red'}">
-            {'▲' if delta_costo_fc >= 0 else '▼'} {abs(delta_costo_fc):.1f}%
+        <div class="card-value">${format_number_es(metrics_current['costo_medio_fc'])}</div>
+        <div class="card-delta {'delta-green' if delta_costo_fc <= 0 else 'delta-red' if delta_costo_fc > 0 else 'delta-neutral'}">
+            {'▼' if delta_costo_fc <= 0 else '▲'} {abs(delta_costo_fc):.1f}%
         </div>
     </div>
 </div>
-
-<script>
-    function animateValue(obj, start, end, duration) {{
-        let startTimestamp = null;
-        const type = obj.getAttribute('data-type');
-        const currencyFormatter = new Intl.NumberFormat('es-AR', {{
-            style: 'currency', currency: 'ARS', minimumFractionDigits: 2
-        }});
-        const numberFormatter = new Intl.NumberFormat('es-AR', {{
-            maximumFractionDigits: 0
-        }});
-
-        const step = (timestamp) => {{
-            if (!startTimestamp) startTimestamp = timestamp;
-            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-            const currentVal = progress * (end - start) + start;
-            
-            let formattedVal;
-            if (type === 'currency') {{
-                formattedVal = currencyFormatter.format(currentVal).replace(/^ARS\s/, '$');
-            }} else {{
-                formattedVal = numberFormatter.format(currentVal);
-            }}
-            
-            obj.innerHTML = formattedVal;
-            
-            if (progress < 1) {{
-                window.requestAnimationFrame(step);
-            }}
-        }};
-        window.requestAnimationFrame(step);
-    }}
-
-    const counters = document.querySelectorAll('.card-value');
-    counters.forEach(counter => {{
-        const target = +counter.getAttribute('data-target');
-        setTimeout(() => animateValue(counter, 0, target, 1500), 100);
-    }});
-</script>
 """
 
-components.html(cards_html, height=180) # Ajusta la altura según necesites
-
+st.markdown(cards_html, unsafe_allow_html=True)
 # =============================================================================
 # --- FIN: LÓGICA DE MÉTRICAS CON DELTA ---
 # =============================================================================
