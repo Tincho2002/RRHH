@@ -508,7 +508,7 @@ if uploaded_file is not None:
 
     # --- MODIFICADO: Añadido 'Año' al diccionario de filtros ---
     filter_cols_config = {
-        'Año': 'Año',              # AÑADIDO
+        'Año': 'Año',               # AÑADIDO
         'Periodo': 'Periodo',
         'Gerencia': 'Gerencia',
         'Relación': 'Relación',
@@ -635,58 +635,136 @@ if uploaded_file is not None:
 
         card_html = f"""
         <style>
-            .summary-container {{ display: flex; background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); align-items: center; gap: 20px; border: 1px solid #e0e0e0; }}
-            .summary-main-kpi {{ text-align: center; border-right: 2px solid #f0f2f6; padding-right: 20px; flex-grow: 1; }}
-            .summary-main-kpi .title {{ font-size: 1.1rem; font-weight: bold; color: #2C3E50; margin-bottom: 5px; }}
-            .summary-main-kpi .value {{ font-size: 3.5rem; font-weight: bold; color: #2C3E50; }}
-            /* --- CSS DELTA MAIN --- */
+            .summary-container {{
+                display: flex;
+                flex-wrap: wrap; /* Permite que caiga en móvil */
+                background-color: #ffffff;
+                border-radius: 15px;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.05); /* Sombra más suave y moderna */
+                overflow: hidden; /* Para que el gradiente no se salga */
+                font-family: "Source Sans Pro", sans-serif;
+                border: 1px solid #f0f0f0;
+            }}
+
+            /* SECCIÓN IZQUIERDA (PRINCIPAL) - GRADIENTE */
+            .summary-main-kpi {{
+                flex: 1 1 300px; /* Base 300px, crece y se encoge */
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); /* Azul Profundo */
+                padding: 30px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                color: white;
+                text-align: center;
+                min-height: 200px;
+            }}
+
+            .summary-main-kpi .title {{
+                font-size: 1.1rem;
+                font-weight: 600;
+                opacity: 0.9;
+                margin-bottom: 10px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                color: white !important; /* Forzar blanco */
+            }}
+
+            .summary-main-kpi .value {{
+                font-size: 4rem;
+                font-weight: 800;
+                line-height: 1;
+                margin-bottom: 10px;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                color: white !important; /* Forzar blanco */
+            }}
+
+            /* DELTA EN EL PRINCIPAL (Fondo oscuro -> texto claro/brillante) */
             .summary-main-kpi .delta {{
-                font-size: 1.2rem;
-                font-weight: 600;
-                margin-top: 5px;
+                font-size: 1rem;
+                font-weight: 500;
+                padding: 5px 12px;
+                border-radius: 20px;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(5px);
             }}
-            .summary-main-kpi .delta.green {{ color: #2ca02c; }}
-            .summary-main-kpi .delta.red {{ color: #d62728; }}
-            .summary-main-kpi .delta.grey {{ color: #7f7f7f; }} /* Color neutro */
+            .summary-main-kpi .delta.green {{ color: #86efac; }} /* Verde pastel */
+            .summary-main-kpi .delta.red {{ color: #fca5a5; }}   /* Rojo pastel */
+            .summary-main-kpi .delta.grey {{ color: #e2e8f0; }}
 
-            .summary-breakdown {{ display: flex; flex-direction: column; gap: 15px; flex-grow: 2; }}
-            .summary-row {{ display: flex; justify-content: space-around; align-items: center; }}
-            .summary-sub-kpi {{ text-align: left; display: flex; align-items: center; gap: 10px; width: 200px; }}
-            .summary-sub-kpi .icon {{ font-size: 2rem; }}
-            .summary-sub-kpi .details {{ display: flex; flex-direction: column; }}
-            .summary-sub-kpi .value {{ font-size: 1.5rem; font-weight: bold; color: #34495E; }}
-            .summary-sub-kpi .label {{ font-size: 0.9rem; color: #7F8C8D; }}
-            /* --- CSS DELTA SUB --- */
+            /* SECCIÓN DERECHA (DETALLES) */
+            .summary-breakdown {{
+                flex: 2 1 400px; /* Ocupa más espacio, min 400px */
+                padding: 30px;
+                display: flex;
+                flex-wrap: wrap; /* Grid responsive */
+                gap: 20px;
+                justify-content: center; /* Centrado si sobran espacios */
+                align-content: center;
+            }}
+
+            /* TARJETAS PEQUEÑAS */
+            .summary-sub-kpi {{
+                flex: 1 1 180px; /* Min 180px */
+                display: flex;
+                align-items: center;
+                gap: 15px;
+                padding: 15px;
+                border-radius: 12px;
+                transition: background 0.3s ease;
+                border: 1px solid transparent;
+            }}
+
+            .summary-sub-kpi:hover {{
+                background-color: #f8fafc;
+                border-color: #e2e8f0;
+            }}
+
+            .summary-sub-kpi .icon-box {{
+                width: 50px;
+                height: 50px;
+                border-radius: 12px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-size: 1.5rem;
+                background: #f1f5f9;
+                color: #475569;
+            }}
+
+            /* Colores específicos para iconos (Gama pedida) */
+            .icon-convenio {{ color: #2563eb; background: #dbeafe !important; }} /* Azul */
+            .icon-fc {{ color: #7c3aed; background: #f3e8ff !important; }}       /* Violeta */
+            .icon-masc {{ color: #0891b2; background: #cffafe !important; }}      /* Celeste/Cyan */
+            .icon-fem {{ color: #db2777; background: #fce7f3 !important; }}       /* Rosa (Contraste) */
+
+            .summary-sub-kpi .details {{
+                display: flex;
+                flex-direction: column;
+            }}
+
+            .summary-sub-kpi .value {{
+                font-size: 1.4rem;
+                font-weight: 700;
+                color: #1e293b;
+                line-height: 1.1;
+            }}
+
+            .summary-sub-kpi .label {{
+                font-size: 0.85rem;
+                color: #64748b;
+                font-weight: 500;
+                margin-bottom: 2px;
+            }}
+
             .summary-sub-kpi .delta {{
-                font-size: 0.9rem;
+                font-size: 0.8rem;
                 font-weight: 600;
             }}
-            .summary-sub-kpi .delta.green {{ color: #2ca02c; }}
-            .summary-sub-kpi .delta.red {{ color: #d62728; }}
-            .summary-sub-kpi .delta.grey {{ color: #7f7f7f; }} /* Color neutro */
+            .summary-sub-kpi .delta.green {{ color: #16a34a; }}
+            .summary-sub-kpi .delta.red {{ color: #dc2626; }}
+            .summary-sub-kpi .delta.grey {{ color: #94a3b8; }}
 
-            @media (max-width: 768px) {{
-                .summary-container {{
-                    flex-direction: column;
-                    padding: 15px;
-                    gap: 15px;
-                }}
-                .summary-main-kpi {{
-                    border-right: none;
-                    border-bottom: 2px solid #f0f2f6;
-                    padding-right: 0;
-                    padding-bottom: 15px;
-                    width: 100%;
-                }}
-                .summary-main-kpi .value {{ font-size: 2.8rem; }}
-                .summary-row {{
-                    flex-direction: column;
-                    gap: 15px;
-                    align-items: flex-start;
-                    width: 100%;
-                }}
-                .summary-sub-kpi {{ width: 100%; }}
-            }}
         </style>
         <div class="summary-container">
             <div class="summary-main-kpi">
@@ -695,42 +773,43 @@ if uploaded_file is not None:
                 {delta_total_str}
             </div>
             <div class="summary-breakdown">
-                <div class="summary-row">
-                    <div class="summary-sub-kpi">
-                        <div class="icon">📄</div>
-                        <div class="details">
-                            <div class="value" data-target="{convenio_count}">0</div>
-                            <div class="label">Convenio ({format_percentage_es(convenio_pct)})</div>
-                            {delta_convenio_str}
-                        </div>
-                    </div>
-                    <div class="summary-sub-kpi">
-                        <div class="icon">💼</div>
-                        <div class="details">
-                            <div class="value" data-target="{fc_count}">0</div>
-                            <div class="label">Fuera de Convenio ({format_percentage_es(fc_pct)})</div>
-                            {delta_fc_str}
-                        </div>
+                
+                <div class="summary-sub-kpi">
+                    <div class="icon-box icon-convenio">📄</div>
+                    <div class="details">
+                        <div class="value" data-target="{convenio_count}">0</div>
+                        <div class="label">Convenio ({format_percentage_es(convenio_pct)})</div>
+                        {delta_convenio_str}
                     </div>
                 </div>
-                <div class="summary-row">
-                    <div class="summary-sub-kpi">
-                        <div class="icon">👨</div>
-                        <div class="details">
-                            <div class="value" data-target="{masculino_count}">0</div>
-                            <div class="label">Masculino ({format_percentage_es(masculino_pct)})</div>
-                            {delta_masculino_str}
-                        </div>
-                    </div>
-                    <div class="summary-sub-kpi">
-                        <div class="icon">👩</div>
-                        <div class="details">
-                            <div class="value" data-target="{femenino_count}">0</div>
-                            <div class="label">Femenino ({format_percentage_es(femenino_pct)})</div>
-                            {delta_femenino_str}
-                        </div>
+
+                <div class="summary-sub-kpi">
+                    <div class="icon-box icon-fc">💼</div>
+                    <div class="details">
+                        <div class="value" data-target="{fc_count}">0</div>
+                        <div class="label">Fuera de Convenio ({format_percentage_es(fc_pct)})</div>
+                        {delta_fc_str}
                     </div>
                 </div>
+
+                <div class="summary-sub-kpi">
+                    <div class="icon-box icon-masc">👨</div>
+                    <div class="details">
+                        <div class="value" data-target="{masculino_count}">0</div>
+                        <div class="label">Masculino ({format_percentage_es(masculino_pct)})</div>
+                        {delta_masculino_str}
+                    </div>
+                </div>
+
+                <div class="summary-sub-kpi">
+                    <div class="icon-box icon-fem">👩</div>
+                    <div class="details">
+                        <div class="value" data-target="{femenino_count}">0</div>
+                        <div class="label">Femenino ({format_percentage_es(femenino_pct)})</div>
+                        {delta_femenino_str}
+                    </div>
+                </div>
+                
             </div>
         </div>
         <script>
@@ -750,7 +829,7 @@ if uploaded_file is not None:
             counters.forEach(counter => {{ const target = +counter.getAttribute('data-target'); setTimeout(() => animateValue(counter, 0, target, 1500), 100); }});
         </script>
         """
-        components.html(card_html, height=220)
+        components.html(card_html, height=280)
         st.markdown("<br>", unsafe_allow_html=True)
     # --- FIN: Corrección de indentación ---
 
