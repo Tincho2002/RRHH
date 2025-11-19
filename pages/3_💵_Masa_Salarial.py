@@ -5,168 +5,55 @@ from io import BytesIO
 from fpdf import FPDF
 import numpy as np
 from datetime import datetime
+import streamlit.components.v1 as components
 
 # --- Configuración de la página ---
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Masa Salarial", page_icon="💸")
 
-# --- CSS Personalizado ---
+# --- CSS Personalizado para un Estilo Profesional y RESPONSIVE ---
 st.markdown("""
 <style>
-/* --- TEMA PERSONALIZADO PARA CONSISTENCIA VISUAL --- */
+/* --- TEMA PERSONALIZADO --- */
 :root {
     --primary-color: #6C5CE7;
     --background-color: #f0f2f6;
     --secondary-background-color: #f8f7fc;
     --text-color: #1a1a2e;
-    --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --font: 'Source Sans Pro', sans-serif;
 }
 
-/* Forzar un fondo claro y color de texto oscuro para evitar el modo oscuro del sistema */
-body, .stApp {
-    background-color: var(--background-color) !important;
-    color: var(--text-color) !important;
-}
+/* Importar fuente */
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
 
-/* --- GENERAL Y TIPOGRAFÍA --- */
 .stApp {
-    font-size: 0.92rem;
     font-family: var(--font);
 }
 
-/* Forzar color de texto oscuro en elementos genéricos que Streamlit pueda cambiar */
-p, div, span, label, li, h1, h2, h3, h4, h5, h6 {
-    color: var(--text-color);
-}
-
-/* --- COLORES BASE DEL TEMA --- */
-[data-testid="stSidebar"],
-.stTabs [data-basweb="tab"][aria-selected="true"] {
-    background-color: var(--secondary-background-color);
-}
-
-/* Estilo para Contenedores (las 'tarjetas') */
-[data-testid="stVerticalBlockBorderWrapper"] {
-    background-color: var(--secondary-background-color);
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    padding: 1rem;
-}
-
-/* --- Redondear esquinas de los gráficos --- */
-[data-testid="stAltairChart"], [data-testid="stPlotlyChart"] {
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-/* Estilo consistente para títulos y subtítulos */
-h1 { font-size: 2.2rem; border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; margin-bottom: 20px;}
-h2 { font-size: 1.6rem; color: #4a4a4a;}
-h3 { font-size: 1.3rem; color: #5a5a5a;}
-
-/* --- LAYOUT Y CONTENEDORES (FLEXBOX RESPONSIVE) --- */
-@media (max-width: 768px) {
-    div[data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
-    }
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        flex: 1 1 100% !important;
-        min-width: calc(100% - 1rem) !important;
-    }
-}
-
-/* --- VISUALIZACIÓN DE TABLAS ELABORADA --- */
-.stDataFrame {
-    width: 100%;
-    border: none;
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    /* 👇 AÑADIDO: Define la animación de transición */
-    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
-}
-.stDataFrame thead th {
-    background-color: var(--primary-color);
-    color: white;
-    font-weight: bold;
-    text-align: left;
-    padding: 14px 16px;
-    font-size: 0.98rem;
-    border-bottom: 2px solid #5A4ADF;
-}
-.stDataFrame tbody tr:nth-of-type(even) {
-    background-color: #f8f7fc;
-}
-.stDataFrame tbody tr:hover {
-    background-color: #e9e6ff;
-}
-.stDataFrame tbody td {
-    padding: 12px 16px;
-    text-align: right;
-    border-bottom: 1px solid #e0e0e0;
-    color: #333;
-}
-.stDataFrame tbody td:first-child {
-    text-align: left;
-    font-weight: 500;
-}
-
-/* 👇 AÑADIDO: Estilo para las tablas al pasar el mouse por encima */
-.stDataFrame:hover {
-    background-color: #F0FFF0; /* Un verde muy pálido (Honeydew) */
-    border-color: #A9D1A9;   /* Un verde un poco más oscuro para el borde */
-}
-
-
-/* --- BOTONES DE DESCARGA --- */
+/* Estilos generales de tablas y botones para mantener coherencia */
 div[data-testid="stDownloadButton"] button {
     background-color: var(--primary-color);
     color: white;
-    font-weight: bold;
-    padding: 0.6rem 1rem;
-    border-radius: 0.5rem;
-    border: 1px solid #5A4ADF;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: all 0.2s ease-in-out;
-    font-size: 0.9rem;
+    border: none;
+    transition: all 0.3s ease;
 }
 div[data-testid="stDownloadButton"] button:hover {
     background-color: #5A4ADF;
     transform: translateY(-2px);
-    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 
-/* --- PESTAÑAS (TABS) --- */
-.stTabs [data-basweb="tab"] {
-    border-radius: 6px 6px 0 0;
-    padding: 10px 20px;
-    font-weight: 600;
-}
-.stTabs [data-basweb="tab"][aria-selected="true"] {
-    border-bottom: 3px solid var(--primary-color);
+/* Redondear bordes de gráficos */
+[data-testid="stAltairChart"], [data-testid="stPlotlyChart"] {
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    background: white;
+    padding: 10px;
 }
 
-/* --- KPI Metrics Card --- */
-[data-testid="stMetric"] {
-    background-color: #FFFFFF;
-    border: 1px solid #E0E0E0;
-    border-radius: 8px;
-    padding: 1rem;
-    text-align: center;
-    /* 👇 AÑADIDO: Define la animación de transición */
-    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
-}
-/* 👇 AÑADIDO: Estilo para las métricas al pasar el mouse por encima */
-[data-testid="stMetric"]:hover {
-    background-color: #F0FFF0; /* Un verde muy pálido (Honeydew) */
-    border-color: #A9D1A9;   /* Un verde un poco más oscuro para el borde */
-}
-
-[data-testid="stMetricLabel"] {
-    font-weight: 600;
-    font-size: 0.95rem;
-}
-[data-testid="stMetricValue"] {
-    font-size: 1.75rem;
-    color: var(--primary-color);
+/* Ajuste Responsive */
+@media (max-width: 768px) {
+    div[data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { flex: 1 1 100% !important; min-width: 100% !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -435,11 +322,8 @@ def get_delta_pct_str(current, previous):
     else:
         delta = 0.0
     
-    # No mostrar delta si no hay cambio
-    if delta == 0 or pd.isna(delta):
-        return None
-    
-    return f"{delta:.1f}%"
+    # Retornar solo el porcentaje
+    return delta
 
 # 6. Calcular los 4 deltas
 delta_total = get_delta_pct_str(metrics_current['total_masa'], metrics_previous['total_masa'])
@@ -449,17 +333,175 @@ delta_costo_fc = get_delta_pct_str(metrics_current['costo_medio_fc'], metrics_pr
 
 # 7. Definir etiquetas dinámicas para los KPIs
 display_month_name = latest_month_name if latest_month_name else "N/A"
-label_total_masa = f"Masa Salarial ({display_month_name})"
-label_empleados = f"Empleados Únicos ({display_month_name})"
-label_costo_conv = f"Costo Medio Convenio ({display_month_name})"
-label_costo_fc = f"Costo Medio F. Convenio ({display_month_name})"
 
-# 8. Mostrar Métricas con Deltas
-col1, col2, col3, col4 = st.columns(4)
-col1.metric(label_total_masa, f"${format_number_es(metrics_current['total_masa'])}", delta=delta_total)
-col2.metric(label_empleados, f"{format_integer_es(metrics_current['empleados'])}", delta=delta_empleados)
-col3.metric(label_costo_conv, f"${format_number_es(metrics_current['costo_medio_conv'])}", delta=delta_costo_conv)
-col4.metric(label_costo_fc, f"${format_number_es(metrics_current['costo_medio_fc'])}", delta=delta_costo_fc)
+# ----------------------------------------------------------------------------
+# --- TARJETAS DE MÉTRICAS CON DISEÑO ESTÉTICO Y ANIMACIONES ---
+# ----------------------------------------------------------------------------
+cards_html = f"""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
+    
+    .metrics-container {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+        font-family: 'Source Sans Pro', sans-serif;
+        margin-bottom: 30px;
+    }}
+    
+    .metric-card {{
+        flex: 1;
+        min-width: 240px;
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        border: 1px solid rgba(255,255,255,0.5);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }}
+    
+    .metric-card:hover {{
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }}
+    
+    /* Bordes superiores de color para diferenciar */
+    .border-indigo {{ border-top: 5px solid #6366f1; }}
+    .border-cyan {{ border-top: 5px solid #06b6d4; }}
+    .border-violet {{ border-top: 5px solid #8b5cf6; }}
+    .border-pink {{ border-top: 5px solid #ec4899; }}
+    
+    .card-label {{
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        margin-bottom: 10px;
+    }}
+    
+    .card-value {{
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 5px;
+    }}
+    
+    /* Delta */
+    .card-delta {{
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }}
+    
+    .delta-green {{
+        background-color: #dcfce7;
+        color: #166534;
+    }}
+    
+    .delta-red {{
+        background-color: #fee2e2;
+        color: #991b1b;
+    }}
+    
+    .delta-neutral {{
+        background-color: #f1f5f9;
+        color: #64748b;
+    }}
+
+    /* Animación de conteo (Javascript) */
+</style>
+
+<div class="metrics-container">
+    <!-- Masa Salarial -->
+    <div class="metric-card border-indigo">
+        <div class="card-label">Masa Salarial ({display_month_name})</div>
+        <div class="card-value" data-target="{metrics_current['total_masa']}" data-type="currency">$0</div>
+        <div class="card-delta {'delta-green' if delta_total >= 0 else 'delta-red'}">
+            {'▲' if delta_total >= 0 else '▼'} {abs(delta_total):.1f}%
+        </div>
+    </div>
+
+    <!-- Empleados -->
+    <div class="metric-card border-cyan">
+        <div class="card-label">Empleados Únicos ({display_month_name})</div>
+        <div class="card-value" data-target="{metrics_current['empleados']}" data-type="integer">0</div>
+        <div class="card-delta {'delta-green' if delta_empleados >= 0 else 'delta-red'}">
+            {'▲' if delta_empleados >= 0 else '▼'} {abs(delta_empleados):.1f}%
+        </div>
+    </div>
+
+    <!-- Costo Medio Convenio -->
+    <div class="metric-card border-violet">
+        <div class="card-label">Costo Medio Convenio ({display_month_name})</div>
+        <div class="card-value" data-target="{metrics_current['costo_medio_conv']}" data-type="currency">$0</div>
+        <div class="card-delta {'delta-green' if delta_costo_conv >= 0 else 'delta-red'}">
+            {'▲' if delta_costo_conv >= 0 else '▼'} {abs(delta_costo_conv):.1f}%
+        </div>
+    </div>
+
+    <!-- Costo Medio FC -->
+    <div class="metric-card border-pink">
+        <div class="card-label">Costo Medio F. Convenio ({display_month_name})</div>
+        <div class="card-value" data-target="{metrics_current['costo_medio_fc']}" data-type="currency">$0</div>
+        <div class="card-delta {'delta-green' if delta_costo_fc >= 0 else 'delta-red'}">
+            {'▲' if delta_costo_fc >= 0 else '▼'} {abs(delta_costo_fc):.1f}%
+        </div>
+    </div>
+</div>
+
+<script>
+    function animateValue(obj, start, end, duration) {{
+        let startTimestamp = null;
+        const type = obj.getAttribute('data-type');
+        const currencyFormatter = new Intl.NumberFormat('es-AR', {{
+            style: 'currency', currency: 'ARS', minimumFractionDigits: 2
+        }});
+        const numberFormatter = new Intl.NumberFormat('es-AR', {{
+            maximumFractionDigits: 0
+        }});
+
+        const step = (timestamp) => {{
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            const currentVal = progress * (end - start) + start;
+            
+            let formattedVal;
+            if (type === 'currency') {{
+                formattedVal = currencyFormatter.format(currentVal).replace(/^ARS\s/, '$');
+            }} else {{
+                formattedVal = numberFormatter.format(currentVal);
+            }}
+            
+            obj.innerHTML = formattedVal;
+            
+            if (progress < 1) {{
+                window.requestAnimationFrame(step);
+            }}
+        }};
+        window.requestAnimationFrame(step);
+    }}
+
+    const counters = document.querySelectorAll('.card-value');
+    counters.forEach(counter => {{
+        const target = +counter.getAttribute('data-target');
+        setTimeout(() => animateValue(counter, 0, target, 1500), 100);
+    }});
+</script>
+"""
+
+components.html(cards_html, height=180) # Ajusta la altura según necesites
 
 # =============================================================================
 # --- FIN: LÓGICA DE MÉTRICAS CON DELTA ---
@@ -471,7 +513,6 @@ st.markdown("---")
 # --- TABS PRINCIPALES ---
 tab_evolucion, tab_distribucion, tab_conceptos, tab_tabla = st.tabs(["Evolución Mensual y Anual", "Distribución por Gerencia y Clasificación", "Masa Salarial por Concepto / SIPAF", "Tabla de Datos Detallados"]) 
 
-# El resto del código permanece sin cambios...
 # ------------------------- TAB 1: EVOLUCIÓN -------------------------
 with tab_evolucion:
     st.subheader("Evolución Mensual de la Masa Salarial")
