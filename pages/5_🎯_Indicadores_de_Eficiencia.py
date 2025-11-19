@@ -1,5 +1,5 @@
 # ===============================================================
-# Visualizador de Eficiencia - V Estética (Separación Ajustada)
+# Visualizador de Eficiencia - V Estética (Fix Superposición Vertical)
 # ===============================================================
 
 import streamlit as st
@@ -774,8 +774,11 @@ CSS_STYLE = """
         align-items: center;
         text-align: center;
         
-        min-height: 110px; /* Altura mínima reducida */
-        height: 100%;     /* Ocupar todo el alto disponible de la columna */
+        /* FIX SUPERPOSICIÓN VERTICAL */
+        height: auto;      /* Dejar que crezca según contenido */
+        margin-top: 10px;  /* Espacio arriba de la tarjeta */
+        margin-bottom: 10px; /* Espacio abajo de la tarjeta */
+        min-height: 110px; /* Altura mínima para uniformidad visual básica */
     }
 
     .metric-card:hover {
