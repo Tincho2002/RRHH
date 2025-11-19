@@ -347,17 +347,25 @@ cards_html = f"""
 /* Contenedor Grid Responsivo */
 .metrics-grid {{
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
+    /* CAMBIO AQUÍ: Forzamos 4 columnas de igual tamaño para que queden en una línea */
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px; /* Reduje un poco el espacio entre tarjetas para que quepan mejor */
     margin-bottom: 30px;
     font-family: 'Source Sans Pro', sans-serif;
+}}
+
+/* Ajuste para pantallas muy pequeñas (móviles) para que no se rompa */
+@media (max-width: 768px) {{
+    .metrics-grid {{
+        grid-template-columns: repeat(2, 1fr); /* En celular, 2 arriba y 2 abajo */
+    }}
 }}
 
 /* Tarjeta Base */
 .metric-card {{
     background: white;
     border-radius: 12px;
-    padding: 20px;
+    padding: 20px; /* Si necesitas más espacio, puedes bajar esto a 15px */
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     border: 1px solid #f0f2f6;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -365,6 +373,9 @@ cards_html = f"""
     flex-direction: column;
     align-items: center;
     text-align: center;
+    /* Asegura que el contenido no desborde */
+    min-width: 0; 
+    overflow-wrap: break-word;
 }}
 
 .metric-card:hover {{
@@ -380,16 +391,20 @@ cards_html = f"""
 
 /* Texto */
 .card-label {{
-    font-size: 0.9rem;
+    font-size: 0.85rem; /* Un poco más pequeño para asegurar que entre en una línea */
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: #64748b;
     margin-bottom: 10px;
+    white-space: nowrap; /* Intenta mantener el título en una línea */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
 }}
 
 .card-value {{
-    font-size: 1.8rem;
+    font-size: 1.6rem; /* Ajustado ligeramente */
     font-weight: 700;
     color: #1e293b;
     margin-bottom: 8px;
@@ -415,7 +430,7 @@ cards_html = f"""
 <div class="metrics-grid">
 <!-- Tarjeta 1: Masa Salarial -->
 <div class="metric-card border-blue">
-    <div class="card-label">Masa Salarial ({display_month_name})</div>
+    <div class="card-label" title="Masa Salarial ({display_month_name})">Masa Salarial ({display_month_name})</div>
     <div class="card-value">${format_number_es(metrics_current['total_masa'])}</div>
     <div class="card-delta {'delta-green' if delta_total <= 0 else 'delta-red' if delta_total > 0 else 'delta-neutral'}">
         {'▼' if delta_total <= 0 else '▲'} {abs(delta_total):.1f}%
@@ -424,7 +439,7 @@ cards_html = f"""
 
 <!-- Tarjeta 2: Empleados -->
 <div class="metric-card border-cyan">
-    <div class="card-label">Empleados Únicos ({display_month_name})</div>
+    <div class="card-label" title="Empleados Únicos ({display_month_name})">Empleados Únicos ({display_month_name})</div>
     <div class="card-value">{format_integer_es(metrics_current['empleados'])}</div>
     <div class="card-delta {'delta-green' if delta_empleados >= 0 else 'delta-red'}">
         {'▲' if delta_empleados >= 0 else '▼'} {abs(delta_empleados):.1f}%
@@ -433,7 +448,7 @@ cards_html = f"""
 
 <!-- Tarjeta 3: Costo Medio Convenio -->
 <div class="metric-card border-violet">
-    <div class="card-label">Costo Medio Convenio ({display_month_name})</div>
+    <div class="card-label" title="Costo Medio Conv. ({display_month_name})">Costo Medio Conv. ({display_month_name})</div>
     <div class="card-value">${format_number_es(metrics_current['costo_medio_conv'])}</div>
     <div class="card-delta {'delta-green' if delta_costo_conv <= 0 else 'delta-red' if delta_costo_conv > 0 else 'delta-neutral'}">
         {'▼' if delta_costo_conv <= 0 else '▲'} {abs(delta_costo_conv):.1f}%
@@ -442,7 +457,7 @@ cards_html = f"""
 
 <!-- Tarjeta 4: Costo Medio FC -->
 <div class="metric-card border-pink">
-    <div class="card-label">Costo Medio F. Convenio ({display_month_name})</div>
+    <div class="card-label" title="Costo Medio F.C. ({display_month_name})">Costo Medio F.C. ({display_month_name})</div>
     <div class="card-value">${format_number_es(metrics_current['costo_medio_fc'])}</div>
     <div class="card-delta {'delta-green' if delta_costo_fc <= 0 else 'delta-red' if delta_costo_fc > 0 else 'delta-neutral'}">
         {'▼' if delta_costo_fc <= 0 else '▲'} {abs(delta_costo_fc):.1f}%
