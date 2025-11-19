@@ -342,113 +342,112 @@ display_month_name = latest_month_name if latest_month_name else "N/A"
 
 cards_html = f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
-    
-    /* Contenedor Grid Responsivo */
-    .metrics-grid {{
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 20px;
-        margin-bottom: 30px;
-        font-family: 'Source Sans Pro', sans-serif;
-    }}
-    
-    /* Tarjeta Base */
-    .metric-card {{
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        border: 1px solid #f0f2f6;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-    }}
-    
-    .metric-card:hover {{
-        transform: translateY(-5px);
-        box-shadow: 0 10px 15px rgba(0,0,0,0.1);
-    }}
-    
-    /* Bordes de Color */
-    .border-blue {{ border-top: 4px solid #3b82f6; }}
-    .border-cyan {{ border-top: 4px solid #06b6d4; }}
-    .border-violet {{ border-top: 4px solid #8b5cf6; }}
-    .border-pink {{ border-top: 4px solid #ec4899; }}
-    
-    /* Texto */
-    .card-label {{
-        font-size: 0.9rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: #64748b;
-        margin-bottom: 10px;
-    }}
-    
-    .card-value {{
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin-bottom: 8px;
-        line-height: 1.2;
-    }}
-    
-    /* Delta (Pastillas) */
-    .card-delta {{
-        font-size: 0.8rem;
-        font-weight: 600;
-        padding: 4px 12px;
-        border-radius: 20px;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-    }}
-    
-    .delta-green {{ background-color: #dcfce7; color: #166534; }}
-    .delta-red {{ background-color: #fee2e2; color: #991b1b; }}
-    .delta-neutral {{ background-color: #f1f5f9; color: #64748b; }}
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
 
+/* Contenedor Grid Responsivo */
+.metrics-grid {{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+    font-family: 'Source Sans Pro', sans-serif;
+}}
+
+/* Tarjeta Base */
+.metric-card {{
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    border: 1px solid #f0f2f6;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}}
+
+.metric-card:hover {{
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+}}
+
+/* Bordes de Color */
+.border-blue {{ border-top: 4px solid #3b82f6; }}
+.border-cyan {{ border-top: 4px solid #06b6d4; }}
+.border-violet {{ border-top: 4px solid #8b5cf6; }}
+.border-pink {{ border-top: 4px solid #ec4899; }}
+
+/* Texto */
+.card-label {{
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    margin-bottom: 10px;
+}}
+
+.card-value {{
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 8px;
+    line-height: 1.2;
+}}
+
+/* Delta (Pastillas) */
+.card-delta {{
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}}
+
+.delta-green {{ background-color: #dcfce7; color: #166534; }}
+.delta-red {{ background-color: #fee2e2; color: #991b1b; }}
+.delta-neutral {{ background-color: #f1f5f9; color: #64748b; }}
 </style>
 
 <div class="metrics-grid">
-    <!-- Tarjeta 1: Masa Salarial -->
-    <div class="metric-card border-blue">
-        <div class="card-label">Masa Salarial ({display_month_name})</div>
-        <div class="card-value">${format_number_es(metrics_current['total_masa'])}</div>
-        <div class="card-delta {'delta-green' if delta_total <= 0 else 'delta-red' if delta_total > 0 else 'delta-neutral'}">
-            {'▼' if delta_total <= 0 else '▲'} {abs(delta_total):.1f}%
-        </div>
+<!-- Tarjeta 1: Masa Salarial -->
+<div class="metric-card border-blue">
+    <div class="card-label">Masa Salarial ({display_month_name})</div>
+    <div class="card-value">${format_number_es(metrics_current['total_masa'])}</div>
+    <div class="card-delta {'delta-green' if delta_total <= 0 else 'delta-red' if delta_total > 0 else 'delta-neutral'}">
+        {'▼' if delta_total <= 0 else '▲'} {abs(delta_total):.1f}%
     </div>
+</div>
 
-    <!-- Tarjeta 2: Empleados -->
-    <div class="metric-card border-cyan">
-        <div class="card-label">Empleados Únicos ({display_month_name})</div>
-        <div class="card-value">{format_integer_es(metrics_current['empleados'])}</div>
-        <div class="card-delta {'delta-green' if delta_empleados >= 0 else 'delta-red'}">
-            {'▲' if delta_empleados >= 0 else '▼'} {abs(delta_empleados):.1f}%
-        </div>
+<!-- Tarjeta 2: Empleados -->
+<div class="metric-card border-cyan">
+    <div class="card-label">Empleados Únicos ({display_month_name})</div>
+    <div class="card-value">{format_integer_es(metrics_current['empleados'])}</div>
+    <div class="card-delta {'delta-green' if delta_empleados >= 0 else 'delta-red'}">
+        {'▲' if delta_empleados >= 0 else '▼'} {abs(delta_empleados):.1f}%
     </div>
+</div>
 
-    <!-- Tarjeta 3: Costo Medio Convenio -->
-    <div class="metric-card border-violet">
-        <div class="card-label">Costo Medio Convenio ({display_month_name})</div>
-        <div class="card-value">${format_number_es(metrics_current['costo_medio_conv'])}</div>
-        <div class="card-delta {'delta-green' if delta_costo_conv <= 0 else 'delta-red' if delta_costo_conv > 0 else 'delta-neutral'}">
-            {'▼' if delta_costo_conv <= 0 else '▲'} {abs(delta_costo_conv):.1f}%
-        </div>
+<!-- Tarjeta 3: Costo Medio Convenio -->
+<div class="metric-card border-violet">
+    <div class="card-label">Costo Medio Convenio ({display_month_name})</div>
+    <div class="card-value">${format_number_es(metrics_current['costo_medio_conv'])}</div>
+    <div class="card-delta {'delta-green' if delta_costo_conv <= 0 else 'delta-red' if delta_costo_conv > 0 else 'delta-neutral'}">
+        {'▼' if delta_costo_conv <= 0 else '▲'} {abs(delta_costo_conv):.1f}%
     </div>
+</div>
 
-    <!-- Tarjeta 4: Costo Medio FC -->
-    <div class="metric-card border-pink">
-        <div class="card-label">Costo Medio F. Convenio ({display_month_name})</div>
-        <div class="card-value">${format_number_es(metrics_current['costo_medio_fc'])}</div>
-        <div class="card-delta {'delta-green' if delta_costo_fc <= 0 else 'delta-red' if delta_costo_fc > 0 else 'delta-neutral'}">
-            {'▼' if delta_costo_fc <= 0 else '▲'} {abs(delta_costo_fc):.1f}%
-        </div>
+<!-- Tarjeta 4: Costo Medio FC -->
+<div class="metric-card border-pink">
+    <div class="card-label">Costo Medio F. Convenio ({display_month_name})</div>
+    <div class="card-value">${format_number_es(metrics_current['costo_medio_fc'])}</div>
+    <div class="card-delta {'delta-green' if delta_costo_fc <= 0 else 'delta-red' if delta_costo_fc > 0 else 'delta-neutral'}">
+        {'▼' if delta_costo_fc <= 0 else '▲'} {abs(delta_costo_fc):.1f}%
     </div>
+</div>
 </div>
 """
 
