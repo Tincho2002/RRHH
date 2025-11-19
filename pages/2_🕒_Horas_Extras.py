@@ -1059,7 +1059,23 @@ if uploaded_file is not None:
                 employee_overtime = calculate_employee_overtime(df, st.session_state.he_selections, cost_columns_options, quantity_columns_options, st.session_state.he_cost_types, st.session_state.he_quantity_types)
                 if not employee_overtime.empty:
                     st.header(f'Top {top_n_employees} Empleados con Mayor Horas Extras')
-                    top_costo_empleados, top_cantidad_empleados = employee_overtime.nlargest(top_n_employees, 'Total_Costos'), employee_overtime.nlargest(top_n_employees, 'Total_Cantidades')
+                    
+                    # Calculamos top por Costo y por Cantidad
+                    top_costo_empleados = employee_overtime.nlargest(top_n_employees, 'Total_Costos')
+                    top_cantidad_empleados = employee_overtime.nlargest(top_n_employees, 'Total_Cantidades')
+                    
+                    # --- CORRECCIÓN PRINCIPAL: FILTRAR COLUMNAS PARA VISUALIZACIÓN ---
+                    # Definimos columnas base
+                    cols_ident = ['Legajo', 'Apellido y nombre']
+                    
+                    # Filtramos columnas para la tabla de Costos (solo dinero + identidad)
+                    cols_cost_display = cols_ident + [c for c in top_costo_empleados.columns if c not in cols_ident and ('costo_agg' in c or c == 'Total_Costos')]
+                    df_display_cost = top_costo_empleados[cols_cost_display]
+
+                    # Filtramos columnas para la tabla de Cantidades (solo horas + identidad)
+                    cols_quant_display = cols_ident + [c for c in top_cantidad_empleados.columns if c not in cols_ident and ('cant_agg' in c or c == 'Total_Cantidades')]
+                    df_display_quant = top_cantidad_empleados[cols_quant_display]
+
                     col1, col2 = st.columns(2)
                     with col1:
                         st.subheader('Top por Costo')
@@ -1075,12 +1091,15 @@ if uploaded_file is not None:
                             bars = base.mark_bar(color='#6C5CE7')
                             text = base.mark_text(align='right', baseline='middle', dx=-5, color='white').encode(text=alt.Text('Total_Cantidades:Q', format=',.2f'))
                             st.altair_chart((bars + text).properties(title=f'Top {top_n_employees} por Cantidad').interactive(), use_container_width=True)
+                    
+                    # Mostrar Tablas Filtradas
                     st.subheader('Tabla de Top Empleados por Costo')
-                    st.dataframe(top_costo_empleados.style.format(create_format_dict(top_costo_empleados)), use_container_width=True)
-                    generate_download_buttons(top_costo_empleados, f'top_{top_n_employees}_costo', 'tab3_costo')
+                    st.dataframe(df_display_cost.style.format(create_format_dict(df_display_cost)), use_container_width=True)
+                    generate_download_buttons(df_display_cost, f'top_{top_n_employees}_costo', 'tab3_costo')
+                    
                     st.subheader('Tabla de Top Empleados por Cantidad')
-                    st.dataframe(top_cantidad_empleados.style.format(create_format_dict(top_cantidad_empleados)), use_container_width=True)
-                    generate_download_buttons(top_cantidad_empleados, f'top_{top_n_employees}_cantidad', 'tab3_cant')
+                    st.dataframe(df_display_quant.style.format(create_format_dict(df_display_quant)), use_container_width=True)
+                    generate_download_buttons(df_display_quant, f'top_{top_n_employees}_cantidad', 'tab3_cant')
     with tab_valor_hora:
         with st.container(border=True):
             st.header('Costo Promedio por Tipo de Hora Extra (General)')
