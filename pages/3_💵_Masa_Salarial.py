@@ -469,7 +469,6 @@ st.markdown(cards_html, unsafe_allow_html=True)
 st.markdown("---")
 
 # --- TABS PRINCIPALES ---
-# SE AGREGA LA NUEVA PESTAÑA "Análisis de Costos Promedios"
 tab_evolucion, tab_distribucion, tab_costos, tab_conceptos, tab_tabla = st.tabs(["Evolución Mensual y Anual", "Distribución por Gerencia y Clasificación", "Análisis de Costos Promedios", "Masa Salarial por Concepto / SIPAF", "Tabla de Datos Detallados"]) 
 
 # ------------------------- TAB 1: EVOLUCIÓN -------------------------
@@ -809,54 +808,102 @@ with tab_distribucion:
                 height=400
             )
 
-# ------------------------- TAB 3: COSTOS PROMEDIOS (NUEVA) -------------------------
+# ------------------------- TAB 3: COSTOS PROMEDIOS (MODIFICADA) -------------------------
 with tab_costos:
     st.subheader("Análisis de Costos Promedios Mensuales")
     st.markdown("Evolución del costo promedio (Total Masa / Dotación) por categorías clave.")
     
+    # 1. Definición de opciones
+    analysis_options_map = {
+        "Por Relación": "Relación",
+        "Por Nivel": "Nivel",
+        "Por Clasificación (Subnivel)": "Clasificacion_Ministerio"
+    }
+
+    # 2. Columnas para selectores
+    col_sel_dim, col_sel_view_mode = st.columns(2)
+    
+    with col_sel_dim:
+        # Multiselect para elegir qué gráficos mostrar
+        selected_analyses = st.multiselect(
+            "Seleccione Dimensiones para Analizar:",
+            options=list(analysis_options_map.keys()),
+            default=list(analysis_options_map.keys())
+        )
+        
+    with col_sel_view_mode:
+        # Checkbox para alternar vista de tabla
+        show_detail_legajo = st.checkbox("Mostrar detalle por Legajo en tablas", value=False, help="Activa para ver la lista de empleados que componen cada categoría.")
+
+    st.markdown("---")
+    
     meses_ordenados_costos = df.sort_values('Mes_Num')['Mes'].unique().tolist()
 
-    # Helper function para calcular y graficar
-    def plot_avg_cost_evolution(df_in, group_col, title_chart):
-        # Agrupar y calcular metricas
-        grouped = df_in.groupby([group_col, 'Mes', 'Mes_Num']).agg(
+    if not selected_analyses:
+        st.info("Por favor, seleccione al menos una dimensión para visualizar.")
+    
+    for label in selected_analyses:
+        col_name = analysis_options_map[label]
+        st.markdown(f"#### Análisis: {label}")
+        
+        # Calcular datos agrupados para el GRÁFICO (siempre es resumen mensual)
+        grouped_stats = df_filtered.groupby([col_name, 'Mes', 'Mes_Num']).agg(
             Masa=('Total Mensual', 'sum'),
             Dotacion=('Legajo', 'nunique')
         ).reset_index()
         
-        grouped['Costo_Promedio'] = grouped['Masa'] / grouped['Dotacion']
-        grouped['Costo_Promedio'] = grouped['Costo_Promedio'].fillna(0)
+        grouped_stats['Costo_Promedio'] = grouped_stats['Masa'] / grouped_stats['Dotacion']
+        grouped_stats['Costo_Promedio'] = grouped_stats['Costo_Promedio'].fillna(0)
         
-        chart = alt.Chart(grouped).mark_line(point=True).encode(
+        # Renderizar Gráfico
+        chart = alt.Chart(grouped_stats).mark_line(point=True).encode(
             x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes'),
             y=alt.Y('Costo_Promedio:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')),
-            color=alt.Color(f'{group_col}:N', title=group_col),
+            color=alt.Color(f'{col_name}:N', title=col_name),
             tooltip=[
                 alt.Tooltip('Mes:N'), 
-                alt.Tooltip(f'{group_col}:N'), 
+                alt.Tooltip(f'{col_name}:N'), 
                 alt.Tooltip('Costo_Promedio:Q', format='$,.2f'),
                 alt.Tooltip('Dotacion:Q', title='Dotación')
             ]
         ).properties(height=350).configure_point(size=100)
         
-        return chart
-
-    col_costo_1, col_costo_2 = st.columns(2)
-    
-    with col_costo_1:
-        st.markdown("#### Por Relación")
-        chart_relacion = plot_avg_cost_evolution(df_filtered, 'Relación', 'Relación')
-        st.altair_chart(chart_relacion, use_container_width=True)
+        st.altair_chart(chart, use_container_width=True)
         
-    with col_costo_2:
-        st.markdown("#### Por Nivel")
-        chart_nivel = plot_avg_cost_evolution(df_filtered, 'Nivel', 'Nivel')
-        st.altair_chart(chart_nivel, use_container_width=True)
-
-    st.markdown("---")
-    st.markdown("#### Por Clasificación (Subnivel)")
-    chart_clasif = plot_avg_cost_evolution(df_filtered, 'Clasificacion_Ministerio', 'Clasificación')
-    st.altair_chart(chart_clasif, use_container_width=True)
+        # Renderizar Tabla según el Checkbox
+        if show_detail_legajo:
+            st.write(f"**Detalle de Legajos - {label}**")
+            # Seleccionar columnas relevantes para el detalle
+            cols_detalle = ['Período', 'Mes', 'Legajo', 'Apellido y Nombres', 'Gerencia', col_name, 'Total Mensual']
+            # Filtrar columnas que existen en el DF (por si acaso)
+            cols_presentes = [c for c in cols_detalle if c in df_filtered.columns]
+            
+            df_detail = df_filtered[cols_presentes].copy()
+            # Ordenar para facilitar lectura
+            df_detail = df_detail.sort_values(['Mes_Num', col_name, 'Apellido y Nombres'])
+            
+            st.dataframe(
+                df_detail.style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}),
+                use_container_width=True,
+                height=300
+            )
+        else:
+            st.write(f"**Resumen Mensual de Promedios - {label}**")
+            # Mostrar la tabla agrupada calculada arriba
+            # Reordenar columnas
+            cols_order = ['Mes', col_name, 'Masa', 'Dotacion', 'Costo_Promedio']
+            grouped_display = grouped_stats[cols_order].sort_values('Mes_Num', ignore_index=True) if 'Mes_Num' in grouped_stats.columns else grouped_stats
+            
+            st.dataframe(
+                grouped_display.style.format({
+                    "Masa": lambda x: f"${format_number_es(x)}",
+                    "Costo_Promedio": lambda x: f"${format_number_es(x)}",
+                    "Dotacion": "{:,.0f}"
+                }),
+                use_container_width=True
+            )
+        
+        st.markdown("---")
 
 
 # ------------------------- TAB 4: CONCEPTOS / SIPAF -------------------------
