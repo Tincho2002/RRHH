@@ -469,7 +469,8 @@ st.markdown(cards_html, unsafe_allow_html=True)
 st.markdown("---")
 
 # --- TABS PRINCIPALES ---
-tab_evolucion, tab_distribucion, tab_conceptos, tab_tabla = st.tabs(["Evolución Mensual y Anual", "Distribución por Gerencia y Clasificación", "Masa Salarial por Concepto / SIPAF", "Tabla de Datos Detallados"]) 
+# SE AGREGA LA NUEVA PESTAÑA "Análisis de Costos Promedios"
+tab_evolucion, tab_distribucion, tab_costos, tab_conceptos, tab_tabla = st.tabs(["Evolución Mensual y Anual", "Distribución por Gerencia y Clasificación", "Análisis de Costos Promedios", "Masa Salarial por Concepto / SIPAF", "Tabla de Datos Detallados"]) 
 
 # ------------------------- TAB 1: EVOLUCIÓN -------------------------
 with tab_evolucion:
@@ -695,41 +696,50 @@ with tab_distribucion:
         # Agrupar por Gerencia Y Mes
         gerencia_mensual_data = df_filtered.groupby(['Gerencia', 'Mes', 'Mes_Num'])['Total Mensual'].sum().reset_index()
         
-        # Gráfico de barras apiladas horizontal: Y=Gerencia, X=Monto, Color=Mes
+        # Calcular totales por Gerencia para las etiquetas
+        gerencia_totales = gerencia_mensual_data.groupby('Gerencia')['Total Mensual'].sum().reset_index()
+        
         col_chart_m_ger, col_table_m_ger = st.columns([3, 1])
         
         with col_chart_m_ger:
-            chart_ger_mensual = alt.Chart(gerencia_mensual_data).mark_bar().encode(
+            # 1. Gráfico de barras apiladas (Stacked Bar)
+            chart_ger_stacked = alt.Chart(gerencia_mensual_data).mark_bar().encode(
                 y=alt.Y('Gerencia:N', sort='-x', title=None, axis=alt.Axis(labelLimit=150)),
                 x=alt.X('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
                 color=alt.Color('Mes:N', sort=meses_ordenados_viz, title='Mes'),
-                order=alt.Order('Mes_Num', sort='ascending'), # Para que las barras apiladas sigan el orden del año
+                order=alt.Order('Mes_Num', sort='ascending'), 
                 tooltip=[
                     alt.Tooltip('Gerencia:N'),
                     alt.Tooltip('Mes:N'),
                     alt.Tooltip('Total Mensual:Q', format='$,.2f')
                 ]
-            ).properties(
+            )
+            
+            # 2. Capa de texto para el TOTAL (Sum of Stack)
+            text_totals_ger = alt.Chart(gerencia_totales).mark_text(
+                align='left',
+                baseline='middle',
+                dx=5,  # Desplazamiento a la derecha de la barra
+                color='black'
+            ).encode(
+                y=alt.Y('Gerencia:N', sort='-x'),
+                x=alt.X('Total Mensual:Q'), # Posición al final de la barra apilada
+                text=alt.Text('Total Mensual:Q', format='$,.2s') # Etiqueta con formato corto (e.g. $1M)
+            )
+
+            # Combinar gráficos
+            final_chart_ger = (chart_ger_stacked + text_totals_ger).properties(
                 height=(len(gerencia_mensual_data['Gerencia'].unique()) * 35) + 50
             ).configure_view(stroke=None).configure(background='transparent')
             
-            st.altair_chart(chart_ger_mensual, use_container_width=True)
+            st.altair_chart(final_chart_ger, use_container_width=True)
 
         with col_table_m_ger:
-            # Tabla pivote para ver los números detallados
             pivot_ger_mensual = pd.pivot_table(
-                gerencia_mensual_data, 
-                values='Total Mensual', 
-                index='Gerencia', 
-                columns='Mes', 
-                aggfunc='sum', 
-                fill_value=0
+                gerencia_mensual_data, values='Total Mensual', index='Gerencia', columns='Mes', aggfunc='sum', fill_value=0
             )
-            # Ordenar columnas por mes
             cols_presentes = [m for m in meses_ordenados_viz if m in pivot_ger_mensual.columns]
             pivot_ger_mensual = pivot_ger_mensual[cols_presentes]
-            
-            # Agregar total fila
             pivot_ger_mensual['Total'] = pivot_ger_mensual.sum(axis=1)
             pivot_ger_mensual = pivot_ger_mensual.sort_values('Total', ascending=False)
             
@@ -746,41 +756,49 @@ with tab_distribucion:
         # Agrupar por Clasificación Y Mes
         clasif_mensual_data = df_filtered.groupby(['Clasificacion_Ministerio', 'Mes', 'Mes_Num'])['Total Mensual'].sum().reset_index()
         
+        # Totales para etiquetas
+        clasif_totales = clasif_mensual_data.groupby('Clasificacion_Ministerio')['Total Mensual'].sum().reset_index()
+        
         col_chart_m_clas, col_table_m_clas = st.columns([3, 1])
 
         with col_chart_m_clas:
-            # Gráfico de barras verticales apiladas: X=Mes, Y=Monto, Color=Clasificación
-            # Esto reemplaza al gráfico de torta para mostrar la evolución
-            chart_clas_mensual = alt.Chart(clasif_mensual_data).mark_bar().encode(
+            # Chart Vertical Apilado
+            chart_clas_stacked = alt.Chart(clasif_mensual_data).mark_bar().encode(
                 x=alt.X('Mes:N', sort=meses_ordenados_viz, title='Mes'),
                 y=alt.Y('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
                 color=alt.Color('Clasificacion_Ministerio:N', title='Clasificación'),
-                tooltip=[
-                    alt.Tooltip('Mes:N'),
-                    alt.Tooltip('Clasificacion_Ministerio:N', title='Clasificación'),
-                    alt.Tooltip('Total Mensual:Q', format='$,.2f')
-                ]
-            ).properties(
+                tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Clasificacion_Ministerio:N'), alt.Tooltip('Total Mensual:Q', format='$,.2f')]
+            )
+            
+            # Texto TOTAL para gráfico vertical (agrupado por Mes)
+            # OJO: Aquí el stack es por Clasificación dentro de cada Mes.
+            # Queremos el total por MES arriba de la barra.
+            # Re-calculamos totales por Mes para este gráfico específico
+            totales_por_mes = clasif_mensual_data.groupby(['Mes'])['Total Mensual'].sum().reset_index()
+            
+            text_totals_clas = alt.Chart(totales_por_mes).mark_text(
+                align='center',
+                baseline='bottom',
+                dy=-5,
+                color='black'
+            ).encode(
+                x=alt.X('Mes:N', sort=meses_ordenados_viz),
+                y=alt.Y('Total Mensual:Q'),
+                text=alt.Text('Total Mensual:Q', format='$,.2s')
+            )
+
+            final_chart_clas = (chart_clas_stacked + text_totals_clas).properties(
                 height=400
             ).configure_view(stroke=None).configure(background='transparent')
             
-            st.altair_chart(chart_clas_mensual, use_container_width=True)
+            st.altair_chart(final_chart_clas, use_container_width=True)
 
         with col_table_m_clas:
-             # Tabla pivote para ver los números detallados
             pivot_clas_mensual = pd.pivot_table(
-                clasif_mensual_data, 
-                values='Total Mensual', 
-                index='Clasificacion_Ministerio', 
-                columns='Mes', 
-                aggfunc='sum', 
-                fill_value=0
+                clasif_mensual_data, values='Total Mensual', index='Clasificacion_Ministerio', columns='Mes', aggfunc='sum', fill_value=0
             )
-            # Ordenar columnas por mes
             cols_presentes_clas = [m for m in meses_ordenados_viz if m in pivot_clas_mensual.columns]
             pivot_clas_mensual = pivot_clas_mensual[cols_presentes_clas]
-            
-            # Agregar total fila
             pivot_clas_mensual['Total'] = pivot_clas_mensual.sum(axis=1)
             pivot_clas_mensual = pivot_clas_mensual.sort_values('Total', ascending=False)
             
@@ -791,11 +809,60 @@ with tab_distribucion:
                 height=400
             )
 
-# ------------------------- TAB 3: CONCEPTOS / SIPAF -------------------------
+# ------------------------- TAB 3: COSTOS PROMEDIOS (NUEVA) -------------------------
+with tab_costos:
+    st.subheader("Análisis de Costos Promedios Mensuales")
+    st.markdown("Evolución del costo promedio (Total Masa / Dotación) por categorías clave.")
+    
+    meses_ordenados_costos = df.sort_values('Mes_Num')['Mes'].unique().tolist()
+
+    # Helper function para calcular y graficar
+    def plot_avg_cost_evolution(df_in, group_col, title_chart):
+        # Agrupar y calcular metricas
+        grouped = df_in.groupby([group_col, 'Mes', 'Mes_Num']).agg(
+            Masa=('Total Mensual', 'sum'),
+            Dotacion=('Legajo', 'nunique')
+        ).reset_index()
+        
+        grouped['Costo_Promedio'] = grouped['Masa'] / grouped['Dotacion']
+        grouped['Costo_Promedio'] = grouped['Costo_Promedio'].fillna(0)
+        
+        chart = alt.Chart(grouped).mark_line(point=True).encode(
+            x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes'),
+            y=alt.Y('Costo_Promedio:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')),
+            color=alt.Color(f'{group_col}:N', title=group_col),
+            tooltip=[
+                alt.Tooltip('Mes:N'), 
+                alt.Tooltip(f'{group_col}:N'), 
+                alt.Tooltip('Costo_Promedio:Q', format='$,.2f'),
+                alt.Tooltip('Dotacion:Q', title='Dotación')
+            ]
+        ).properties(height=350).configure_point(size=100)
+        
+        return chart
+
+    col_costo_1, col_costo_2 = st.columns(2)
+    
+    with col_costo_1:
+        st.markdown("#### Por Relación")
+        chart_relacion = plot_avg_cost_evolution(df_filtered, 'Relación', 'Relación')
+        st.altair_chart(chart_relacion, use_container_width=True)
+        
+    with col_costo_2:
+        st.markdown("#### Por Nivel")
+        chart_nivel = plot_avg_cost_evolution(df_filtered, 'Nivel', 'Nivel')
+        st.altair_chart(chart_nivel, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("#### Por Clasificación (Subnivel)")
+    chart_clasif = plot_avg_cost_evolution(df_filtered, 'Clasificacion_Ministerio', 'Clasificación')
+    st.altair_chart(chart_clasif, use_container_width=True)
+
+
+# ------------------------- TAB 4: CONCEPTOS / SIPAF -------------------------
 with tab_conceptos:
     st.subheader("Masa Salarial por Concepto / SIPAF")
     
-    # Selectores para Grupo y Visualización
     col_sel_1, col_sel_2 = st.columns(2)
     with col_sel_1:
         mode = st.radio("Seleccionar grupo de conceptos:", options=["Masa por Concepto", "Resumen SIPAF"], index=0, horizontal=True)
@@ -820,14 +887,12 @@ with tab_conceptos:
         'Contribuciones Patronales 1.1.6', 'Complementos 1.1.7', 'Asignaciones Familiares 1.4'
     ]
     
-    # Orden de meses para visualización
     meses_ordenados_viz_conc = df.sort_values('Mes_Num')['Mes'].unique().tolist()
 
     if mode == "Masa por Concepto":
         if concept_cols_present:
             df_melted = df_filtered.melt(id_vars=['Mes', 'Mes_Num'], value_vars=concept_cols_present, var_name='Concepto', value_name='Monto')
             
-            # Tabla Pivote (Base para tabla y algunos cálculos)
             pivot_table = pd.pivot_table(df_melted, values='Monto', index='Concepto', columns='Mes', aggfunc='sum', fill_value=0)
             meses_en_datos = df_filtered[['Mes', 'Mes_Num']].drop_duplicates().sort_values('Mes_Num')['Mes'].tolist()
             if all(mes in pivot_table.columns for mes in meses_en_datos):
@@ -839,7 +904,6 @@ with tab_conceptos:
             
             with col_chart_concepto:
                 if vista_conceptos == "Vista Acumulada":
-                    # --- VISTA ACUMULADA (Original) ---
                     chart_data_concepto = pivot_table.reset_index()
                     chart_data_concepto = chart_data_concepto[chart_data_concepto['Concepto'] != 'Total Mensual']
                     chart_data_concepto = chart_data_concepto.sort_values('Total general', ascending=False)
@@ -854,13 +918,8 @@ with tab_conceptos:
                     bar_chart_concepto = (base_chart_concepto + text_labels_concepto).properties(height=chart_height_concepto, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
                     st.altair_chart(bar_chart_concepto, use_container_width=True)
                 else:
-                    # --- VISTA MENSUALIZADA (Nueva) ---
-                    # Usamos df_melted directamente
                     chart_data_mensual = df_melted[df_melted['Concepto'] != 'Total Mensual']
-                    # Agrupar por Concepto y Mes para asegurar sumas correctas si hay duplicados
                     chart_data_mensual = chart_data_mensual.groupby(['Concepto', 'Mes', 'Mes_Num'])['Monto'].sum().reset_index()
-                    
-                    # Ordenar Conceptos por monto total para que el gráfico se vea ordenado
                     total_por_concepto = chart_data_mensual.groupby('Concepto')['Monto'].sum().sort_values(ascending=False).index.tolist()
 
                     chart_height_mensual = (len(total_por_concepto) * 35) + 50
@@ -870,18 +929,13 @@ with tab_conceptos:
                         x=alt.X('Monto:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
                         color=alt.Color('Mes:N', sort=meses_ordenados_viz_conc, title='Mes'),
                         order=alt.Order('Mes_Num', sort='ascending'),
-                        tooltip=[
-                            alt.Tooltip('Concepto:N'), 
-                            alt.Tooltip('Mes:N'), 
-                            alt.Tooltip('Monto:Q', format='$,.2f')
-                        ]
+                        tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Mes:N'), alt.Tooltip('Monto:Q', format='$,.2f')]
                     ).properties(
                         height=chart_height_mensual
                     ).configure(background='transparent').configure_view(fill='transparent')
                     st.altair_chart(bar_chart_mensual, use_container_width=True)
 
             with col_table_concepto:
-                # La tabla es la misma pivoteada para ambos casos, ajustamos la altura si es necesario
                 height_table = chart_height_concepto + 35 if vista_conceptos == "Vista Acumulada" else chart_height_mensual
                 st.dataframe(pivot_table.style.format(formatter=lambda x: f"${format_number_es(x)}").set_properties(**{'text-align': 'right'}), use_container_width=True, height=height_table)
 
@@ -894,7 +948,7 @@ with tab_conceptos:
         else:
             st.info("No hay datos de conceptos para mostrar con los filtros seleccionados.")
 
-    else:  # Resumen SIPAF
+    else:
         df_filtered.columns = df_filtered.columns.str.strip().str.replace(r"\s+", " ", regex=True)
         sipaf_cols_present = []
         for col in df_filtered.columns:
@@ -920,7 +974,6 @@ with tab_conceptos:
             
             with col_chart_sipaf:
                 if vista_conceptos == "Vista Acumulada":
-                    # --- VISTA ACUMULADA (Original) ---
                     chart_data_sipaf = pivot_table_sipaf.drop('Total general').reset_index()
                     chart_data_sipaf = chart_data_sipaf.rename(columns={'index': 'Concepto'})
                     chart_data_sipaf = chart_data_sipaf.sort_values('Total general', ascending=False)
@@ -935,9 +988,7 @@ with tab_conceptos:
                     bar_chart_sipaf = (base_chart_sipaf + text_labels_sipaf).properties(height=chart_height_sipaf, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
                     st.altair_chart(bar_chart_sipaf, use_container_width=True)
                 else:
-                    # --- VISTA MENSUALIZADA (Nueva) ---
                     chart_data_sipaf_mensual = df_melted_sipaf.groupby(['Concepto', 'Mes', 'Mes_Num'])['Monto'].sum().reset_index()
-                    
                     total_por_concepto_sipaf = chart_data_sipaf_mensual.groupby('Concepto')['Monto'].sum().sort_values(ascending=False).index.tolist()
                     chart_height_sipaf_mensual = (len(total_por_concepto_sipaf) * 35) + 50
 
@@ -946,11 +997,7 @@ with tab_conceptos:
                         x=alt.X('Monto:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
                         color=alt.Color('Mes:N', sort=meses_ordenados_viz_conc, title='Mes'),
                         order=alt.Order('Mes_Num', sort='ascending'),
-                        tooltip=[
-                            alt.Tooltip('Concepto:N'), 
-                            alt.Tooltip('Mes:N'), 
-                            alt.Tooltip('Monto:Q', format='$,.2f')
-                        ]
+                        tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Mes:N'), alt.Tooltip('Monto:Q', format='$,.2f')]
                     ).properties(
                         height=chart_height_sipaf_mensual
                     ).configure(background='transparent').configure_view(fill='transparent')
@@ -969,7 +1016,7 @@ with tab_conceptos:
         else:
             st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
 
-# ------------------------- TAB 4: TABLA DETALLADA -------------------------
+# ------------------------- TAB 5: TABLA DETALLADA -------------------------
 with tab_tabla:
     st.subheader("Tabla de Datos Detallados")
     df_display = df_filtered.copy().reset_index(drop=True)
