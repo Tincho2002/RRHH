@@ -1061,7 +1061,7 @@ with tab_conceptos:
             with col_dl_9:
                 st.download_button(label="📥 Descargar CSV", data=pivot_table_sipaf.to_csv(index=True).encode('utf-8'), file_name='resumen_sipaf.csv', mime='text/csv', use_container_width=True)
             with col_dl_10:
-                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table_sipaf.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
         else:
             st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
 
