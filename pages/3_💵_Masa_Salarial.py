@@ -313,6 +313,9 @@ def calculate_monthly_metrics(df_month):
 metrics_current = calculate_monthly_metrics(df_current)
 metrics_previous = calculate_monthly_metrics(df_previous)
 
+# === NUEVO: Calcular Total Anual (Acumulado según filtros) ===
+total_anual_acumulado = df_filtered['Total Mensual'].sum()
+
 # 5. Función auxiliar para calcular el string del delta
 def get_delta_pct_str(current, previous):
     if previous > 0:
@@ -344,7 +347,8 @@ cards_html = f"""
 /* Contenedor Grid Responsivo */
 .metrics-grid {{
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* CAMBIO: 5 Columnas para incluir el anual */
+    grid-template-columns: repeat(5, 1fr);
     gap: 15px;
     margin-bottom: 30px;
     font-family: 'Source Sans Pro', sans-serif;
@@ -378,6 +382,7 @@ cards_html = f"""
 }}
 
 /* Bordes de Color */
+.border-orange {{ border-top: 4px solid #f97316; }} /* NUEVO Color */
 .border-blue {{ border-top: 4px solid #3b82f6; }}
 .border-cyan {{ border-top: 4px solid #06b6d4; }}
 .border-violet {{ border-top: 4px solid #8b5cf6; }}
@@ -422,6 +427,16 @@ cards_html = f"""
 </style>
 
 <div class="metrics-grid">
+
+<!-- Tarjeta 0: Costo Anual (Acumulado) NUEVA -->
+<div class="metric-card border-orange">
+    <div class="card-label" title="Costo Acumulado (Año)">Costo Acumulado (Año)</div>
+    <div class="card-value">${format_number_es(total_anual_acumulado)}</div>
+    <div class="card-delta delta-neutral">
+        Total Filtrado
+    </div>
+</div>
+
 <!-- Tarjeta 1: Masa Salarial -->
 <div class="metric-card border-blue">
     <div class="card-label" title="Masa Salarial ({display_month_name})">Masa Salarial ({display_month_name})</div>
