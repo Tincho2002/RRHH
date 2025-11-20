@@ -813,27 +813,27 @@ with tab_costos:
     st.subheader("Análisis de Costos Promedios Mensuales")
     st.markdown("Evolución del costo promedio (Total Masa / Dotación) por categorías clave.")
     
-    # 1. Definición de opciones
+    # 1. Definición de opciones - Actualizado
     analysis_options_map = {
-        "Por Relación": "Relación",
-        "Por Nivel": "Nivel",
-        "Por Clasificación (Subnivel)": "Clasificacion_Ministerio"
+        "Relación": "Relación",
+        "Nivel": "Nivel",
+        "Clasificación Ministerial": "Clasificacion_Ministerio"
     }
 
     # 2. Columnas para selectores
     col_sel_dim, col_sel_view_mode = st.columns(2)
     
     with col_sel_dim:
-        # Multiselect para elegir qué gráficos mostrar
+        # Multiselect para elegir qué gráficos mostrar - Default solo Relación
         selected_analyses = st.multiselect(
             "Seleccione Dimensiones para Analizar:",
             options=list(analysis_options_map.keys()),
-            default=list(analysis_options_map.keys())
+            default=["Relación"]
         )
         
     with col_sel_view_mode:
         # Checkbox para alternar vista de tabla
-        show_detail_legajo = st.checkbox("Mostrar detalle por Legajo en tablas", value=False, help="Activa para ver la lista de empleados que componen cada categoría.")
+        show_detail_legajo = st.checkbox("Mostrar detalle por Legajo en tablas", value=False, help="Activa para ver el listado de empleados mes a mes.")
 
     st.markdown("---")
     
@@ -872,16 +872,16 @@ with tab_costos:
         
         # Renderizar Tabla según el Checkbox
         if show_detail_legajo:
-            st.write(f"**Detalle de Legajos - {label}**")
-            # Seleccionar columnas relevantes para el detalle
-            cols_detalle = ['Período', 'Mes', 'Legajo', 'Apellido y Nombres', 'Gerencia', col_name, 'Total Mensual']
-            # Filtrar columnas que existen en el DF (por si acaso)
+            st.write(f"**Detalle por Mes y Legajo - {label}**")
+            # Seleccionar columnas relevantes para el detalle, incluyendo Mes y Legajo
+            cols_detalle = ['Período', 'Mes', 'Mes_Num', 'Legajo', 'Apellido y Nombres', 'Gerencia', col_name, 'Total Mensual']
             cols_presentes = [c for c in cols_detalle if c in df_filtered.columns]
             
             df_detail = df_filtered[cols_presentes].copy()
-            # Ordenar para facilitar lectura
+            # Ordenar por Mes y luego por Nombre para facilitar lectura
             df_detail = df_detail.sort_values(['Mes_Num', col_name, 'Apellido y Nombres'])
             
+            # Ocultar Mes_Num en la visual final si se desea, o dejarlo. Aquí lo mostramos para debug visual del orden.
             st.dataframe(
                 df_detail.style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}),
                 use_container_width=True,
@@ -889,10 +889,12 @@ with tab_costos:
             )
         else:
             st.write(f"**Resumen Mensual de Promedios - {label}**")
-            # Mostrar la tabla agrupada calculada arriba
-            # Reordenar columnas
+            # CORRECCIÓN DEL ERROR: Ordenar ANTES de filtrar columnas
+            if 'Mes_Num' in grouped_stats.columns:
+                grouped_stats = grouped_stats.sort_values('Mes_Num', ignore_index=True)
+            
             cols_order = ['Mes', col_name, 'Masa', 'Dotacion', 'Costo_Promedio']
-            grouped_display = grouped_stats[cols_order].sort_values('Mes_Num', ignore_index=True) if 'Mes_Num' in grouped_stats.columns else grouped_stats
+            grouped_display = grouped_stats[cols_order]
             
             st.dataframe(
                 grouped_display.style.format({
@@ -1059,7 +1061,7 @@ with tab_conceptos:
             with col_dl_9:
                 st.download_button(label="📥 Descargar CSV", data=pivot_table_sipaf.to_csv(index=True).encode('utf-8'), file_name='resumen_sipaf.csv', mime='text/csv', use_container_width=True)
             with col_dl_10:
-                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table_sipaf.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
         else:
             st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
 
