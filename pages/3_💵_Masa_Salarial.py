@@ -364,7 +364,7 @@ cards_html = f"""
 .metric-card {{
     background: white;
     border-radius: 12px;
-    padding: 20px;
+    padding: 15px; /* Reducido de 20px para dar más aire */
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     border: 1px solid #f0f2f6;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -390,7 +390,7 @@ cards_html = f"""
 
 /* Texto */
 .card-label {{
-    font-size: 0.85rem;
+    font-size: 0.8rem; /* Reducido un poco */
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -403,18 +403,19 @@ cards_html = f"""
 }}
 
 .card-value {{
-    font-size: 1.6rem;
+    font-size: 1.2rem; /* Reducido de 1.6rem para que entren números grandes */
     font-weight: 700;
     color: #1e293b;
     margin-bottom: 8px;
     line-height: 1.2;
+    word-wrap: break-word; /* Permitir que el número baje si es larguísimo */
 }}
 
 /* Delta (Pastillas) */
 .card-delta {{
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    padding: 4px 12px;
+    padding: 4px 10px;
     border-radius: 20px;
     display: inline-flex;
     align-items: center;
@@ -431,7 +432,7 @@ cards_html = f"""
 <!-- Tarjeta 0: Costo Anual (Acumulado) NUEVA -->
 <div class="metric-card border-orange">
     <div class="card-label" title="Costo Acumulado (Año)">Costo Acumulado (Año)</div>
-    <div class="card-value">${format_number_es(total_anual_acumulado)}</div>
+    <div class="card-value">${format_integer_es(total_anual_acumulado)}</div>
     <div class="card-delta delta-neutral">
         Total Filtrado
     </div>
@@ -440,7 +441,7 @@ cards_html = f"""
 <!-- Tarjeta 1: Masa Salarial -->
 <div class="metric-card border-blue">
     <div class="card-label" title="Masa Salarial ({display_month_name})">Masa Salarial ({display_month_name})</div>
-    <div class="card-value">${format_number_es(metrics_current['total_masa'])}</div>
+    <div class="card-value">${format_integer_es(metrics_current['total_masa'])}</div>
     <div class="card-delta {'delta-green' if delta_total <= 0 else 'delta-red' if delta_total > 0 else 'delta-neutral'}">
         {'▼' if delta_total <= 0 else '▲'} {abs(delta_total):.1f}%
     </div>
