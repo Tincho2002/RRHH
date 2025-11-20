@@ -337,9 +337,6 @@ display_month_name = latest_month_name if latest_month_name else "N/A"
 # ----------------------------------------------------------------------------
 # --- TARJETAS DE MÉTRICAS (NUEVO DISEÑO HTML/CSS FLUIDO) ---
 # ----------------------------------------------------------------------------
-# Aquí usamos st.markdown con HTML puro para asegurar que se apilen correctamente
-# y no se corten en iframes fijos.
-
 cards_html = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
@@ -347,17 +344,15 @@ cards_html = f"""
 /* Contenedor Grid Responsivo */
 .metrics-grid {{
     display: grid;
-    /* CAMBIO AQUÍ: Forzamos 4 columnas de igual tamaño para que queden en una línea */
     grid-template-columns: repeat(4, 1fr);
-    gap: 15px; /* Reduje un poco el espacio entre tarjetas para que quepan mejor */
+    gap: 15px;
     margin-bottom: 30px;
     font-family: 'Source Sans Pro', sans-serif;
 }}
 
-/* Ajuste para pantallas muy pequeñas (móviles) para que no se rompa */
 @media (max-width: 768px) {{
     .metrics-grid {{
-        grid-template-columns: repeat(2, 1fr); /* En celular, 2 arriba y 2 abajo */
+        grid-template-columns: repeat(2, 1fr); 
     }}
 }}
 
@@ -365,7 +360,7 @@ cards_html = f"""
 .metric-card {{
     background: white;
     border-radius: 12px;
-    padding: 20px; /* Si necesitas más espacio, puedes bajar esto a 15px */
+    padding: 20px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     border: 1px solid #f0f2f6;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -373,7 +368,6 @@ cards_html = f"""
     flex-direction: column;
     align-items: center;
     text-align: center;
-    /* Asegura que el contenido no desborde */
     min-width: 0; 
     overflow-wrap: break-word;
 }}
@@ -391,20 +385,20 @@ cards_html = f"""
 
 /* Texto */
 .card-label {{
-    font-size: 0.85rem; /* Un poco más pequeño para asegurar que entre en una línea */
+    font-size: 0.85rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: #64748b;
     margin-bottom: 10px;
-    white-space: nowrap; /* Intenta mantener el título en una línea */
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     width: 100%;
 }}
 
 .card-value {{
-    font-size: 1.6rem; /* Ajustado ligeramente */
+    font-size: 1.6rem;
     font-weight: 700;
     color: #1e293b;
     margin-bottom: 8px;
@@ -597,83 +591,205 @@ with tab_evolucion:
 
 # ------------------------- TAB 2: DISTRIBUCIÓN -------------------------
 with tab_distribucion:
-    st.subheader("Masa Salarial por Gerencia")
-    col_chart2, col_table2 = st.columns([3, 2])
-    gerencia_data = df_filtered.groupby('Gerencia')['Total Mensual'].sum().sort_values(ascending=False).reset_index()
-    chart_height2 = (len(gerencia_data) + 1) * 35 + 3
-    with col_chart2:
-        base_chart2 = alt.Chart(gerencia_data).mark_bar().encode(
-            x=alt.X('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
-            y=alt.Y('Gerencia:N', sort='-x', title=None, axis=alt.Axis(labelLimit=120)),
-            tooltip=[alt.Tooltip('Gerencia:N', title='Gerencia'), alt.Tooltip('Total Mensual:Q', format='$,.2f')]
-        )
-        text = base_chart2.mark_text(align='left', baseline='middle', dx=5).encode(
-            x='Total Mensual:Q', y=alt.Y('Gerencia:N', sort='-x'), text=alt.Text('Total Mensual:Q', format='$,.0s'), color=alt.value('black')
-        )
-        bar_chart = (base_chart2 + text).properties(height=chart_height2, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
-        st.altair_chart(bar_chart, use_container_width=True)
-    with col_table2:
-        gerencia_data_display = gerencia_data.copy()
-        if not gerencia_data_display.empty:
-            total_row = pd.DataFrame([{'Gerencia': 'Total', 'Total Mensual': gerencia_data_display['Total Mensual'].sum()}])
-            gerencia_data_display = pd.concat([gerencia_data_display, total_row], ignore_index=True)
-        st.dataframe(gerencia_data_display.style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}).set_properties(subset=["Total Mensual"], **{'text-align': 'right'}), hide_index=True, use_container_width=True, height=chart_height2)
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-    dl3_col, dl4_col = st.columns(2)
-    with dl3_col:
-        st.download_button(label="📥 Descargar CSV", data=gerencia_data_display.to_csv(index=False).encode('utf-8'), file_name='masa_por_gerencia.csv', mime='text/csv', use_container_width=True)
-    with dl4_col:
-        st.download_button(label="📥 Descargar Excel", data=to_excel(gerencia_data_display), file_name='masa_por_gerencia.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("Distribución por Clasificación")
-    col_chart3, col_table3 = st.columns([2, 1])
-    clasificacion_data = df_filtered.groupby('Clasificacion_Ministerio')['Total Mensual'].sum().reset_index()
+    st.subheader("Análisis de Distribución")
     
-    with col_chart3:
-        clasificacion_data = clasificacion_data.sort_values('Total Mensual', ascending=False)
-        total = clasificacion_data['Total Mensual'].sum()
-        if total > 0:
-            clasificacion_data['Porcentaje'] = (clasificacion_data['Total Mensual'] / total)
-        else:
-            clasificacion_data['Porcentaje'] = 0
+    # Selector para elegir vista: Acumulado vs Mensualizado
+    vista_distribucion = st.radio(
+        "Seleccione el tipo de visualización:",
+        ["Vista Acumulada (Total del periodo)", "Vista Mensualizada (Evolución por Mes)"],
+        horizontal=True,
+        key="dist_mode_selector"
+    )
+    
+    st.markdown("---")
 
-        base_chart = alt.Chart(clasificacion_data).encode(
-            theta=alt.Theta(field="Total Mensual", type="quantitative", stack=True),
-            color=alt.Color(field="Clasificacion_Ministerio", type="nominal", title="Clasificación",
-                            sort=alt.EncodingSortField(field="Total Mensual", order="descending")),
-            tooltip=[
-                alt.Tooltip('Clasificacion_Ministerio', title='Clasificación'),
-                alt.Tooltip('Total Mensual', format='$,.2f'),
-                alt.Tooltip('Porcentaje', format='.2%')
-            ]
-        )
-        pie = base_chart.mark_arc(innerRadius=70, outerRadius=110)
-        text = base_chart.mark_text(radius=140, size=12, fill='black').encode(
-            text=alt.condition(
-                alt.datum.Porcentaje > 0.03,
-                alt.Text('Porcentaje:Q', format='.1%'),
-                alt.value('')
+    if vista_distribucion == "Vista Acumulada (Total del periodo)":
+        # --- VISTA ORIGINAL (ACUMULADA) ---
+        st.subheader("Masa Salarial Acumulada por Gerencia")
+        col_chart2, col_table2 = st.columns([3, 2])
+        gerencia_data = df_filtered.groupby('Gerencia')['Total Mensual'].sum().sort_values(ascending=False).reset_index()
+        chart_height2 = (len(gerencia_data) + 1) * 35 + 3
+        with col_chart2:
+            base_chart2 = alt.Chart(gerencia_data).mark_bar().encode(
+                x=alt.X('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
+                y=alt.Y('Gerencia:N', sort='-x', title=None, axis=alt.Axis(labelLimit=120)),
+                tooltip=[alt.Tooltip('Gerencia:N', title='Gerencia'), alt.Tooltip('Total Mensual:Q', format='$,.2f')]
             )
-        )
-        final_chart = (pie + text).properties(height=400).configure_view(stroke=None).configure(background='transparent')
-        st.altair_chart(final_chart, use_container_width=True)
+            text = base_chart2.mark_text(align='left', baseline='middle', dx=5).encode(
+                x='Total Mensual:Q', y=alt.Y('Gerencia:N', sort='-x'), text=alt.Text('Total Mensual:Q', format='$,.0s'), color=alt.value('black')
+            )
+            bar_chart = (base_chart2 + text).properties(height=chart_height2, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
+            st.altair_chart(bar_chart, use_container_width=True)
+        with col_table2:
+            gerencia_data_display = gerencia_data.copy()
+            if not gerencia_data_display.empty:
+                total_row = pd.DataFrame([{'Gerencia': 'Total', 'Total Mensual': gerencia_data_display['Total Mensual'].sum()}])
+                gerencia_data_display = pd.concat([gerencia_data_display, total_row], ignore_index=True)
+            st.dataframe(gerencia_data_display.style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}).set_properties(subset=["Total Mensual"], **{'text-align': 'right'}), hide_index=True, use_container_width=True, height=chart_height2)
+        
+        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+        dl3_col, dl4_col = st.columns(2)
+        with dl3_col:
+            st.download_button(label="📥 Descargar CSV (Gerencia)", data=gerencia_data_display.to_csv(index=False).encode('utf-8'), file_name='masa_por_gerencia.csv', mime='text/csv', use_container_width=True)
+        with dl4_col:
+            st.download_button(label="📥 Descargar Excel (Gerencia)", data=to_excel(gerencia_data_display), file_name='masa_por_gerencia.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
 
-    with col_table3:
-        table_data = clasificacion_data.rename(columns={'Clasificacion_Ministerio': 'Clasificación'})
-        table_display_data = table_data[['Clasificación', 'Total Mensual']]
-        if not table_display_data.empty:
-            total_row = pd.DataFrame([{'Clasificación': 'Total', 'Total Mensual': table_display_data['Total Mensual'].sum()}])
-            table_display_data = pd.concat([table_display_data, total_row], ignore_index=True)
-        table_height = (len(table_display_data) + 1) * 35 + 3
-        st.dataframe(table_display_data.copy().style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}).set_properties(subset=["Total Mensual"], **{'text-align': 'right'}), hide_index=True, use_container_width=True, height=table_height)
+        st.markdown("---")
+        st.subheader("Distribución Acumulada por Clasificación")
+        col_chart3, col_table3 = st.columns([2, 1])
+        clasificacion_data = df_filtered.groupby('Clasificacion_Ministerio')['Total Mensual'].sum().reset_index()
+        
+        with col_chart3:
+            clasificacion_data = clasificacion_data.sort_values('Total Mensual', ascending=False)
+            total = clasificacion_data['Total Mensual'].sum()
+            if total > 0:
+                clasificacion_data['Porcentaje'] = (clasificacion_data['Total Mensual'] / total)
+            else:
+                clasificacion_data['Porcentaje'] = 0
 
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-    dl5_col, dl6_col = st.columns(2)
-    with dl5_col:
-        st.download_button(label="📥 Descargar CSV", data=table_display_data.to_csv(index=False).encode('utf-8'), file_name='distribucion_clasificacion.csv', mime='text/csv', use_container_width=True)
-    with dl6_col:
-        st.download_button(label="📥 Descargar Excel", data=to_excel(table_display_data), file_name='distribucion_clasificacion.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+            base_chart = alt.Chart(clasificacion_data).encode(
+                theta=alt.Theta(field="Total Mensual", type="quantitative", stack=True),
+                color=alt.Color(field="Clasificacion_Ministerio", type="nominal", title="Clasificación",
+                                sort=alt.EncodingSortField(field="Total Mensual", order="descending")),
+                tooltip=[
+                    alt.Tooltip('Clasificacion_Ministerio', title='Clasificación'),
+                    alt.Tooltip('Total Mensual', format='$,.2f'),
+                    alt.Tooltip('Porcentaje', format='.2%')
+                ]
+            )
+            pie = base_chart.mark_arc(innerRadius=70, outerRadius=110)
+            text = base_chart.mark_text(radius=140, size=12, fill='black').encode(
+                text=alt.condition(
+                    alt.datum.Porcentaje > 0.03,
+                    alt.Text('Porcentaje:Q', format='.1%'),
+                    alt.value('')
+                )
+            )
+            final_chart = (pie + text).properties(height=400).configure_view(stroke=None).configure(background='transparent')
+            st.altair_chart(final_chart, use_container_width=True)
+
+        with col_table3:
+            table_data = clasificacion_data.rename(columns={'Clasificacion_Ministerio': 'Clasificación'})
+            table_display_data = table_data[['Clasificación', 'Total Mensual']]
+            if not table_display_data.empty:
+                total_row = pd.DataFrame([{'Clasificación': 'Total', 'Total Mensual': table_display_data['Total Mensual'].sum()}])
+                table_display_data = pd.concat([table_display_data, total_row], ignore_index=True)
+            table_height = (len(table_display_data) + 1) * 35 + 3
+            st.dataframe(table_display_data.copy().style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}).set_properties(subset=["Total Mensual"], **{'text-align': 'right'}), hide_index=True, use_container_width=True, height=table_height)
+
+        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+        dl5_col, dl6_col = st.columns(2)
+        with dl5_col:
+            st.download_button(label="📥 Descargar CSV (Clasif.)", data=table_display_data.to_csv(index=False).encode('utf-8'), file_name='distribucion_clasificacion.csv', mime='text/csv', use_container_width=True)
+        with dl6_col:
+            st.download_button(label="📥 Descargar Excel (Clasif.)", data=to_excel(table_display_data), file_name='distribucion_clasificacion.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+
+    else:
+        # --- VISTA NUEVA (MENSUALIZADA) ---
+        
+        # Obtener orden correcto de meses
+        meses_ordenados_viz = df.sort_values('Mes_Num')['Mes'].unique().tolist()
+
+        st.subheader("Evolución Mensual por Gerencia")
+        
+        # Agrupar por Gerencia Y Mes
+        gerencia_mensual_data = df_filtered.groupby(['Gerencia', 'Mes', 'Mes_Num'])['Total Mensual'].sum().reset_index()
+        
+        # Gráfico de barras apiladas horizontal: Y=Gerencia, X=Monto, Color=Mes
+        col_chart_m_ger, col_table_m_ger = st.columns([3, 1])
+        
+        with col_chart_m_ger:
+            chart_ger_mensual = alt.Chart(gerencia_mensual_data).mark_bar().encode(
+                y=alt.Y('Gerencia:N', sort='-x', title=None, axis=alt.Axis(labelLimit=150)),
+                x=alt.X('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
+                color=alt.Color('Mes:N', sort=meses_ordenados_viz, title='Mes'),
+                order=alt.Order('Mes_Num', sort='ascending'), # Para que las barras apiladas sigan el orden del año
+                tooltip=[
+                    alt.Tooltip('Gerencia:N'),
+                    alt.Tooltip('Mes:N'),
+                    alt.Tooltip('Total Mensual:Q', format='$,.2f')
+                ]
+            ).properties(
+                height=(len(gerencia_mensual_data['Gerencia'].unique()) * 35) + 50
+            ).configure_view(stroke=None).configure(background='transparent')
+            
+            st.altair_chart(chart_ger_mensual, use_container_width=True)
+
+        with col_table_m_ger:
+            # Tabla pivote para ver los números detallados
+            pivot_ger_mensual = pd.pivot_table(
+                gerencia_mensual_data, 
+                values='Total Mensual', 
+                index='Gerencia', 
+                columns='Mes', 
+                aggfunc='sum', 
+                fill_value=0
+            )
+            # Ordenar columnas por mes
+            cols_presentes = [m for m in meses_ordenados_viz if m in pivot_ger_mensual.columns]
+            pivot_ger_mensual = pivot_ger_mensual[cols_presentes]
+            
+            # Agregar total fila
+            pivot_ger_mensual['Total'] = pivot_ger_mensual.sum(axis=1)
+            pivot_ger_mensual = pivot_ger_mensual.sort_values('Total', ascending=False)
+            
+            st.write("**Tabla Resumen ($)**")
+            st.dataframe(
+                pivot_ger_mensual.style.format(lambda x: f"${format_number_es(x)}"), 
+                use_container_width=True,
+                height=(len(pivot_ger_mensual) * 35) + 50
+            )
+
+        st.markdown("---")
+        st.subheader("Evolución Mensual por Clasificación")
+        
+        # Agrupar por Clasificación Y Mes
+        clasif_mensual_data = df_filtered.groupby(['Clasificacion_Ministerio', 'Mes', 'Mes_Num'])['Total Mensual'].sum().reset_index()
+        
+        col_chart_m_clas, col_table_m_clas = st.columns([3, 1])
+
+        with col_chart_m_clas:
+            # Gráfico de barras verticales apiladas: X=Mes, Y=Monto, Color=Clasificación
+            # Esto reemplaza al gráfico de torta para mostrar la evolución
+            chart_clas_mensual = alt.Chart(clasif_mensual_data).mark_bar().encode(
+                x=alt.X('Mes:N', sort=meses_ordenados_viz, title='Mes'),
+                y=alt.Y('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
+                color=alt.Color('Clasificacion_Ministerio:N', title='Clasificación'),
+                tooltip=[
+                    alt.Tooltip('Mes:N'),
+                    alt.Tooltip('Clasificacion_Ministerio:N', title='Clasificación'),
+                    alt.Tooltip('Total Mensual:Q', format='$,.2f')
+                ]
+            ).properties(
+                height=400
+            ).configure_view(stroke=None).configure(background='transparent')
+            
+            st.altair_chart(chart_clas_mensual, use_container_width=True)
+
+        with col_table_m_clas:
+             # Tabla pivote para ver los números detallados
+            pivot_clas_mensual = pd.pivot_table(
+                clasif_mensual_data, 
+                values='Total Mensual', 
+                index='Clasificacion_Ministerio', 
+                columns='Mes', 
+                aggfunc='sum', 
+                fill_value=0
+            )
+            # Ordenar columnas por mes
+            cols_presentes_clas = [m for m in meses_ordenados_viz if m in pivot_clas_mensual.columns]
+            pivot_clas_mensual = pivot_clas_mensual[cols_presentes_clas]
+            
+            # Agregar total fila
+            pivot_clas_mensual['Total'] = pivot_clas_mensual.sum(axis=1)
+            pivot_clas_mensual = pivot_clas_mensual.sort_values('Total', ascending=False)
+            
+            st.write("**Tabla Resumen ($)**")
+            st.dataframe(
+                pivot_clas_mensual.style.format(lambda x: f"${format_number_es(x)}"), 
+                use_container_width=True,
+                height=400
+            )
 
 # ------------------------- TAB 3: CONCEPTOS / SIPAF -------------------------
 with tab_conceptos:
