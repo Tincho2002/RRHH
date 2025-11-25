@@ -113,14 +113,10 @@ def apply_filters(df, selections):
     search_leg = st.session_state.get("search_legajo_global", "").strip()
     
     if search_leg:
-        # Si hay algo escrito, filtramos SOLO por eso e ignoramos el resto
-        # Convertimos a string para buscar parcialmente
         mask = df['Legajo'].astype(str).str.contains(search_leg, case=False, na=False)
         _df_search = df[mask].copy()
-        
         if not _df_search.empty:
             return _df_search
-        # Si no encuentra nada, seguimos con el flujo normal (o podríamos devolver vacío)
     
     # 2. Filtrado Normal por Multiselects
     _df = df.copy()
@@ -133,7 +129,6 @@ def apply_filters(df, selections):
 def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns:
         unique_values = dataframe[column_name].dropna().unique().tolist()
-        # Eliminamos valores nulos explícitos, pero PERMITIMOS 'No Informado' o valores generados
         unique_values = [v for v in unique_values if v not in ['nan', 'None', '']]
         
         if column_name == 'Mes':
@@ -168,8 +163,7 @@ def load_data(uploaded_file):
     
     # --- MEJORA: Parseo robusto de fechas en español ---
     def parse_spanish_date(x):
-        if isinstance(x, datetime):
-            return x
+        if isinstance(x, datetime): return x
         x_str = str(x).lower().strip()
         replacements = {
             'ene': 'jan', 'abr': 'apr', 'ago': 'aug', 'dic': 'dec',
@@ -193,6 +187,8 @@ def load_data(uploaded_file):
     
     df['Período'] = df['Período_Temp']
     df.drop(columns=['Período_Temp'], inplace=True)
+    
+    # SOLO eliminamos si realmente no hay fecha
     df.dropna(subset=['Período'], inplace=True)
     
     df['Mes_Num'] = df['Período'].dt.month.astype(int)
@@ -201,29 +197,25 @@ def load_data(uploaded_file):
     
     df.rename(columns={'Clasificación Ministerio de Hacienda': 'Clasificacion_Ministerio', 'Nro. de Legajo': 'Legajo'}, inplace=True)
     
-    # --- CORRECCIÓN PRINCIPAL: MANEJO DE LEGAJOS FALTANTES PARA EVITAR PÉRDIDA DE MASA SALARIAL ---
-    
-    # 1. Generar IDs únicos para legajos vacíos
-    # Si 'Legajo' existe, limpiamos y rellenamos los vacíos con un ID virtual
+    # --- CORRECCIÓN CRÍTICA 1: Convertir Total Mensual a numérico forzosamente ---
+    # Esto asegura que si Excel trajo un texto o un espacio, se convierta a 0 y no rompa sumas
+    if 'Total Mensual' in df.columns:
+        df['Total Mensual'] = pd.to_numeric(df['Total Mensual'], errors='coerce').fillna(0)
+
+    # --- CORRECCIÓN CRÍTICA 2: Manejo de Legajos Faltantes ---
     if 'Legajo' in df.columns:
-        # Primero forzamos a numérico donde sea posible para limpiar ".0"
         s_numeric = pd.to_numeric(df['Legajo'], errors='coerce')
         mask_valid = s_numeric.notna()
-        
-        # Asignar valor limpio a los válidos
         df.loc[mask_valid, 'Legajo'] = s_numeric[mask_valid].astype(int).astype(str)
         
-        # Para los inválidos (NaN), generamos un ID único "S/L-{indice}"
         mask_invalid = ~mask_valid
         if mask_invalid.any():
-            # ERROR CORREGIDO AQUÍ: Filtramos df.index usando mask_invalid para que las longitudes coincidan
+            # Generar ID único usando el índice SOLO para las filas inválidas
             df.loc[mask_invalid, 'Legajo'] = 'S/L-' + df.index[mask_invalid].astype(str)
     else:
-        # Si la columna no existe, creamos IDs para todos
         df['Legajo'] = 'S/L-' + df.index.astype(str)
 
-    # 2. Rellenar categorías faltantes con "No Informado" en lugar de borrar filas
-    # Esto evita que df.dropna() elimine filas con dinero válido pero datos maestros incompletos
+    # --- CORRECCIÓN CRÍTICA 3: Rellenar vacíos en vez de eliminar fila ---
     cols_to_fill = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco']
     for col in cols_to_fill:
         if col in df.columns:
@@ -232,12 +224,9 @@ def load_data(uploaded_file):
         else:
             df[col] = 'No Informado'
 
-    # Conversión numérica segura para Dotación
     if 'Dotación' in df.columns:
         df['Dotación'] = pd.to_numeric(df['Dotación'], errors='coerce').fillna(0).astype(int)
 
-    # ELIMINADO: df.dropna(...) -> CAUSANTE DE LA PÉRDIDA DE DIFERENCIA
-    
     df.reset_index(drop=True, inplace=True)
     return df
 
@@ -256,6 +245,19 @@ df = load_data(uploaded_file)
 if df.empty:
     st.error("El archivo cargado está vacío o no se pudo procesar. El dashboard no puede continuar.")
     st.stop()
+
+# --- RESETEO AUTOMÁTICO DE FILTROS SI CAMBIA EL ARCHIVO ---
+# Esto soluciona que los "No Informado" queden ocultos si vienes de otro archivo
+if 'last_uploaded_file' not in st.session_state:
+    st.session_state.last_uploaded_file = None
+
+if st.session_state.last_uploaded_file != uploaded_file.name:
+    # Forzamos reinicio de filtros
+    if 'ms_selections' in st.session_state:
+        del st.session_state.ms_selections
+    st.session_state.last_uploaded_file = uploaded_file.name
+    # (El reinicio ocurrirá en el bloque siguiente)
+
     
 # --- SIDEBAR: filtros ---
 st.sidebar.header('Filtros del Dashboard')
@@ -268,24 +270,22 @@ if search_query:
 
 filter_cols = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Mes', 'Ceco', 'Legajo']
 
-# Inicializar selección en session_state si no existe
+# Inicializar selección en session_state si no existe (o fue borrada arriba)
 if 'ms_selections' not in st.session_state:
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.ms_selections = initial_selections
     st.rerun()
 
-# --- FUNCION CALLBACK PARA RESETEAR FILTROS (Soluciona el error) ---
+# --- FUNCION CALLBACK PARA RESETEAR FILTROS ---
 def reset_filters_callback():
     st.session_state.ms_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
-    st.session_state.search_legajo_global = "" # Limpiar búsqueda también
+    st.session_state.search_legajo_global = "" 
 
-# Botón de reset con callback
 st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, on_click=reset_filters_callback)
 
 st.sidebar.markdown("---")
 
-# Renderizado de filtros (slicer inteligente)
-# Solo mostramos los filtros si NO hay búsqueda activa para no confundir visualmente
+# Renderizado de filtros
 if not search_query:
     old_selections = {k: list(v) for k, v in st.session_state.ms_selections.items()}
     for col in filter_cols:
@@ -303,15 +303,15 @@ if not search_query:
     if old_selections != st.session_state.ms_selections:
         st.rerun()
 
-# Aplicar filtros (incluye lógica de buscador)
+# Aplicar filtros
 df_filtered = apply_filters(df, st.session_state.ms_selections)
 
 
 # =============================================================================
-# --- INICIO: LÓGICA DE MÉTRICAS CON DELTA Y DISEÑO DE TARJETAS ---
+# --- INICIO: LÓGICA DE MÉTRICAS CON DELTA ---
 # =============================================================================
 
-# 1. Identificar el mes actual y el mes anterior basado en la selección
+# 1. Identificar el mes actual y el mes anterior
 all_months_sorted = get_sorted_unique_options(df, 'Mes')
 selected_months = st.session_state.ms_selections.get('Mes', [])
 sorted_selected_months = [m for m in all_months_sorted if m in selected_months]
@@ -320,26 +320,22 @@ latest_month_name = None
 previous_month_name = None
 
 if sorted_selected_months:
-    # Si el usuario seleccionó meses, usamos el último y penúltimo de su selección
     latest_month_name = sorted_selected_months[-1]
     if len(sorted_selected_months) > 1:
         previous_month_name = sorted_selected_months[-2]
 else:
-    # Si no hay selección de mes, usamos el último mes de los datos filtrados
     if not df_filtered.empty:
         all_months_nums_sorted_in_df = sorted(df['Mes_Num'].unique())
         latest_month_num_fallback = df_filtered.sort_values('Mes_Num', ascending=False)['Mes_Num'].iloc[0]
         latest_month_name = df[df['Mes_Num'] == latest_month_num_fallback]['Mes'].iloc[0]
         
-        # Intentamos encontrar el mes anterior en los datos generales
         if latest_month_num_fallback in all_months_nums_sorted_in_df:
             latest_index_fallback = all_months_nums_sorted_in_df.index(latest_month_num_fallback)
             if latest_index_fallback > 0:
                 previous_month_num_fallback = all_months_nums_sorted_in_df[latest_index_fallback - 1]
                 previous_month_name = df[df['Mes_Num'] == previous_month_num_fallback]['Mes'].iloc[0]
 
-# 2. Crear DataFrames base para el mes actual y el anterior
-# (filtramos por todo MENOS el mes)
+# 2. Crear DataFrames base
 selections_without_month = st.session_state.ms_selections.copy()
 selections_without_month.pop('Mes', [])
 df_metrics_base = apply_filters(df, selections_without_month)
@@ -352,13 +348,11 @@ if latest_month_name:
 if previous_month_name:
     df_previous = df_metrics_base[df_metrics_base['Mes'] == previous_month_name]
 
-# Si no se seleccionó ningún mes, df_current estará vacío.
-# Lo poblamos con el último mes de df_metrics_base (que es todos los meses filtrados)
 if df_current.empty and not df_metrics_base.empty and not sorted_selected_months:
      df_current = df_metrics_base[df_metrics_base['Mes'] == latest_month_name]
 
 
-# 3. Función auxiliar para calcular las 4 métricas para un DataFrame de un mes
+# 3. Función auxiliar métricas
 def calculate_monthly_metrics(df_month):
     if df_month.empty:
         return {'total_masa': 0, 'empleados': 0, 'costo_medio_conv': 0, 'costo_medio_fc': 0}
@@ -366,7 +360,6 @@ def calculate_monthly_metrics(df_month):
     total_masa = df_month['Total Mensual'].sum()
     empleados = df_month['Legajo'].nunique()
     
-    # Usamos 'Nivel' == 'FC' para definir F. Convenio. Todo lo demás es Convenio.
     is_fc = df_month['Nivel'] == 'FC'
     df_fc = df_month[is_fc]
     df_convenio = df_month[~is_fc]
@@ -377,7 +370,6 @@ def calculate_monthly_metrics(df_month):
     dotacion_convenio = df_convenio['Legajo'].nunique()
     dotacion_fc = df_fc['Legajo'].nunique()
     
-    # Calculamos el costo medio *de ese mes*
     costo_medio_conv = total_masa_convenio / dotacion_convenio if dotacion_convenio > 0 else 0
     costo_medio_fc = total_masa_fc / dotacion_fc if dotacion_fc > 0 else 0
     
@@ -388,14 +380,14 @@ def calculate_monthly_metrics(df_month):
         'costo_medio_fc': costo_medio_fc
     }
 
-# 4. Calcular métricas para ambos períodos
+# 4. Calcular métricas
 metrics_current = calculate_monthly_metrics(df_current)
 metrics_previous = calculate_monthly_metrics(df_previous)
 
-# === NUEVO: Calcular Total Anual (Acumulado según filtros) ===
+# === Total Anual ===
 total_anual_acumulado = df_filtered['Total Mensual'].sum()
 
-# 5. Función auxiliar para calcular el string del delta
+# 5. Función Delta
 def get_delta_pct_str(current, previous):
     if previous > 0:
         delta = ((current - previous) / previous) * 100
@@ -403,21 +395,18 @@ def get_delta_pct_str(current, previous):
         delta = 100.0
     else:
         delta = 0.0
-    
-    # Retornar solo el porcentaje
     return delta
 
-# 6. Calcular los 4 deltas
+# 6. Calcular deltas
 delta_total = get_delta_pct_str(metrics_current['total_masa'], metrics_previous['total_masa'])
 delta_empleados = get_delta_pct_str(metrics_current['empleados'], metrics_previous['empleados'])
 delta_costo_conv = get_delta_pct_str(metrics_current['costo_medio_conv'], metrics_previous['costo_medio_conv'])
 delta_costo_fc = get_delta_pct_str(metrics_current['costo_medio_fc'], metrics_previous['costo_medio_fc'])
 
-# 7. Definir etiquetas dinámicas para los KPIs
 display_month_name = latest_month_name if latest_month_name else "N/A"
 
 # ----------------------------------------------------------------------------
-# --- TARJETAS DE MÉTRICAS (NUEVO DISEÑO HTML/CSS FLUIDO) ---
+# --- TARJETAS DE MÉTRICAS ---
 # ----------------------------------------------------------------------------
 cards_html = f"""
 <style>
@@ -426,7 +415,6 @@ cards_html = f"""
 /* Contenedor Grid Responsivo */
 .metrics-grid {{
     display: grid;
-    /* CAMBIO: 5 Columnas para incluir el anual */
     grid-template-columns: repeat(5, 1fr);
     gap: 15px;
     margin-bottom: 30px;
@@ -443,7 +431,7 @@ cards_html = f"""
 .metric-card {{
     background: white;
     border-radius: 12px;
-    padding: 15px; /* Reducido de 20px para dar más aire */
+    padding: 15px; 
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     border: 1px solid #f0f2f6;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -461,7 +449,7 @@ cards_html = f"""
 }}
 
 /* Bordes de Color */
-.border-orange {{ border-top: 4px solid #f97316; }} /* NUEVO Color */
+.border-orange {{ border-top: 4px solid #f97316; }} 
 .border-blue {{ border-top: 4px solid #3b82f6; }}
 .border-cyan {{ border-top: 4px solid #06b6d4; }}
 .border-violet {{ border-top: 4px solid #8b5cf6; }}
@@ -469,7 +457,7 @@ cards_html = f"""
 
 /* Texto */
 .card-label {{
-    font-size: 0.8rem; /* Reducido un poco */
+    font-size: 0.8rem; 
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -482,12 +470,12 @@ cards_html = f"""
 }}
 
 .card-value {{
-    font-size: 1.2rem; /* Reducido de 1.6rem para que entren números grandes */
+    font-size: 1.2rem; 
     font-weight: 700;
     color: #1e293b;
     margin-bottom: 8px;
     line-height: 1.2;
-    word-wrap: break-word; /* Permitir que el número baje si es larguísimo */
+    word-wrap: break-word; 
 }}
 
 /* Delta (Pastillas) */
@@ -508,7 +496,7 @@ cards_html = f"""
 
 <div class="metrics-grid">
 
-<!-- Tarjeta 0: Costo Anual (Acumulado) NUEVA -->
+<!-- Tarjeta 0: Costo Anual -->
 <div class="metric-card border-orange">
     <div class="card-label" title="Costo Acumulado (Año)">Costo Acumulado (Año)</div>
     <div class="card-value">${format_integer_es(total_anual_acumulado)}</div>
@@ -556,10 +544,6 @@ cards_html = f"""
 """
 
 st.markdown(cards_html, unsafe_allow_html=True)
-# =============================================================================
-# --- FIN: LÓGICA DE MÉTRICAS CON DELTA ---
-# =============================================================================
-
 
 st.markdown("---")
 
@@ -570,7 +554,6 @@ tab_evolucion, tab_distribucion, tab_costos, tab_conceptos, tab_tabla = st.tabs(
 with tab_evolucion:
     st.subheader("Evolución Mensual de la Masa Salarial")
     col_chart1, col_table1 = st.columns([2, 1])
-    # Usamos df_filtered aquí para mostrar la evolución de los meses seleccionados
     masa_mensual = df_filtered.groupby('Mes').agg({'Total Mensual': 'sum', 'Mes_Num': 'first'}).reset_index().sort_values('Mes_Num')
     
     y_domain = [0, 1]
@@ -688,7 +671,6 @@ with tab_evolucion:
 with tab_distribucion:
     st.subheader("Análisis de Distribución")
     
-    # Selector para elegir vista: Acumulado vs Mensualizado
     vista_distribucion = st.radio(
         "Seleccione el tipo de visualización:",
         ["Vista Acumulada (Total del periodo)", "Vista Mensualizada (Evolución por Mes)"],
@@ -699,7 +681,6 @@ with tab_distribucion:
     st.markdown("---")
 
     if vista_distribucion == "Vista Acumulada (Total del periodo)":
-        # --- VISTA ORIGINAL (ACUMULADA) ---
         st.subheader("Masa Salarial Acumulada por Gerencia")
         col_chart2, col_table2 = st.columns([3, 2])
         gerencia_data = df_filtered.groupby('Gerencia')['Total Mensual'].sum().sort_values(ascending=False).reset_index()
@@ -780,23 +761,16 @@ with tab_distribucion:
             st.download_button(label="📥 Descargar Excel (Clasif.)", data=to_excel(table_display_data), file_name='distribucion_clasificacion.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
 
     else:
-        # --- VISTA NUEVA (MENSUALIZADA) ---
-        
-        # Obtener orden correcto de meses
         meses_ordenados_viz = df.sort_values('Mes_Num')['Mes'].unique().tolist()
 
         st.subheader("Evolución Mensual por Gerencia")
         
-        # Agrupar por Gerencia Y Mes
         gerencia_mensual_data = df_filtered.groupby(['Gerencia', 'Mes', 'Mes_Num'])['Total Mensual'].sum().reset_index()
-        
-        # Calcular totales por Gerencia para las etiquetas
         gerencia_totales = gerencia_mensual_data.groupby('Gerencia')['Total Mensual'].sum().reset_index()
         
         col_chart_m_ger, col_table_m_ger = st.columns([3, 1])
         
         with col_chart_m_ger:
-            # 1. Gráfico de barras apiladas (Stacked Bar)
             chart_ger_stacked = alt.Chart(gerencia_mensual_data).mark_bar().encode(
                 y=alt.Y('Gerencia:N', sort='-x', title=None, axis=alt.Axis(labelLimit=150)),
                 x=alt.X('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
@@ -808,20 +782,16 @@ with tab_distribucion:
                     alt.Tooltip('Total Mensual:Q', format='$,.2f')
                 ]
             )
-            
-            # 2. Capa de texto para el TOTAL (Sum of Stack)
             text_totals_ger = alt.Chart(gerencia_totales).mark_text(
                 align='left',
                 baseline='middle',
-                dx=5,  # Desplazamiento a la derecha de la barra
+                dx=5,
                 color='black'
             ).encode(
                 y=alt.Y('Gerencia:N', sort='-x'),
-                x=alt.X('Total Mensual:Q'), # Posición al final de la barra apilada
-                text=alt.Text('Total Mensual:Q', format='$,.2s') # Etiqueta con formato corto (e.g. $1M)
+                x=alt.X('Total Mensual:Q'),
+                text=alt.Text('Total Mensual:Q', format='$,.2s')
             )
-
-            # Combinar gráficos
             final_chart_ger = (chart_ger_stacked + text_totals_ger).properties(
                 height=(len(gerencia_mensual_data['Gerencia'].unique()) * 35) + 50
             ).configure_view(stroke=None).configure(background='transparent')
@@ -847,27 +817,18 @@ with tab_distribucion:
         st.markdown("---")
         st.subheader("Evolución Mensual por Clasificación")
         
-        # Agrupar por Clasificación Y Mes
         clasif_mensual_data = df_filtered.groupby(['Clasificacion_Ministerio', 'Mes', 'Mes_Num'])['Total Mensual'].sum().reset_index()
-        
-        # Totales para etiquetas
         clasif_totales = clasif_mensual_data.groupby('Clasificacion_Ministerio')['Total Mensual'].sum().reset_index()
         
         col_chart_m_clas, col_table_m_clas = st.columns([3, 1])
 
         with col_chart_m_clas:
-            # Chart Vertical Apilado
             chart_clas_stacked = alt.Chart(clasif_mensual_data).mark_bar().encode(
                 x=alt.X('Mes:N', sort=meses_ordenados_viz, title='Mes'),
                 y=alt.Y('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
                 color=alt.Color('Clasificacion_Ministerio:N', title='Clasificación'),
                 tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Clasificacion_Ministerio:N'), alt.Tooltip('Total Mensual:Q', format='$,.2f')]
             )
-            
-            # Texto TOTAL para gráfico vertical (agrupado por Mes)
-            # OJO: Aquí el stack es por Clasificación dentro de cada Mes.
-            # Queremos el total por MES arriba de la barra.
-            # Re-calculamos totales por Mes para este gráfico específico
             totales_por_mes = clasif_mensual_data.groupby(['Mes'])['Total Mensual'].sum().reset_index()
             
             text_totals_clas = alt.Chart(totales_por_mes).mark_text(
@@ -908,14 +869,12 @@ with tab_costos:
     st.subheader("Análisis de Costos Promedios")
     st.markdown("Haga clic en cualquier punto de los gráficos para filtrar o ver detalles.")
     
-    # Mapeo de opciones para el selector
     opts = {
         "Relación": "Relación", 
         "Nivel": "Nivel", 
         "Clasificación Ministerial": "Clasificacion_Ministerio"
     }
     
-    # Columnas para los controles
     c_sel, c_chk = st.columns(2)
     with c_sel: 
         sels = st.multiselect(
@@ -931,10 +890,8 @@ with tab_costos:
     
     st.markdown("---")
     
-    # Orden de meses para asegurar consistencia en gráficos y tablas
     meses_ordenados_costos = df.sort_values('Mes_Num')['Mes'].unique().tolist()
     
-    # DETECCION INTELIGENTE: ¿Es un solo mes seleccionado?
     unique_months_present = df_filtered['Mes'].unique()
     is_single_month = len(unique_months_present) == 1
     
@@ -945,23 +902,18 @@ with tab_costos:
         st.info("Por favor, seleccione al menos una dimensión para visualizar.")
     
     for l in sels:
-        col_cat = opts[l] # Nombre real de la columna (ej: 'Nivel')
+        col_cat = opts[l] 
         st.markdown(f"#### Análisis: {l}")
         
-        # --- 1. PREPARACIÓN DE DATOS ---
         g = df_filtered.groupby([col_cat, 'Mes', 'Mes_Num']).agg(
             M=('Total Mensual', 'sum'), 
             D=('Legajo', 'nunique')
         ).reset_index()
         
-        # Calcular Costo Promedio (CP)
         g['CP'] = g['M'] / g['D']
         g['CP'] = g['CP'].fillna(0)
         
-        # --- 2. GENERACIÓN DEL GRÁFICO (CONDICIONAL) ---
-        
         if is_single_month:
-            # === CASO A: UN SOLO MES (PIE CHART) ===
             base_pie = alt.Chart(g).encode(
                 theta=alt.Theta(field="M", type="quantitative", stack=True),
                 color=alt.Color(field=col_cat, type="nominal", title=col_cat),
@@ -981,15 +933,10 @@ with tab_costos:
             st.altair_chart(final_chart_costos, use_container_width=True)
             
         else:
-            # === CASO B: EVOLUCIÓN TEMPORAL ===
-            
             if l == "Relación":
-                # === CASO B.1: GRÁFICO COMBINADO (SOLO PARA RELACIÓN) ===
                 base_rel = alt.Chart(g).encode(
                     x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes')
                 )
-                
-                # Barras: Convenio (Azul) - Usamos Scale y Color explícito para forzar leyenda
                 bars_convenio = base_rel.transform_filter(
                     alt.datum.Relación == 'Convenio'
                 ).mark_bar(opacity=0.7, width=20).encode(
@@ -997,22 +944,16 @@ with tab_costos:
                     color=alt.Color('Relación:N', scale=alt.Scale(domain=['Convenio'], range=['#1f77b4']), legend=alt.Legend(title="Relación")),
                     tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Relación:N'), alt.Tooltip('M:Q', format='$,.2f', title='Masa'), alt.Tooltip('D:Q', title='Dotación'), alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')]
                 )
-                
-                # Líneas: Fuera de Convenio (Naranja/Otro) - Usamos Scale compatible o dejamos auto
-                # Para que funcione bien la leyenda combinada, es mejor manejar dominios separados pero visualizar juntos
                 lines_fc = base_rel.transform_filter(
                     alt.datum.Relación != 'Convenio'
                 ).mark_line(point=True, strokeWidth=3).encode(
                     y=alt.Y('CP:Q'),
-                    color=alt.Color('Relación:N', legend=alt.Legend(title="Relación")), # Auto color para el resto
+                    color=alt.Color('Relación:N', legend=alt.Legend(title="Relación")), 
                     tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Relación:N'), alt.Tooltip('M:Q', format='$,.2f', title='Masa'), alt.Tooltip('D:Q', title='Dotación'), alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')]
                 )
-                
-                final_chart_costos = (bars_convenio + lines_fc).properties(height=350).resolve_scale(color='independent') # Resolve independent para permitir múltiples leyendas si es necesario, o merged
+                final_chart_costos = (bars_convenio + lines_fc).properties(height=350).resolve_scale(color='independent') 
                 st.altair_chart(final_chart_costos, use_container_width=True)
-                
             else:
-                # === CASO B.2: GRÁFICO DE LÍNEAS ESTÁNDAR ===
                 final_chart_costos = alt.Chart(g).mark_line(point=True).encode(
                     x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes'), 
                     y=alt.Y('CP:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')), 
@@ -1025,12 +966,9 @@ with tab_costos:
                         alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')
                     ]
                 ).properties(height=350).configure_point(size=100)
-                
                 st.altair_chart(final_chart_costos, use_container_width=True)
         
-        # --- 3. TABLAS (DETALLE O RESUMEN) Y BOTONES DE DESCARGA ---
         if det:
-            # (El código de vista detallada se mantiene igual)
             st.write(f"**Detalle por Mes y Legajo - {l}**")
             cols_base = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_cat]
             df_b = df_filtered[cols_base + ['Mes', 'Mes_Num', 'Total Mensual']].copy()
@@ -1048,11 +986,8 @@ with tab_costos:
             with col_d2: st.download_button(f"📥 Descargar Detalle Excel ({l})", data=to_excel(df_detailed_display), file_name=f'detalle_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
             
         else:
-            # === VISTA RESUMEN MATRICIAL APERTURADA (SOLICITUD DE USUARIO) ===
             st.write(f"**Resumen Mensual Desglosado (Masa y Dotación) - {l}**")
             
-            # 1. Pivotear tanto Masa como Dotación
-            # Esto crea un MultiIndex en columnas: (Masa, Enero), (Dotación, Enero)...
             pivot_multi = pd.pivot_table(
                 df_filtered,
                 values=['Total Mensual', 'Legajo'],
@@ -1062,87 +997,61 @@ with tab_costos:
                 fill_value=0
             )
             
-            # 2. Calcular PROMEDIO MENSUAL y Reordenar
-            # Obtener meses presentes en el orden correcto
             available_months = [m for m in meses_ordenados_costos if m in pivot_multi.columns.levels[1]]
             
-            # Calcular columna de promedio para cada mes dentro del mismo DF
             for mes in available_months:
                  masa = pivot_multi[('Total Mensual', mes)]
                  dot = pivot_multi[('Legajo', mes)]
                  avg = masa.div(dot.replace(0, np.nan)).fillna(0)
                  pivot_multi[('Promedio', mes)] = avg
 
-            # Crear una lista ordenada de tuplas para reindexar
-            # Queremos: Enero->(Masa, Dot, Prom), Febrero->(Masa, Dot, Prom)...
             new_columns = []
             for mes in available_months:
                 new_columns.append(('Total Mensual', mes))
                 new_columns.append(('Legajo', mes))
                 new_columns.append(('Promedio', mes))
             
-            # Reordenar columnas del pivot
             pivot_multi = pivot_multi.reindex(columns=new_columns)
             
-            # 3. Calcular Totales Anuales (Columnas Finales)
-            # Masa Anual Total
             masa_anual = df_filtered.groupby(col_cat)['Total Mensual'].sum()
-            # Dotación Acumulada (Suma de dotaciones mensuales) - Divisor correcto para promedio ponderado anual
             dot_acum_anual = df_filtered.groupby([col_cat, 'Mes'])['Legajo'].nunique().groupby(col_cat).sum()
-            # Costo Promedio Anual (Ponderado)
             costo_prom_anual = masa_anual.div(dot_acum_anual.replace(0, np.nan)).fillna(0)
             
-            # Promedio de Promedios (Nuevo Requerimiento)
-            # Calculamos la media de las columnas de "Promedio" mensual que acabamos de generar
-            # (Nota: esto es un promedio simple de los promedios mensuales)
             prom_cols_tuples = [('Promedio', m) for m in available_months]
             prom_de_promedios = pivot_multi[prom_cols_tuples].mean(axis=1).fillna(0)
 
-            # Agregar estas columnas al DataFrame (necesitamos alinearlas con el índice)
             pivot_multi[('Total Anual', 'Masa Total ($)')] = masa_anual
             pivot_multi[('Total Anual', 'Dotación Acum. (#)')] = dot_acum_anual
             pivot_multi[('Total Anual', 'Costo Promedio Ponderado ($)')] = costo_prom_anual
             pivot_multi[('Total Anual', 'Promedio de Promedios ($)')] = prom_de_promedios
 
-            # 4. Calcular Fila "PROMEDIO GENERAL" (Totales Verticales)
-            # Primero sumamos Masa y Dotacion
             total_row_sums = pivot_multi[[c for c in pivot_multi.columns if c[0] in ['Total Mensual', 'Legajo']]].sum()
             
-            # Ahora calculamos los promedios verticales para la fila de totales
             total_row_vals = {}
-            # Copiar sumas
             for col in total_row_sums.index:
                 total_row_vals[col] = total_row_sums[col]
             
-            # Calcular promedios mensuales del total
             for mes in available_months:
                 m_t = total_row_vals.get(('Total Mensual', mes), 0)
                 d_t = total_row_vals.get(('Legajo', mes), 0)
                 p_t = m_t / d_t if d_t > 0 else 0
                 total_row_vals[('Promedio', mes)] = p_t
             
-            # Calcular totales anuales del total general
             t_masa_anual = sum([total_row_vals.get(('Total Mensual', m), 0) for m in available_months])
             t_dot_anual = sum([total_row_vals.get(('Legajo', m), 0) for m in available_months])
             t_prom_pond = t_masa_anual / t_dot_anual if t_dot_anual > 0 else 0
             
-            # Calcular Promedio de Promedios del total general
-            # (Promedio de los promedios mensuales calculados arriba)
             all_monthly_avgs = [total_row_vals.get(('Promedio', m), 0) for m in available_months]
             t_prom_de_prom = sum(all_monthly_avgs) / len(all_monthly_avgs) if all_monthly_avgs else 0
 
-            # Asignar anuales
             total_row_vals[('Total Anual', 'Masa Total ($)')] = t_masa_anual
             total_row_vals[('Total Anual', 'Dotación Acum. (#)')] = t_dot_anual
             total_row_vals[('Total Anual', 'Costo Promedio Ponderado ($)')] = t_prom_pond
             total_row_vals[('Total Anual', 'Promedio de Promedios ($)')] = t_prom_de_prom
             
-            # Convertir a Series y añadir al DF
             total_series = pd.Series(total_row_vals, name='PROMEDIO GENERAL')
             pivot_multi.loc['PROMEDIO GENERAL'] = total_series
             
-            # 5. Aplanar MultiIndex para mostrar en Streamlit (limpieza visual)
-            # Formato: "Enero Masa ($)", "Enero Dot (#)", "Enero Prom ($)"
             flat_cols = []
             for metric, mes in pivot_multi.columns:
                 if metric == 'Total Mensual':
@@ -1152,14 +1061,12 @@ with tab_costos:
                 elif metric == 'Promedio':
                     flat_cols.append(f"Prom. {mes} ($)")
                 elif metric == 'Total Anual':
-                    flat_cols.append(f"ANUAL - {mes}") # mes aquí trae el subtítulo (Masa Total, etc)
+                    flat_cols.append(f"ANUAL - {mes}")
                 else:
                     flat_cols.append(f"{mes} {metric}")
             
             pivot_multi.columns = flat_cols
             
-            # 6. Formateo
-            # Identificar columnas de moneda y columnas de enteros
             cols_masa = [c for c in flat_cols if "($)" in c]
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
@@ -1171,7 +1078,6 @@ with tab_costos:
                 use_container_width=True
             )
             
-            # BOTONES DE DESCARGA (RESUMEN)
             col_d1, col_d2 = st.columns(2)
             with col_d1:
                 st.download_button(f"📥 Descargar Resumen CSV ({l})", data=pivot_multi.to_csv(index=True).encode('utf-8'), file_name=f'resumen_costos_{l}.csv', mime='text/csv', use_container_width=True)
@@ -1243,10 +1149,8 @@ with tab_conceptos:
                     chart_data_mensual = df_melted[df_melted['Concepto'] != 'Total Mensual']
                     chart_data_mensual = chart_data_mensual.groupby(['Concepto', 'Mes', 'Mes_Num'])['Monto'].sum().reset_index()
                     
-                    # Calculate totals for labels
                     totals_concept = chart_data_mensual.groupby('Concepto')['Monto'].sum().reset_index()
 
-                    # Base Bar Chart
                     total_por_concepto = chart_data_mensual.groupby('Concepto')['Monto'].sum().sort_values(ascending=False).index.tolist()
                     chart_height_mensual = (len(total_por_concepto) * 35) + 50
 
@@ -1258,7 +1162,6 @@ with tab_conceptos:
                         tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Mes:N'), alt.Tooltip('Monto:Q', format='$,.2f')]
                     )
 
-                    # Text Labels
                     text_totals_mensual = alt.Chart(totals_concept).mark_text(
                         align='left',
                         baseline='middle',
@@ -1331,10 +1234,8 @@ with tab_conceptos:
                 else:
                     chart_data_sipaf_mensual = df_melted_sipaf.groupby(['Concepto', 'Mes', 'Mes_Num'])['Monto'].sum().reset_index()
 
-                    # Calculate totals for labels
                     totals_sipaf = chart_data_sipaf_mensual.groupby('Concepto')['Monto'].sum().reset_index()
 
-                    # Base Bar Chart
                     total_por_concepto_sipaf = chart_data_sipaf_mensual.groupby('Concepto')['Monto'].sum().sort_values(ascending=False).index.tolist()
                     chart_height_sipaf_mensual = (len(total_por_concepto_sipaf) * 35) + 50
 
@@ -1346,7 +1247,6 @@ with tab_conceptos:
                         tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Mes:N'), alt.Tooltip('Monto:Q', format='$,.2f')]
                     )
 
-                    # Text Labels
                     text_totals_sipaf = alt.Chart(totals_sipaf).mark_text(
                         align='left',
                         baseline='middle',
