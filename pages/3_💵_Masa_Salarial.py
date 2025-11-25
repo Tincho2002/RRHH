@@ -149,7 +149,35 @@ def load_data(uploaded_file):
     if 'Período' not in df.columns:
         st.error("Error Crítico: La columna 'Período' no se encuentra.")
         return pd.DataFrame()
-    df['Período'] = pd.to_datetime(df['Período'], errors='coerce')
+    
+    # --- MEJORA: Parseo robusto de fechas en español ---
+    # Esto soluciona el problema si 'ene-25' viene como texto y no lo reconoce
+    def parse_spanish_date(x):
+        if isinstance(x, datetime):
+            return x
+        x_str = str(x).lower().strip()
+        # Mapeo manual para asegurar que entienda meses en español
+        replacements = {
+            'ene': 'jan', 'abr': 'apr', 'ago': 'aug', 'dic': 'dec',
+            'enero': 'january', 'feb': 'february', 'mar': 'march', 'abril': 'april',
+            'may': 'may', 'jun': 'june', 'jul': 'july', 'agosto': 'august',
+            'sept': 'sep', 'sep': 'sep', 'oct': 'october', 'nov': 'november', 'diciembre': 'december'
+        }
+        for es, en in replacements.items():
+            if es in x_str:
+                x_str = x_str.replace(es, en)
+                break
+        return pd.to_datetime(x_str, errors='coerce')
+
+    # Intentar conversión directa, si falla usar el parser manual
+    df['Período_Temp'] = pd.to_datetime(df['Período'], errors='coerce')
+    mask_nat = df['Período_Temp'].isna()
+    if mask_nat.any():
+        df.loc[mask_nat, 'Período_Temp'] = df.loc[mask_nat, 'Período'].apply(parse_spanish_date)
+    
+    df['Período'] = df['Período_Temp']
+    df.drop(columns=['Período_Temp'], inplace=True)
+    
     df.dropna(subset=['Período'], inplace=True)
     df['Mes_Num'] = df['Período'].dt.month.astype(int)
     meses_es = {1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
