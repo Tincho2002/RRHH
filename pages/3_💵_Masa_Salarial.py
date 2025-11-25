@@ -941,8 +941,9 @@ with tab_costos:
             tooltip=[
                 alt.Tooltip('Mes:N'), 
                 alt.Tooltip(f'{col_cat}:N'), 
-                alt.Tooltip('CP:Q', format='$,.2f', title='Costo Prom.'), 
-                alt.Tooltip('D:Q', title='Dotación')
+                alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Numerador)'), 
+                alt.Tooltip('D:Q', title='Dotación (Denominador)'),
+                alt.Tooltip('CP:Q', format='$,.2f', title='Costo Prom.')
             ]
         ).add_params(clk).properties(height=350).configure_point(size=100)
         
