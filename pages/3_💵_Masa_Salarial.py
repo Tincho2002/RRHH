@@ -986,7 +986,19 @@ with tab_costos:
             fmt = {m: lambda x: f"${format_number_es(x)}" if x > 0 else "-" for m in mp}
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
-            st.dataframe(df_detailed_display.style.format(fmt), use_container_width=True, height=400)
+            
+            # MEJORA VISUAL: Ocultar índice, fijar columnas y alinear valores numéricos
+            st.dataframe(
+                df_detailed_display.style.format(fmt).set_properties(subset=mp + ['Promedio Mensual'], **{'text-align': 'right'}), 
+                use_container_width=True, 
+                height=400,
+                hide_index=True,
+                column_config={
+                    "Legajo": st.column_config.TextColumn("Legajo", fixed=True),
+                    "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", fixed=True),
+                }
+            )
+            
             col_d1, col_d2 = st.columns(2)
             with col_d1: st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=False).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
             with col_d2: st.download_button(f"📥 Descargar Detalle Excel ({l})", data=to_excel(df_detailed_display), file_name=f'detalle_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
@@ -1073,7 +1085,6 @@ with tab_costos:
             
             pivot_multi.columns = flat_cols
             
-            # Reset index to make the category a column (better visual fit)
             pivot_multi = pivot_multi.reset_index()
             
             cols_masa = [c for c in flat_cols if "($)" in c]
@@ -1283,7 +1294,7 @@ with tab_conceptos:
             with col_dl_9:
                 st.download_button(label="📥 Descargar CSV", data=pivot_table_sipaf.to_csv(index=True).encode('utf-8'), file_name='resumen_sipaf.csv', mime='text/csv', use_container_width=True)
             with col_dl_10:
-                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table_sipaf.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
         else:
             st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
 
