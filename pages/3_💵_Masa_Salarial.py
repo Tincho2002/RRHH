@@ -107,8 +107,22 @@ def to_pdf(df, periodo):
     pdf.write_html(html_content)
     return bytes(pdf.output())
 
-# --- LÓGICA DE FILTROS ---
+# --- LÓGICA DE FILTROS (MEJORADA CON BUSCADOR) ---
 def apply_filters(df, selections):
+    # 1. Verificar si hay búsqueda por Legajo (Prioridad Alta)
+    search_leg = st.session_state.get("search_legajo_global", "").strip()
+    
+    if search_leg:
+        # Si hay algo escrito, filtramos SOLO por eso e ignoramos el resto
+        # Convertimos a string para buscar parcialmente
+        mask = df['Legajo'].astype(str).str.contains(search_leg, case=False, na=False)
+        _df_search = df[mask].copy()
+        
+        if not _df_search.empty:
+            return _df_search
+        # Si no encuentra nada, seguimos con el flujo normal (o podríamos devolver vacío)
+    
+    # 2. Filtrado Normal por Multiselects
     _df = df.copy()
     for col, values in selections.items():
         if values:
@@ -151,7 +165,6 @@ def load_data(uploaded_file):
         return pd.DataFrame()
     
     # --- MEJORA: Parseo robusto de fechas en español ---
-    # Esto soluciona el problema si 'ene-25' viene como texto y no lo reconoce
     def parse_spanish_date(x):
         if isinstance(x, datetime):
             return x
@@ -161,16 +174,22 @@ def load_data(uploaded_file):
             'ene': 'jan', 'abr': 'apr', 'ago': 'aug', 'dic': 'dec',
             'enero': 'january', 'feb': 'february', 'mar': 'march', 'abril': 'april',
             'may': 'may', 'jun': 'june', 'jul': 'july', 'agosto': 'august',
-            'sept': 'sep', 'sep': 'sep', 'oct': 'october', 'nov': 'november', 'diciembre': 'december'
+            'sept': 'sep', 'set': 'sep', 'sep': 'sep', 'oct': 'october', 'nov': 'november', 'diciembre': 'december'
         }
         for es, en in replacements.items():
             if es in x_str:
                 x_str = x_str.replace(es, en)
                 break
-        return pd.to_datetime(x_str, errors='coerce')
+        # Intento de parseo flexible
+        try:
+            return pd.to_datetime(x_str, dayfirst=True) # Intenta día primero por si acaso
+        except:
+            return pd.to_datetime(x_str, errors='coerce')
 
-    # Intentar conversión directa, si falla usar el parser manual
+    # Intentar conversión directa
     df['Período_Temp'] = pd.to_datetime(df['Período'], errors='coerce')
+    
+    # Si hay NaT (fallos), intentar parser manual español
     mask_nat = df['Período_Temp'].isna()
     if mask_nat.any():
         df.loc[mask_nat, 'Período_Temp'] = df.loc[mask_nat, 'Período'].apply(parse_spanish_date)
@@ -219,6 +238,12 @@ if df.empty:
 # --- SIDEBAR: filtros ---
 st.sidebar.header('Filtros del Dashboard')
 
+# NUEVO: BUSCADOR DE LEGAJO
+search_query = st.sidebar.text_input("🔍 Buscar por Legajo (Omite otros filtros)", key="search_legajo_global", help="Escriba un número de legajo para ver su historia completa ignorando los filtros de abajo.")
+
+if search_query:
+    st.sidebar.info(f"Filtros desactivados. Mostrando solo legajo: {search_query}")
+
 filter_cols = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Mes', 'Ceco', 'Legajo']
 
 # Inicializar selección en session_state si no existe
@@ -231,28 +256,31 @@ if 'ms_selections' not in st.session_state:
 if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="ms_clear"):
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.ms_selections = initial_selections
+    st.session_state.search_legajo_global = "" # Limpiar búsqueda también
     st.rerun()
 
 st.sidebar.markdown("---")
 
 # Renderizado de filtros (slicer inteligente)
-old_selections = {k: list(v) for k, v in st.session_state.ms_selections.items()}
-for col in filter_cols:
-    label = col.replace('_', ' ').replace('Clasificacion Ministerio', 'Clasificación Ministerio')
-    available_options = get_available_options(df, st.session_state.ms_selections, col)
-    current_selection = [sel for sel in st.session_state.ms_selections.get(col, []) if sel in available_options]
-    selected = st.sidebar.multiselect(
-        label,
-        options=available_options,
-        default=current_selection,
-        key=f"ms_multiselect_{col}"
-    )
-    st.session_state.ms_selections[col] = selected
+# Solo mostramos los filtros si NO hay búsqueda activa para no confundir visualmente
+if not search_query:
+    old_selections = {k: list(v) for k, v in st.session_state.ms_selections.items()}
+    for col in filter_cols:
+        label = col.replace('_', ' ').replace('Clasificacion Ministerio', 'Clasificación Ministerio')
+        available_options = get_available_options(df, st.session_state.ms_selections, col)
+        current_selection = [sel for sel in st.session_state.ms_selections.get(col, []) if sel in available_options]
+        selected = st.sidebar.multiselect(
+            label,
+            options=available_options,
+            default=current_selection,
+            key=f"ms_multiselect_{col}"
+        )
+        st.session_state.ms_selections[col] = selected
 
-if old_selections != st.session_state.ms_selections:
-    st.rerun()
+    if old_selections != st.session_state.ms_selections:
+        st.rerun()
 
-# Aplicar filtros
+# Aplicar filtros (incluye lógica de buscador)
 df_filtered = apply_filters(df, st.session_state.ms_selections)
 
 
@@ -1134,6 +1162,7 @@ with tab_conceptos:
             with col_dl_9:
                 st.download_button(label="📥 Descargar CSV", data=pivot_table_sipaf.to_csv(index=True).encode('utf-8'), file_name='resumen_sipaf.csv', mime='text/csv', use_container_width=True)
             with col_dl_10:
+                # CORRECCIÓN DEL ERROR DE TIPEO: pivot_table -> pivot_table_sipaf
                 st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table_sipaf.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
         else:
             st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
