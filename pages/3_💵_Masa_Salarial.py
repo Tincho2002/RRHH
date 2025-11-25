@@ -208,14 +208,15 @@ def load_data(uploaded_file):
     else:
         df['Legajo'] = 'S/L-' + df.index.astype(str)
 
-    # LIMPIEZA AGRESIVA DE CATEGORÍAS PARA ARREGLAR FILTROS VACÍOS Y CASCADA
+    # LIMPIEZA AGRESIVA DE CATEGORÍAS PARA ARREGLAR FILTROS VACÍOS, CASCADA Y CECO VACÍO
     # Convertimos a string, quitamos .0 decimal si existe, y rellenamos nulos.
+    # NOTA: Esto incluye 'Ceco' para que aparezca correctamente.
     cols_to_clean = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco']
     for col in cols_to_clean:
         if col in df.columns:
             # 1. Convertir a string
             s = df[col].astype(str)
-            # 2. Quitar decimal .0 si existe al final (común en Nivel y Ceco)
+            # 2. Quitar decimal .0 si existe al final
             s = s.str.replace(r'\.0$', '', regex=True)
             # 3. Estandarizar nulos
             s = s.replace(['nan', 'None', '', '<NA>'], 'No Informado')
@@ -1067,6 +1068,9 @@ with tab_costos:
             
             pivot_multi.columns = flat_cols
             
+            # Reset index to make the category a column (better visual fit)
+            pivot_multi = pivot_multi.reset_index()
+            
             cols_masa = [c for c in flat_cols if "($)" in c]
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
@@ -1075,7 +1079,8 @@ with tab_costos:
             
             st.dataframe(
                 pivot_multi.style.format(format_dict),
-                use_container_width=True
+                use_container_width=True,
+                hide_index=True
             )
             
             col_d1, col_d2 = st.columns(2)
