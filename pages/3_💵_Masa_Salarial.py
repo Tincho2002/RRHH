@@ -889,20 +889,49 @@ with tab_costos:
         # Renderizar Tabla según el Checkbox
         if show_detail_legajo:
             st.write(f"**Detalle por Mes y Legajo - {label}**")
-            # Seleccionar columnas relevantes para el detalle, incluyendo Mes y Legajo
-            cols_detalle = ['Período', 'Mes', 'Mes_Num', 'Legajo', 'Apellido y Nombres', 'Gerencia', col_name, 'Total Mensual']
-            cols_presentes = [c for c in cols_detalle if c in df_filtered.columns]
             
-            df_detail = df_filtered[cols_presentes].copy()
-            # Ordenar por Mes y luego por Nombre para facilitar lectura
-            df_detail = df_detail.sort_values(['Mes_Num', col_name, 'Apellido y Nombres'])
+            # 1. Seleccionar columnas base
+            cols_base = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_name]
+            cols_pivot = ['Mes', 'Mes_Num', 'Total Mensual'] # Columnas para pivotear
             
-            # Ocultar Mes_Num en la visual final si se desea, o dejarlo. Aquí lo mostramos para debug visual del orden.
+            # Filtrar DF con columnas necesarias
+            df_base = df_filtered[cols_base + cols_pivot].copy()
+            
+            # 2. Pivotear: Indices=Datos Legajo, Columnas=Mes, Valores=Total Mensual
+            # Usamos pivot_table para manejar duplicados sumando (aunque por legajo/mes debería ser único)
+            df_pivot = pd.pivot_table(
+                df_base,
+                values='Total Mensual',
+                index=cols_base,
+                columns='Mes',
+                aggfunc='sum',
+                fill_value=0
+            ).reset_index()
+            
+            # 3. Ordenar columnas de meses cronológicamente
+            meses_presentes = [m for m in meses_ordenados_costos if m in df_pivot.columns]
+            
+            # 4. Calcular Promedio Anual (o del periodo seleccionado) por Legajo
+            # Sumamos los meses presentes y dividimos por la cantidad de meses con dato > 0 (o total meses)
+            # Aquí calculamos promedio simple de los valores > 0
+            # Ojo: "Promedio Anual" = Suma Total / Cantidad de Meses con dato
+            valores_meses = df_pivot[meses_presentes]
+            df_pivot['Promedio Mensual'] = valores_meses.replace(0, np.nan).mean(axis=1).fillna(0)
+            
+            # 5. Reordenar columnas finales
+            cols_finales = cols_base + meses_presentes + ['Promedio Mensual']
+            df_display_pivot = df_pivot[cols_finales].sort_values(['Gerencia', 'Apellido y Nombres'])
+            
+            # Formatear para mostrar
+            format_dict = {m: lambda x: f"${format_number_es(x)}" if x > 0 else "-" for m in meses_presentes}
+            format_dict['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
+            
             st.dataframe(
-                df_detail.style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}),
+                df_display_pivot.style.format(format_dict),
                 use_container_width=True,
-                height=300
+                height=400
             )
+
         else:
             st.write(f"**Resumen Mensual de Promedios - {label}**")
             # CORRECCIÓN DEL ERROR: Ordenar ANTES de filtrar columnas
