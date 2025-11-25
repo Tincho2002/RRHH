@@ -133,9 +133,8 @@ def apply_filters(df, selections):
 def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns:
         unique_values = dataframe[column_name].dropna().unique().tolist()
-        # Eliminamos 'no disponible' de la lista de opciones para que no ensucie, 
-        # pero permitimos 'No Informado' (que es la nueva etiqueta para datos faltantes)
-        unique_values = [v for v in unique_values if v not in ['no disponible', 'nan', 'None']]
+        # Eliminamos valores nulos explícitos, pero PERMITIMOS 'No Informado' o valores generados
+        unique_values = [v for v in unique_values if v not in ['nan', 'None', '']]
         
         if column_name == 'Mes':
             all_months_order = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -202,34 +201,33 @@ def load_data(uploaded_file):
     
     df.rename(columns={'Clasificación Ministerio de Hacienda': 'Clasificacion_Ministerio', 'Nro. de Legajo': 'Legajo'}, inplace=True)
     
-    # --- CORRECCIÓN PRINCIPAL: NO ELIMINAR FILAS INCOMPLETAS + GENERAR ID PARA LEGAJOS FALTANTES ---
+    # --- CORRECCIÓN PRINCIPAL: MANEJO DE LEGAJOS FALTANTES PARA EVITAR PÉRDIDA DE MASA SALARIAL ---
     
-    # 1. Manejo inteligente de Legajos faltantes para asegurar unicidad en Dotación
+    # 1. Generar IDs únicos para legajos vacíos
+    # Si 'Legajo' existe, limpiamos y rellenamos los vacíos con un ID virtual
     if 'Legajo' in df.columns:
-        # Intentar convertir a numérico primero para limpiar ".0"
+        # Primero forzamos a numérico donde sea posible para limpiar ".0"
         s_numeric = pd.to_numeric(df['Legajo'], errors='coerce')
         mask_valid = s_numeric.notna()
         
         # Asignar valor limpio a los válidos
         df.loc[mask_valid, 'Legajo'] = s_numeric[mask_valid].astype(int).astype(str)
         
-        # Para los vacíos/inválidos, generar un ID único ficticio basado en el índice
-        # Esto asegura que nunique() los cuente como personas distintas y no como 1 sola "Sin Dato"
+        # Para los inválidos (NaN), generamos un ID único "S/L-{indice}"
         mask_invalid = ~mask_valid
         if mask_invalid.any():
-            # Usamos "S/L" (Sin Legajo) + el índice de la fila para garantizar unicidad
+            # Esto garantiza que nunique() cuente a cada persona sin legajo individualmente
             df.loc[mask_invalid, 'Legajo'] = 'S/L-' + df.index.astype(str)
     else:
-        # Si no existe la columna, creamos IDs ficticios para todos
+        # Si la columna no existe, creamos IDs para todos
         df['Legajo'] = 'S/L-' + df.index.astype(str)
 
-    # 2. Rellenar categorías faltantes en lugar de borrar filas (Evita pérdida de $$)
+    # 2. Rellenar categorías faltantes con "No Informado" en lugar de borrar filas
+    # Esto evita que df.dropna() elimine filas con dinero válido pero datos maestros incompletos
     cols_to_fill = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco']
     for col in cols_to_fill:
         if col in df.columns:
-            # Rellenar nulos con "No Informado"
             df[col] = df[col].fillna('No Informado').astype(str)
-            # Limpiar strings basura
             df[col] = df[col].replace(['nan', 'None', '', 'nan.0', '0', '<NA>'], 'No Informado')
         else:
             df[col] = 'No Informado'
@@ -238,7 +236,7 @@ def load_data(uploaded_file):
     if 'Dotación' in df.columns:
         df['Dotación'] = pd.to_numeric(df['Dotación'], errors='coerce').fillna(0).astype(int)
 
-    # ELIMINADO: df.dropna(...) -> Esto causaba la diferencia en el total de Masa Salarial
+    # ELIMINADO: df.dropna(...) -> CAUSANTE DE LA PÉRDIDA DE DIFERENCIA
     
     df.reset_index(drop=True, inplace=True)
     return df
