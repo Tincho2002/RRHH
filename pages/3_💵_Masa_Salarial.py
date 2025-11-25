@@ -129,7 +129,7 @@ def apply_filters(df, selections):
 def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns:
         unique_values = dataframe[column_name].dropna().unique().tolist()
-        # Eliminamos valores nulos explícitos, pero PERMITIMOS 'No Informado' o valores generados
+        # Eliminamos valores nulos explícitos
         unique_values = [v for v in unique_values if v not in ['nan', 'None', '']]
         
         if column_name == 'Mes':
@@ -208,19 +208,22 @@ def load_data(uploaded_file):
     else:
         df['Legajo'] = 'S/L-' + df.index.astype(str)
 
-    cols_to_fill = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco']
-    for col in cols_to_fill:
+    # LIMPIEZA AGRESIVA DE CATEGORÍAS PARA ARREGLAR FILTROS VACÍOS Y CASCADA
+    # Convertimos a string, quitamos .0 decimal si existe, y rellenamos nulos.
+    cols_to_clean = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco']
+    for col in cols_to_clean:
         if col in df.columns:
-            # CORRECCION FILTROS: Asegurar limpieza estricta de decimales en CECO
-            if col == 'Ceco':
-                 df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64').astype(str).replace('<NA>', 'No Informado')
-            
-            df[col] = df[col].fillna('No Informado').astype(str)
-            df[col] = df[col].replace(['nan', 'None', '', 'nan.0', '0', '<NA>'], 'No Informado')
+            # 1. Convertir a string
+            s = df[col].astype(str)
+            # 2. Quitar decimal .0 si existe al final (común en Nivel y Ceco)
+            s = s.str.replace(r'\.0$', '', regex=True)
+            # 3. Estandarizar nulos
+            s = s.replace(['nan', 'None', '', '<NA>'], 'No Informado')
+            df[col] = s
         else:
             df[col] = 'No Informado'
 
-    # CORRECCIÓN DOTACIÓN: Forzar a entero
+    # Asegurar que Dotación es numérica entera
     if 'Dotación' in df.columns:
         df['Dotación'] = pd.to_numeric(df['Dotación'], errors='coerce').fillna(0).astype(int)
     else:
@@ -297,7 +300,7 @@ df_filtered = apply_filters(df, st.session_state.ms_selections)
 
 
 # =============================================================================
-# --- INICIO: LÓGICA DE MÉTRICAS CON DELTA ---
+# --- INICIO: LÓGICA DE MÉTRICAS ---
 # =============================================================================
 
 all_months_sorted = get_sorted_unique_options(df, 'Mes')
@@ -344,7 +347,6 @@ def calculate_monthly_metrics(df_month):
         return {'total_masa': 0, 'empleados': 0, 'costo_medio_conv': 0, 'costo_medio_fc': 0}
     
     total_masa = df_month['Total Mensual'].sum()
-    # CAMBIO: Usar suma de columna Dotación en lugar de conteo de Legajos
     empleados = df_month['Dotación'].sum()
     
     is_fc = df_month['Nivel'] == 'FC'
@@ -354,7 +356,6 @@ def calculate_monthly_metrics(df_month):
     total_masa_convenio = df_convenio['Total Mensual'].sum()
     total_masa_fc = df_fc['Total Mensual'].sum()
     
-    # CAMBIO: Usar suma de Dotación
     dotacion_convenio = df_convenio['Dotación'].sum()
     dotacion_fc = df_fc['Dotación'].sum()
     
@@ -494,7 +495,7 @@ cards_html = f"""
 <!-- Tarjeta 2: Dotación Liquidada -->
 <div class="metric-card border-cyan">
     <div class="card-label" title="Dotación Liquidada ({display_month_name})">Dotación Liquidada ({display_month_name})</div>
-    <div class="card-value">{format_number_es(metrics_current['empleados'])}</div>
+    <div class="card-value">{format_integer_es(metrics_current['empleados'])}</div>
     <div class="card-delta {'delta-green' if delta_empleados >= 0 else 'delta-red'}">
         {'▲' if delta_empleados >= 0 else '▼'} {abs(delta_empleados):.1f}%
     </div>
@@ -882,7 +883,6 @@ with tab_costos:
         col_cat = opts[l] 
         st.markdown(f"#### Análisis: {l}")
         
-        # CAMBIO: Agrupar sumando Dotación en vez de contar Legajos
         g = df_filtered.groupby([col_cat, 'Mes', 'Mes_Num']).agg(
             M=('Total Mensual', 'sum'), 
             D=('Dotación', 'sum')
@@ -912,17 +912,17 @@ with tab_costos:
             
         else:
             if l == "Relación":
-                # NUEVO GRÁFICO DUAL: Eje Y Izquierdo (Convenio), Eje Y Derecho (Fuera de C.)
+                # --- GRÁFICO DE DOBLE EJE (DUAL AXIS) ---
                 base_rel = alt.Chart(g).encode(
                     x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes')
                 )
                 
-                # Capa 1: Barras Convenio (Eje Izquierdo)
+                # Capa 1: Barras Convenio (Eje Y Principal - Izquierda)
                 bars_convenio = base_rel.transform_filter(
                     alt.datum.Relación == 'Convenio'
                 ).mark_bar(opacity=0.7, width=20).encode(
-                    y=alt.Y('CP:Q', title='Costo Promedio Convenio ($)', axis=alt.Axis(format='$,.0f', titleColor='#1f77b4')),
-                    color=alt.value('#1f77b4'), # Azul Fijo
+                    y=alt.Y('CP:Q', title='Costo Promedio ($) - Convenio', axis=alt.Axis(format='$,.0f', titleColor='#1f77b4')),
+                    color=alt.value('#1f77b4'),
                     tooltip=[
                         alt.Tooltip('Mes:N', title='Mes'), 
                         alt.Tooltip('Relación:N'), 
@@ -932,12 +932,12 @@ with tab_costos:
                     ]
                 )
                 
-                # Capa 2: Línea Fuera de Convenio (Eje Derecho)
+                # Capa 2: Línea Fuera de Convenio (Eje Y Secundario - Derecha)
                 lines_fc = base_rel.transform_filter(
                     alt.datum.Relación != 'Convenio'
                 ).mark_line(point=True, strokeWidth=3).encode(
-                    y=alt.Y('CP:Q', title='Costo Promedio Fuera C. ($)', axis=alt.Axis(format='$,.0f', titleColor='#ff7f0e')),
-                    color=alt.value('#ff7f0e'), # Naranja Fijo
+                    y=alt.Y('CP:Q', title='Costo Promedio ($) - Fuera Convenio', axis=alt.Axis(format='$,.0f', titleColor='#ff7f0e')),
+                    color=alt.value('#ff7f0e'), 
                     tooltip=[
                         alt.Tooltip('Mes:N', title='Mes'), 
                         alt.Tooltip('Relación:N'), 
@@ -947,8 +947,11 @@ with tab_costos:
                     ]
                 )
                 
-                # Combinar con escalas independientes
-                final_chart_costos = alt.layer(bars_convenio, lines_fc).resolve_scale(y='independent').properties(height=350)
+                # Resolver escalas independientes para crear el efecto de doble eje
+                final_chart_costos = alt.layer(bars_convenio, lines_fc).resolve_scale(
+                    y='independent'
+                ).properties(height=350)
+                
                 st.altair_chart(final_chart_costos, use_container_width=True)
             else:
                 final_chart_costos = alt.Chart(g).mark_line(point=True).encode(
@@ -985,7 +988,6 @@ with tab_costos:
         else:
             st.write(f"**Resumen Mensual Desglosado (Masa y Dotación) - {l}**")
             
-            # CAMBIO: Pivotear usando Dotación (suma) en vez de Legajo (conteo)
             pivot_multi = pd.pivot_table(
                 df_filtered,
                 values=['Total Mensual', 'Dotación'],
@@ -1012,7 +1014,6 @@ with tab_costos:
             pivot_multi = pivot_multi.reindex(columns=new_columns)
             
             masa_anual = df_filtered.groupby(col_cat)['Total Mensual'].sum()
-            # CAMBIO: Sumar la Dotación en lugar de contar Legajos
             dot_acum_anual = df_filtered.groupby([col_cat, 'Mes'])['Dotación'].sum().groupby(col_cat).sum()
             costo_prom_anual = masa_anual.div(dot_acum_anual.replace(0, np.nan)).fillna(0)
             
@@ -1070,7 +1071,6 @@ with tab_costos:
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
             format_dict = {c: lambda x: f"${format_number_es(x)}" for c in cols_masa}
-            # CAMBIO: Formato entero estricto para Dotación
             format_dict.update({c: lambda x: f"{int(x)}" for c in cols_dot}) 
             
             st.dataframe(
