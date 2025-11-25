@@ -216,8 +216,8 @@ def load_data(uploaded_file):
         # Para los inválidos (NaN), generamos un ID único "S/L-{indice}"
         mask_invalid = ~mask_valid
         if mask_invalid.any():
-            # Esto garantiza que nunique() cuente a cada persona sin legajo individualmente
-            df.loc[mask_invalid, 'Legajo'] = 'S/L-' + df.index.astype(str)
+            # ERROR CORREGIDO AQUÍ: Filtramos df.index usando mask_invalid para que las longitudes coincidan
+            df.loc[mask_invalid, 'Legajo'] = 'S/L-' + df.index[mask_invalid].astype(str)
     else:
         # Si la columna no existe, creamos IDs para todos
         df['Legajo'] = 'S/L-' + df.index.astype(str)
