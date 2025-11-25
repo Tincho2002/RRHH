@@ -1001,14 +1001,15 @@ with tab_costos:
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
+            # MEJORA VISUAL: Ocultar índice, fijar columnas y alinear valores numéricos
             st.dataframe(
                 df_detailed_display.style.format(fmt).set_properties(subset=mp + ['Promedio Mensual'], **{'text-align': 'right'}), 
                 use_container_width=True, 
                 height=400,
                 hide_index=True,
                 column_config={
-                    "Legajo": st.column_config.TextColumn("Legajo", fixed=True),
-                    "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", fixed=True),
+                    "Legajo": st.column_config.TextColumn("Legajo"),
+                    "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres"),
                 }
             )
             
@@ -1105,7 +1106,7 @@ with tab_costos:
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
             format_dict = {c: lambda x: f"${format_number_es(x)}" for c in cols_masa}
-            format_dict.update({c: lambda x: f"{format_integer_es(x)}" for c in cols_dot}) 
+            format_dict.update({c: lambda x: f"{int(x)}" for c in cols_dot}) 
             
             st.dataframe(
                 pivot_multi.style.format(format_dict),
@@ -1308,7 +1309,7 @@ with tab_conceptos:
             with col_dl_9:
                 st.download_button(label="📥 Descargar CSV", data=pivot_table_sipaf.to_csv(index=True).encode('utf-8'), file_name='resumen_sipaf.csv', mime='text/csv', use_container_width=True)
             with col_dl_10:
-                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table_sipaf.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
         else:
             st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
 
