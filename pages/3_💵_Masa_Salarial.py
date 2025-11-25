@@ -894,7 +894,7 @@ with tab_costos:
     }
 
     # 2. Columnas para selectores
-    col_sel_dim = st.container()
+    col_sel_dim, col_sel_view_mode = st.columns(2)
     
     with col_sel_dim:
         # Multiselect para elegir qué gráficos mostrar - Default solo Relación
@@ -903,6 +903,10 @@ with tab_costos:
             options=list(analysis_options_map.keys()),
             default=["Relación"]
         )
+        
+    with col_sel_view_mode:
+        # Checkbox para alternar vista de tabla
+        show_detail_legajo = st.checkbox("Mostrar detalle por Legajo en tablas", value=False, help="Activa para ver el listado de empleados mes a mes.")
 
     st.markdown("---")
     
@@ -939,81 +943,128 @@ with tab_costos:
         
         st.altair_chart(chart, use_container_width=True)
         
-        # Renderizar Tabla AGREGADA (Pivoteada)
-        st.write(f"**Resumen Mensual de Costos Promedios - {label}**")
-        
-        # 1. Pivotear Masa
-        pivot_masa = pd.pivot_table(
-            df_filtered, 
-            values='Total Mensual', 
-            index=col_name, 
-            columns='Mes', 
-            aggfunc='sum', 
-            fill_value=0
-        )
-        
-        # 2. Pivotear Dotación (nunique)
-        pivot_dotacion = pd.pivot_table(
-            df_filtered, 
-            values='Legajo', 
-            index=col_name, 
-            columns='Mes', 
-            aggfunc='nunique', 
-            fill_value=0
-        )
-        
-        # 3. Asegurar orden de meses
-        cols_meses_presentes = [m for m in meses_ordenados_costos if m in pivot_masa.columns]
-        pivot_masa = pivot_masa[cols_meses_presentes]
-        pivot_dotacion = pivot_dotacion[cols_meses_presentes]
-        
-        # 4. Calcular Costo Promedio Mensual (Masa / Dotación)
-        # Reemplazamos 0 por NaN para evitar division por cero, luego volvemos a 0
-        pivot_promedio = pivot_masa.div(pivot_dotacion.replace(0, np.nan)).fillna(0)
-        
-        # 5. Calcular "Promedio Anual" (Columna Final)
-        # Definición: Masa Total Anual / Dotación Única Anual (para esa categoría)
-        # OJO: No es el promedio de los promedios. Es el costo promedio del periodo.
-        
-        # Masa Total por Categoría
-        masa_anual_cat = df_filtered.groupby(col_name)['Total Mensual'].sum()
-        # Dotación Única por Categoría (en todo el periodo)
-        dotacion_anual_cat = df_filtered.groupby(col_name)['Legajo'].nunique()
-        
-        promedio_anual_col = masa_anual_cat.div(dotacion_anual_cat.replace(0, np.nan)).fillna(0)
-        
-        # Agregar columna al final
-        pivot_promedio['Promedio Anual'] = promedio_anual_col
-        
-        # 6. Calcular "Costo Promedio Mensual" (Fila Final)
-        # Definición: Masa Total Mes / Dotación Total Mes (sin importar categoría)
-        
-        masa_mensual_total = df_filtered.groupby('Mes')['Total Mensual'].sum()
-        dotacion_mensual_total = df_filtered.groupby('Mes')['Legajo'].nunique()
-        
-        promedio_mensual_row = masa_mensual_total.div(dotacion_mensual_total.replace(0, np.nan)).fillna(0)
-        
-        # Ordenar la serie de fila final
-        promedio_mensual_row = promedio_mensual_row.reindex(cols_meses_presentes).fillna(0)
-        
-        # Calcular el "Promedio Anual Global" (intersección final)
-        total_masa_global = df_filtered['Total Mensual'].sum()
-        total_dot_global = df_filtered['Legajo'].nunique()
-        promedio_anual_global = total_masa_global / total_dot_global if total_dot_global > 0 else 0
-        
-        promedio_mensual_row['Promedio Anual'] = promedio_anual_global
-        
-        # Convertir a DF para pegar como fila
-        row_df = pd.DataFrame([promedio_mensual_row], index=['PROMEDIO MENSUAL'])
-        
-        # Concatenar
-        final_table = pd.concat([pivot_promedio, row_df])
-        
-        # 7. Formateo
-        st.dataframe(
-            final_table.style.format(lambda x: f"${format_number_es(x)}"),
-            use_container_width=True
-        )
+        # Renderizar Tabla según el Checkbox
+        if show_detail_legajo:
+            st.write(f"**Detalle por Mes y Legajo - {label}**")
+            
+            # 1. Seleccionar columnas base
+            cols_base = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_name]
+            cols_pivot = ['Mes', 'Mes_Num', 'Total Mensual'] # Columnas para pivotear
+            
+            # Filtrar DF con columnas necesarias
+            df_base = df_filtered[cols_base + cols_pivot].copy()
+            
+            # 2. Pivotear: Indices=Datos Legajo, Columnas=Mes, Valores=Total Mensual
+            # Usamos pivot_table para manejar duplicados sumando (aunque por legajo/mes debería ser único)
+            df_pivot = pd.pivot_table(
+                df_base,
+                values='Total Mensual',
+                index=cols_base,
+                columns='Mes',
+                aggfunc='sum',
+                fill_value=0
+            ).reset_index()
+            
+            # 3. Ordenar columnas de meses cronológicamente
+            meses_presentes = [m for m in meses_ordenados_costos if m in df_pivot.columns]
+            
+            # 4. Calcular Promedio Anual (o del periodo seleccionado) por Legajo
+            # Sumamos los meses presentes y dividimos por la cantidad de meses con dato > 0 (o total meses)
+            # Aquí calculamos promedio simple de los valores > 0
+            # Ojo: "Promedio Anual" = Suma Total / Cantidad de Meses con dato
+            valores_meses = df_pivot[meses_presentes]
+            df_pivot['Promedio Mensual'] = valores_meses.replace(0, np.nan).mean(axis=1).fillna(0)
+            
+            # 5. Reordenar columnas finales
+            cols_finales = cols_base + meses_presentes + ['Promedio Mensual']
+            df_display_pivot = df_pivot[cols_finales].sort_values(['Gerencia', 'Apellido y Nombres'])
+            
+            # Formatear para mostrar
+            format_dict = {m: lambda x: f"${format_number_es(x)}" if x > 0 else "-" for m in meses_presentes}
+            format_dict['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
+            
+            st.dataframe(
+                df_display_pivot.style.format(format_dict),
+                use_container_width=True,
+                height=400
+            )
+
+        else:
+            st.write(f"**Resumen Mensual de Costos Promedios - {label}**")
+            
+            # 1. Pivotear Masa
+            pivot_masa = pd.pivot_table(
+                df_filtered, 
+                values='Total Mensual', 
+                index=col_name, 
+                columns='Mes', 
+                aggfunc='sum', 
+                fill_value=0
+            )
+            
+            # 2. Pivotear Dotación (nunique)
+            pivot_dotacion = pd.pivot_table(
+                df_filtered, 
+                values='Legajo', 
+                index=col_name, 
+                columns='Mes', 
+                aggfunc='nunique', 
+                fill_value=0
+            )
+            
+            # 3. Asegurar orden de meses
+            cols_meses_presentes = [m for m in meses_ordenados_costos if m in pivot_masa.columns]
+            pivot_masa = pivot_masa[cols_meses_presentes]
+            pivot_dotacion = pivot_dotacion[cols_meses_presentes]
+            
+            # 4. Calcular Costo Promedio Mensual (Masa / Dotación)
+            # Reemplazamos 0 por NaN para evitar division por cero, luego volvemos a 0
+            pivot_promedio = pivot_masa.div(pivot_dotacion.replace(0, np.nan)).fillna(0)
+            
+            # 5. Calcular "Promedio Anual" (Columna Final)
+            # Definición: Promedio de los costos mensuales (para que no de la suma)
+            # Usaremos el promedio ponderado: Masa Total Periodo / Suma de Dotaciones Mensuales
+            
+            masa_anual_cat = df_filtered.groupby(col_name)['Total Mensual'].sum()
+            
+            # Calculamos la suma de dotaciones de cada mes (Man-Months) para dividir por la cantidad de "meses-persona"
+            dotacion_mensual_cat = df_filtered.groupby([col_name, 'Mes'])['Legajo'].nunique().groupby(col_name).sum()
+            
+            promedio_anual_col = masa_anual_cat.div(dotacion_mensual_cat.replace(0, np.nan)).fillna(0)
+            
+            # Agregar columna al final
+            pivot_promedio['Promedio Anual'] = promedio_anual_col
+            
+            # 6. Calcular "Costo Promedio Mensual" (Fila Final)
+            
+            masa_mensual_total = df_filtered.groupby('Mes')['Total Mensual'].sum()
+            dotacion_mensual_total = df_filtered.groupby('Mes')['Legajo'].nunique()
+            
+            promedio_mensual_row = masa_mensual_total.div(dotacion_mensual_total.replace(0, np.nan)).fillna(0)
+            
+            # Ordenar
+            promedio_mensual_row = promedio_mensual_row.reindex(cols_meses_presentes).fillna(0)
+            
+            # Calcular el "Promedio Anual Global" (intersección final)
+            # Masa Total de todo el filtro / Suma de dotaciones mensuales de todo el filtro
+            total_masa_global = df_filtered['Total Mensual'].sum()
+            total_man_months_global = df_filtered.groupby('Mes')['Legajo'].nunique().sum()
+            
+            promedio_anual_global = total_masa_global / total_man_months_global if total_man_months_global > 0 else 0
+            
+            promedio_mensual_row['Promedio Anual'] = promedio_anual_global
+            
+            # Convertir a DF para pegar como fila
+            row_df = pd.DataFrame([promedio_mensual_row], index=['PROMEDIO MENSUAL'])
+            
+            # Concatenar
+            final_table = pd.concat([pivot_promedio, row_df])
+            
+            # 7. Formateo
+            st.dataframe(
+                final_table.style.format(lambda x: f"${format_number_es(x)}"),
+                use_container_width=True
+            )
         
         st.markdown("---")
 
