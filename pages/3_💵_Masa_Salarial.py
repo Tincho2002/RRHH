@@ -1040,16 +1040,24 @@ with tab_costos:
                 fill_value=0
             )
             
-            # 2. Reordenar las columnas para agrupar por Mes
+            # 2. Calcular PROMEDIO MENSUAL y Reordenar
             # Obtener meses presentes en el orden correcto
             available_months = [m for m in meses_ordenados_costos if m in pivot_multi.columns.levels[1]]
             
+            # Calcular columna de promedio para cada mes dentro del mismo DF
+            for mes in available_months:
+                 masa = pivot_multi[('Total Mensual', mes)]
+                 dot = pivot_multi[('Legajo', mes)]
+                 avg = masa.div(dot.replace(0, np.nan)).fillna(0)
+                 pivot_multi[('Promedio', mes)] = avg
+
             # Crear una lista ordenada de tuplas para reindexar
-            # Queremos: Enero->(Masa, Dot), Febrero->(Masa, Dot)...
+            # Queremos: Enero->(Masa, Dot, Prom), Febrero->(Masa, Dot, Prom)...
             new_columns = []
             for mes in available_months:
                 new_columns.append(('Total Mensual', mes))
                 new_columns.append(('Legajo', mes))
+                new_columns.append(('Promedio', mes))
             
             # Reordenar columnas del pivot
             pivot_multi = pivot_multi.reindex(columns=new_columns)
@@ -1059,33 +1067,68 @@ with tab_costos:
             masa_anual = df_filtered.groupby(col_cat)['Total Mensual'].sum()
             # Dotación Acumulada (Suma de dotaciones mensuales) - Divisor correcto para promedio ponderado anual
             dot_acum_anual = df_filtered.groupby([col_cat, 'Mes'])['Legajo'].nunique().groupby(col_cat).sum()
-            # Costo Promedio Anual
+            # Costo Promedio Anual (Ponderado)
             costo_prom_anual = masa_anual.div(dot_acum_anual.replace(0, np.nan)).fillna(0)
             
+            # Promedio de Promedios (Nuevo Requerimiento)
+            # Calculamos la media de las columnas de "Promedio" mensual que acabamos de generar
+            # (Nota: esto es un promedio simple de los promedios mensuales)
+            prom_cols_tuples = [('Promedio', m) for m in available_months]
+            prom_de_promedios = pivot_multi[prom_cols_tuples].mean(axis=1).fillna(0)
+
             # Agregar estas columnas al DataFrame (necesitamos alinearlas con el índice)
             pivot_multi[('Total Anual', 'Masa Total ($)')] = masa_anual
             pivot_multi[('Total Anual', 'Dotación Acum. (#)')] = dot_acum_anual
-            pivot_multi[('Total Anual', 'Costo Promedio ($)')] = costo_prom_anual
+            pivot_multi[('Total Anual', 'Costo Promedio Ponderado ($)')] = costo_prom_anual
+            pivot_multi[('Total Anual', 'Promedio de Promedios ($)')] = prom_de_promedios
 
             # 4. Calcular Fila "PROMEDIO GENERAL" (Totales Verticales)
-            # Sumamos las columnas numéricas
-            total_row = pivot_multi.sum()
-            # Corregir el Costo Promedio Anual del Total General (no es suma, es recálculo)
-            total_masa_gral = total_row[('Total Anual', 'Masa Total ($)')]
-            total_dot_gral = total_row[('Total Anual', 'Dotación Acum. (#)')]
-            total_row[('Total Anual', 'Costo Promedio ($)')] = total_masa_gral / total_dot_gral if total_dot_gral > 0 else 0
+            # Primero sumamos Masa y Dotacion
+            total_row_sums = pivot_multi[[c for c in pivot_multi.columns if c[0] in ['Total Mensual', 'Legajo']]].sum()
             
-            # Añadir fila al DF
-            pivot_multi.loc['PROMEDIO GENERAL'] = total_row
+            # Ahora calculamos los promedios verticales para la fila de totales
+            total_row_vals = {}
+            # Copiar sumas
+            for col in total_row_sums.index:
+                total_row_vals[col] = total_row_sums[col]
+            
+            # Calcular promedios mensuales del total
+            for mes in available_months:
+                m_t = total_row_vals.get(('Total Mensual', mes), 0)
+                d_t = total_row_vals.get(('Legajo', mes), 0)
+                p_t = m_t / d_t if d_t > 0 else 0
+                total_row_vals[('Promedio', mes)] = p_t
+            
+            # Calcular totales anuales del total general
+            t_masa_anual = sum([total_row_vals.get(('Total Mensual', m), 0) for m in available_months])
+            t_dot_anual = sum([total_row_vals.get(('Legajo', m), 0) for m in available_months])
+            t_prom_pond = t_masa_anual / t_dot_anual if t_dot_anual > 0 else 0
+            
+            # Calcular Promedio de Promedios del total general
+            # (Promedio de los promedios mensuales calculados arriba)
+            all_monthly_avgs = [total_row_vals.get(('Promedio', m), 0) for m in available_months]
+            t_prom_de_prom = sum(all_monthly_avgs) / len(all_monthly_avgs) if all_monthly_avgs else 0
+
+            # Asignar anuales
+            total_row_vals[('Total Anual', 'Masa Total ($)')] = t_masa_anual
+            total_row_vals[('Total Anual', 'Dotación Acum. (#)')] = t_dot_anual
+            total_row_vals[('Total Anual', 'Costo Promedio Ponderado ($)')] = t_prom_pond
+            total_row_vals[('Total Anual', 'Promedio de Promedios ($)')] = t_prom_de_prom
+            
+            # Convertir a Series y añadir al DF
+            total_series = pd.Series(total_row_vals, name='PROMEDIO GENERAL')
+            pivot_multi.loc['PROMEDIO GENERAL'] = total_series
             
             # 5. Aplanar MultiIndex para mostrar en Streamlit (limpieza visual)
-            # Formato: "Enero Masa ($)", "Enero Dot (#)"
+            # Formato: "Enero Masa ($)", "Enero Dot (#)", "Enero Prom ($)"
             flat_cols = []
             for metric, mes in pivot_multi.columns:
                 if metric == 'Total Mensual':
                     flat_cols.append(f"{mes} - Masa ($)")
                 elif metric == 'Legajo':
                     flat_cols.append(f"{mes} - Dot. (#)")
+                elif metric == 'Promedio':
+                    flat_cols.append(f"Prom. {mes} ($)")
                 elif metric == 'Total Anual':
                     flat_cols.append(f"ANUAL - {mes}") # mes aquí trae el subtítulo (Masa Total, etc)
                 else:
