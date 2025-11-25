@@ -70,10 +70,17 @@ def format_number_es(num):
     s = f"{num:,.2f}"
     return s.replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
-def format_integer_es(num):
-    if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
-    s = f"{int(num):,}"
-    return s.replace(",", ".")
+def format_integer_es(val):
+    """
+    Formatea enteros con punto de miles. 
+    Si el valor NO es numérico (ej: un ID alfanumérico de Ceco o Legajo), lo devuelve como string tal cual.
+    Esto soluciona el problema de columnas vacías.
+    """
+    if pd.isna(val): return ""
+    if isinstance(val, (int, float, np.number)):
+        s = f"{int(val):,}"
+        return s.replace(",", ".")
+    return str(val)
 
 # --- FUNCIONES DE EXPORTACIÓN ---
 def to_excel(df):
@@ -209,8 +216,6 @@ def load_data(uploaded_file):
         df['Legajo'] = 'S/L-' + df.index.astype(str)
 
     # LIMPIEZA AGRESIVA DE CATEGORÍAS PARA ARREGLAR FILTROS VACÍOS, CASCADA Y CECO VACÍO
-    # Convertimos a string, quitamos .0 decimal si existe, y rellenamos nulos.
-    # NOTA: Esto incluye 'Ceco' para que aparezca correctamente.
     cols_to_clean = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco']
     for col in cols_to_clean:
         if col in df.columns:
@@ -1278,7 +1283,7 @@ with tab_conceptos:
             with col_dl_9:
                 st.download_button(label="📥 Descargar CSV", data=pivot_table_sipaf.to_csv(index=True).encode('utf-8'), file_name='resumen_sipaf.csv', mime='text/csv', use_container_width=True)
             with col_dl_10:
-                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table_sipaf.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+                st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
         else:
             st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
 
@@ -1319,13 +1324,18 @@ with tab_tabla:
         df_page = df_display.iloc[start_idx:end_idx]
 
         currency_columns = ['Total Sujeto a Retención', 'Vacaciones', 'Alquiler', 'Horas Extras', 'Nómina General con Aportes', 'Cs. Sociales s/Remunerativos', 'Cargas Sociales Ant.', 'IC Pagado', 'Vacaciones Pagadas', 'Cargas Sociales s/Vac. Pagadas', 'Retribución Cargo 1.1.1.', 'Antigüedad 1.1.3.', 'Retribuciones Extraordinarias 1.3.1.', 'Contribuciones Patronales', 'Gratificación por Antigüedad', 'Gratificación por Jubilación', 'Total No Remunerativo', 'SAC Horas Extras', 'Cargas Sociales SAC Hextras', 'SAC Pagado', 'Cargas Sociales s/SAC Pagado', 'Cargas Sociales Antigüedad', 'Nómina General sin Aportes', 'Gratificación Única y Extraordinaria', 'Gastos de Representación', 'Contribuciones Patronales 1.3.3.', 'S.A.C. 1.3.2.', 'S.A.C. 1.1.4.', 'Contribuciones Patronales 1.1.6.', 'Complementos 1.1.7.', 'Asignaciones Familiares 1.4.', 'Total Mensual']
-        integer_columns = ['Nro. de Legajo', 'Dotación', 'Ceco']
+        # Quité Ceco y Legajo de integer_columns para que no se formatee con separador de miles
+        integer_columns = ['Dotación'] 
+        
         currency_formatter = lambda x: f"${format_number_es(x)}"
         format_mapper = {col: currency_formatter for col in currency_columns if col in df_page.columns}
         for col in integer_columns:
             if col in df_page.columns:
                 format_mapper[col] = format_integer_es
-        columns_to_align_right = [col for col in currency_columns + integer_columns if col in df_page.columns]
+        
+        # Columnas que queremos alinear a la derecha (incluyendo IDs aunque sean texto)
+        columns_to_align_right = [col for col in currency_columns + integer_columns + ['Ceco', 'Nro. de Legajo'] if col in df_page.columns]
+        
         st.dataframe(df_page.style.format(format_mapper, na_rep="").set_properties(subset=columns_to_align_right, **{'text-align': 'right'}), use_container_width=True, hide_index=True)
     else:
         st.info("No hay datos que coincidan con los filtros seleccionados.")
