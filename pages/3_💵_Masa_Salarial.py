@@ -129,6 +129,7 @@ def apply_filters(df, selections):
 def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns:
         unique_values = dataframe[column_name].dropna().unique().tolist()
+        # Eliminamos valores nulos explícitos, pero PERMITIMOS 'No Informado' o valores generados
         unique_values = [v for v in unique_values if v not in ['nan', 'None', '']]
         
         if column_name == 'Mes':
@@ -210,16 +211,19 @@ def load_data(uploaded_file):
     cols_to_fill = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco']
     for col in cols_to_fill:
         if col in df.columns:
+            # CORRECCION FILTROS: Asegurar limpieza estricta de decimales en CECO
+            if col == 'Ceco':
+                 df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64').astype(str).replace('<NA>', 'No Informado')
+            
             df[col] = df[col].fillna('No Informado').astype(str)
             df[col] = df[col].replace(['nan', 'None', '', 'nan.0', '0', '<NA>'], 'No Informado')
         else:
             df[col] = 'No Informado'
 
-    # Asegurar que Dotación es numérica
+    # CORRECCIÓN DOTACIÓN: Forzar a entero
     if 'Dotación' in df.columns:
-        df['Dotación'] = pd.to_numeric(df['Dotación'], errors='coerce').fillna(0)
+        df['Dotación'] = pd.to_numeric(df['Dotación'], errors='coerce').fillna(0).astype(int)
     else:
-        # Si no existe, creamos una por defecto (1 por fila), aunque el usuario dice que existe.
         df['Dotación'] = 1
 
     df.reset_index(drop=True, inplace=True)
@@ -908,24 +912,43 @@ with tab_costos:
             
         else:
             if l == "Relación":
+                # NUEVO GRÁFICO DUAL: Eje Y Izquierdo (Convenio), Eje Y Derecho (Fuera de C.)
                 base_rel = alt.Chart(g).encode(
                     x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes')
                 )
+                
+                # Capa 1: Barras Convenio (Eje Izquierdo)
                 bars_convenio = base_rel.transform_filter(
                     alt.datum.Relación == 'Convenio'
                 ).mark_bar(opacity=0.7, width=20).encode(
-                    y=alt.Y('CP:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')),
-                    color=alt.Color('Relación:N', scale=alt.Scale(domain=['Convenio'], range=['#1f77b4']), legend=alt.Legend(title="Relación")),
-                    tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Relación:N'), alt.Tooltip('M:Q', format='$,.2f', title='Masa'), alt.Tooltip('D:Q', title='Dotación'), alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')]
+                    y=alt.Y('CP:Q', title='Costo Promedio Convenio ($)', axis=alt.Axis(format='$,.0f', titleColor='#1f77b4')),
+                    color=alt.value('#1f77b4'), # Azul Fijo
+                    tooltip=[
+                        alt.Tooltip('Mes:N', title='Mes'), 
+                        alt.Tooltip('Relación:N'), 
+                        alt.Tooltip('M:Q', format='$,.2f', title='Masa'), 
+                        alt.Tooltip('D:Q', title='Dotación'), 
+                        alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')
+                    ]
                 )
+                
+                # Capa 2: Línea Fuera de Convenio (Eje Derecho)
                 lines_fc = base_rel.transform_filter(
                     alt.datum.Relación != 'Convenio'
                 ).mark_line(point=True, strokeWidth=3).encode(
-                    y=alt.Y('CP:Q'),
-                    color=alt.Color('Relación:N', legend=alt.Legend(title="Relación")), 
-                    tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Relación:N'), alt.Tooltip('M:Q', format='$,.2f', title='Masa'), alt.Tooltip('D:Q', title='Dotación'), alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')]
+                    y=alt.Y('CP:Q', title='Costo Promedio Fuera C. ($)', axis=alt.Axis(format='$,.0f', titleColor='#ff7f0e')),
+                    color=alt.value('#ff7f0e'), # Naranja Fijo
+                    tooltip=[
+                        alt.Tooltip('Mes:N', title='Mes'), 
+                        alt.Tooltip('Relación:N'), 
+                        alt.Tooltip('M:Q', format='$,.2f', title='Masa'), 
+                        alt.Tooltip('D:Q', title='Dotación'), 
+                        alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')
+                    ]
                 )
-                final_chart_costos = (bars_convenio + lines_fc).properties(height=350).resolve_scale(color='independent') 
+                
+                # Combinar con escalas independientes
+                final_chart_costos = alt.layer(bars_convenio, lines_fc).resolve_scale(y='independent').properties(height=350)
                 st.altair_chart(final_chart_costos, use_container_width=True)
             else:
                 final_chart_costos = alt.Chart(g).mark_line(point=True).encode(
@@ -1047,7 +1070,8 @@ with tab_costos:
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
             format_dict = {c: lambda x: f"${format_number_es(x)}" for c in cols_masa}
-            format_dict.update({c: lambda x: f"{format_number_es(x)}" for c in cols_dot}) # Dotacion puede ser float ahora
+            # CAMBIO: Formato entero estricto para Dotación
+            format_dict.update({c: lambda x: f"{int(x)}" for c in cols_dot}) 
             
             st.dataframe(
                 pivot_multi.style.format(format_dict),
