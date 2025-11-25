@@ -882,7 +882,7 @@ with tab_distribucion:
             )
 
 # --- TAB 3 (COSTOS PROMEDIOS) ---
-with t3:
+with tab_costos:
     st.subheader("Análisis de Costos Promedios")
     st.markdown("Haga clic en cualquier punto de los gráficos para ver el detalle del cálculo.")
     
