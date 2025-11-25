@@ -881,191 +881,165 @@ with tab_distribucion:
                 height=400
             )
 
-# ------------------------- TAB 3: COSTOS PROMEDIOS (MODIFICADA) -------------------------
-with tab_costos:
-    st.subheader("Análisis de Costos Promedios Mensuales")
-    st.markdown("Evolución del costo promedio (Total Masa / Dotación) por categorías clave.")
+# --- TAB 3 (COSTOS PROMEDIOS) ---
+with t3:
+    st.subheader("Análisis de Costos Promedios")
+    st.markdown("Haga clic en cualquier punto de los gráficos para ver el detalle del cálculo.")
     
-    # 1. Definición de opciones - Actualizado
-    analysis_options_map = {
-        "Relación": "Relación",
-        "Nivel": "Nivel",
+    # Mapeo de opciones para el selector
+    opts = {
+        "Relación": "Relación", 
+        "Nivel": "Nivel", 
         "Clasificación Ministerial": "Clasificacion_Ministerio"
     }
-
-    # 2. Columnas para selectores
-    col_sel_dim, col_sel_view_mode = st.columns(2)
     
-    with col_sel_dim:
-        # Multiselect para elegir qué gráficos mostrar - Default solo Relación
-        selected_analyses = st.multiselect(
-            "Seleccione Dimensiones para Analizar:",
-            options=list(analysis_options_map.keys()),
+    # Columnas para los controles
+    c_sel, c_chk = st.columns(2)
+    with c_sel: 
+        sels = st.multiselect(
+            "Dimensiones para Analizar:", 
+            list(opts.keys()), 
             default=["Relación"]
         )
-        
-    with col_sel_view_mode:
-        # Checkbox para alternar vista de tabla
-        show_detail_legajo = st.checkbox("Mostrar detalle por Legajo en tablas", value=False, help="Activa para ver el listado de empleados mes a mes.")
-
+    with c_chk: 
+        det = st.checkbox(
+            "Ver detalle por Legajo en tablas", 
+            help="Activa para ver el listado de empleados mes a mes."
+        )
+    
     st.markdown("---")
     
+    # Orden de meses para asegurar consistencia en gráficos y tablas
     meses_ordenados_costos = df.sort_values('Mes_Num')['Mes'].unique().tolist()
 
-    if not selected_analyses:
+    if not sels:
         st.info("Por favor, seleccione al menos una dimensión para visualizar.")
     
-    for label in selected_analyses:
-        col_name = analysis_options_map[label]
-        st.markdown(f"#### Análisis: {label}")
+    for l in sels:
+        col_cat = opts[l] # Nombre real de la columna (ej: 'Nivel')
+        st.markdown(f"#### Análisis: {l}")
         
-        # Calcular datos agrupados para el GRÁFICO (siempre es resumen mensual)
-        grouped_stats = df_filtered.groupby([col_name, 'Mes', 'Mes_Num']).agg(
-            Masa=('Total Mensual', 'sum'),
-            Dotacion=('Legajo', 'nunique')
+        # --- 1. GRÁFICO ---
+        # Agrupar datos para el gráfico de líneas
+        g = df_filtered.groupby([col_cat, 'Mes', 'Mes_Num']).agg(
+            M=('Total Mensual', 'sum'), 
+            D=('Legajo', 'nunique')
         ).reset_index()
         
-        grouped_stats['Costo_Promedio'] = grouped_stats['Masa'] / grouped_stats['Dotacion']
-        grouped_stats['Costo_Promedio'] = grouped_stats['Costo_Promedio'].fillna(0)
+        # Calcular Costo Promedio (CP)
+        g['CP'] = g['M'] / g['D']
+        g['CP'] = g['CP'].fillna(0)
         
-        # Renderizar Gráfico
-        chart = alt.Chart(grouped_stats).mark_line(point=True).encode(
-            x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes'),
-            y=alt.Y('Costo_Promedio:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')),
-            color=alt.Color(f'{col_name}:N', title=col_name),
+        # Selector de interacción (click)
+        clk = alt.selection_point(fields=['Mes', col_cat], on='click')
+        
+        # Definición del gráfico
+        ch = alt.Chart(g).mark_line(point=True).encode(
+            x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes'), 
+            y=alt.Y('CP:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')), 
+            color=alt.Color(f'{col_cat}:N', title=col_cat),
             tooltip=[
                 alt.Tooltip('Mes:N'), 
-                alt.Tooltip(f'{col_name}:N'), 
-                alt.Tooltip('Costo_Promedio:Q', format='$,.2f'),
-                alt.Tooltip('Dotacion:Q', title='Dotación')
+                alt.Tooltip(f'{col_cat}:N'), 
+                alt.Tooltip('CP:Q', format='$,.2f', title='Costo Prom.'), 
+                alt.Tooltip('D:Q', title='Dotación')
             ]
-        ).properties(height=350).configure_point(size=100)
+        ).add_params(clk).properties(height=350).configure_point(size=100)
         
-        st.altair_chart(chart, use_container_width=True)
+        # Renderizar gráfico con evento de selección
+        evt = st.altair_chart(ch, use_container_width=True, on_select="rerun", key=f"ch_{col_cat}")
         
-        # Renderizar Tabla según el Checkbox
-        if show_detail_legajo:
-            st.write(f"**Detalle por Mes y Legajo - {label}**")
+        # --- 2. LÓGICA DEL MODAL (CLICK) ---
+        if evt.selection.get(clk.name):
+            val = evt.selection[clk.name]
+            if val:
+                # Extraer datos del punto seleccionado
+                punto = val[0]
+                mes_sel = punto['Mes']
+                cat_sel = punto[col_cat]
+                # Llamar a la función del modal (definida globalmente)
+                mostrar_integracion_costo(mes_sel, col_cat, cat_sel, df_filtered)
             
-            # 1. Seleccionar columnas base
-            cols_base = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_name]
-            cols_pivot = ['Mes', 'Mes_Num', 'Total Mensual'] # Columnas para pivotear
+        # --- 3. TABLAS (DETALLE O RESUMEN) ---
+        if det:
+            # === VISTA DETALLADA POR LEGAJO ===
+            st.write(f"**Detalle por Mes y Legajo - {l}**")
             
-            # Filtrar DF con columnas necesarias
-            df_base = df_filtered[cols_base + cols_pivot].copy()
+            cols_base = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_cat]
+            # Filtrar y copiar datos necesarios
+            df_b = df_filtered[cols_base + ['Mes', 'Mes_Num', 'Total Mensual']].copy()
             
-            # 2. Pivotear: Indices=Datos Legajo, Columnas=Mes, Valores=Total Mensual
-            # Usamos pivot_table para manejar duplicados sumando (aunque por legajo/mes debería ser único)
-            df_pivot = pd.pivot_table(
-                df_base,
-                values='Total Mensual',
-                index=cols_base,
-                columns='Mes',
-                aggfunc='sum',
-                fill_value=0
-            ).reset_index()
-            
-            # 3. Ordenar columnas de meses cronológicamente
-            meses_presentes = [m for m in meses_ordenados_costos if m in df_pivot.columns]
-            
-            # 4. Calcular Promedio Anual (o del periodo seleccionado) por Legajo
-            # Sumamos los meses presentes y dividimos por la cantidad de meses con dato > 0 (o total meses)
-            # Aquí calculamos promedio simple de los valores > 0
-            # Ojo: "Promedio Anual" = Suma Total / Cantidad de Meses con dato
-            valores_meses = df_pivot[meses_presentes]
-            df_pivot['Promedio Mensual'] = valores_meses.replace(0, np.nan).mean(axis=1).fillna(0)
-            
-            # 5. Reordenar columnas finales
-            cols_finales = cols_base + meses_presentes + ['Promedio Mensual']
-            df_display_pivot = df_pivot[cols_finales].sort_values(['Gerencia', 'Apellido y Nombres'])
-            
-            # Formatear para mostrar
-            format_dict = {m: lambda x: f"${format_number_es(x)}" if x > 0 else "-" for m in meses_presentes}
-            format_dict['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
-            
-            st.dataframe(
-                df_display_pivot.style.format(format_dict),
-                use_container_width=True,
-                height=400
-            )
-
-        else:
-            st.write(f"**Resumen Mensual de Costos Promedios - {label}**")
-            
-            # 1. Pivotear Masa
-            pivot_masa = pd.pivot_table(
-                df_filtered, 
+            # Pivotear para tener meses en columnas
+            p = pd.pivot_table(
+                df_b, 
                 values='Total Mensual', 
-                index=col_name, 
+                index=cols_base, 
                 columns='Mes', 
                 aggfunc='sum', 
                 fill_value=0
-            )
+            ).reset_index()
             
-            # 2. Pivotear Dotación (nunique)
-            pivot_dotacion = pd.pivot_table(
-                df_filtered, 
-                values='Legajo', 
-                index=col_name, 
-                columns='Mes', 
-                aggfunc='nunique', 
-                fill_value=0
-            )
+            # Ordenar columnas de meses
+            mp = [m for m in meses_ordenados_costos if m in p.columns]
             
-            # 3. Asegurar orden de meses
-            cols_meses_presentes = [m for m in meses_ordenados_costos if m in pivot_masa.columns]
-            pivot_masa = pivot_masa[cols_meses_presentes]
-            pivot_dotacion = pivot_dotacion[cols_meses_presentes]
+            # Calcular Promedio Mensual del Legajo (Suma / Cantidad de meses con dato)
+            vals = p[mp]
+            p['Promedio Mensual'] = vals.replace(0, np.nan).mean(axis=1).fillna(0)
             
-            # 4. Calcular Costo Promedio Mensual (Masa / Dotación)
-            # Reemplazamos 0 por NaN para evitar division por cero, luego volvemos a 0
-            pivot_promedio = pivot_masa.div(pivot_dotacion.replace(0, np.nan)).fillna(0)
+            # Ordenar filas
+            p = p.sort_values(['Gerencia', 'Apellido y Nombres'])
             
-            # 5. Calcular "Promedio Anual" (Columna Final)
-            # Definición: Promedio de los costos mensuales (para que no de la suma)
-            # Usaremos el promedio ponderado: Masa Total Periodo / Suma de Dotaciones Mensuales
+            # Formato condicional (guion si es 0)
+            fmt = {m: lambda x: f"${format_number_es(x)}" if x > 0 else "-" for m in mp}
+            fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             
-            masa_anual_cat = df_filtered.groupby(col_name)['Total Mensual'].sum()
-            
-            # Calculamos la suma de dotaciones de cada mes (Man-Months) para dividir por la cantidad de "meses-persona"
-            dotacion_mensual_cat = df_filtered.groupby([col_name, 'Mes'])['Legajo'].nunique().groupby(col_name).sum()
-            
-            promedio_anual_col = masa_anual_cat.div(dotacion_mensual_cat.replace(0, np.nan)).fillna(0)
-            
-            # Agregar columna al final
-            pivot_promedio['Promedio Anual'] = promedio_anual_col
-            
-            # 6. Calcular "Costo Promedio Mensual" (Fila Final)
-            
-            masa_mensual_total = df_filtered.groupby('Mes')['Total Mensual'].sum()
-            dotacion_mensual_total = df_filtered.groupby('Mes')['Legajo'].nunique()
-            
-            promedio_mensual_row = masa_mensual_total.div(dotacion_mensual_total.replace(0, np.nan)).fillna(0)
-            
-            # Ordenar
-            promedio_mensual_row = promedio_mensual_row.reindex(cols_meses_presentes).fillna(0)
-            
-            # Calcular el "Promedio Anual Global" (intersección final)
-            # Masa Total de todo el filtro / Suma de dotaciones mensuales de todo el filtro
-            total_masa_global = df_filtered['Total Mensual'].sum()
-            total_man_months_global = df_filtered.groupby('Mes')['Legajo'].nunique().sum()
-            
-            promedio_anual_global = total_masa_global / total_man_months_global if total_man_months_global > 0 else 0
-            
-            promedio_mensual_row['Promedio Anual'] = promedio_anual_global
-            
-            # Convertir a DF para pegar como fila
-            row_df = pd.DataFrame([promedio_mensual_row], index=['PROMEDIO MENSUAL'])
-            
-            # Concatenar
-            final_table = pd.concat([pivot_promedio, row_df])
-            
-            # 7. Formateo
             st.dataframe(
-                final_table.style.format(lambda x: f"${format_number_es(x)}"),
+                p[cols_base + mp + ['Promedio Mensual']].style.format(fmt), 
+                use_container_width=True, 
+                height=400
+            )
+            
+        else:
+            # === VISTA RESUMEN MATRICIAL ===
+            st.write(f"**Resumen Mensual de Costos Promedios - {l}**")
+            
+            # Pivotear Masa y Dotación
+            pm = pd.pivot_table(df_filtered, values='Total Mensual', index=col_cat, columns='Mes', aggfunc='sum', fill_value=0)
+            pd_ = pd.pivot_table(df_filtered, values='Legajo', index=col_cat, columns='Mes', aggfunc='nunique', fill_value=0)
+            
+            # Asegurar columnas
+            mp = [m for m in meses_ordenados_costos if m in pm.columns]
+            pm = pm[mp]
+            pd_ = pd_[mp]
+            
+            # Calcular Costo Promedio Mensual (Matriz Principal)
+            res = pm.div(pd_.replace(0, np.nan)).fillna(0)
+            
+            # Calcular "Promedio Anual" (Columna Final)
+            # Fórmula: Total Masa Anual / Total Dotación Meses-Persona
+            ma = df_filtered.groupby(col_cat)['Total Mensual'].sum()
+            da = df_filtered.groupby([col_cat, 'Mes'])['Legajo'].nunique().groupby(col_cat).sum()
+            res['Promedio Anual'] = ma.div(da.replace(0, np.nan)).fillna(0)
+            
+            # Calcular Fila "PROMEDIO GENERAL" (Pie de tabla)
+            mt = df_filtered.groupby('Mes')['Total Mensual'].sum()
+            dt = df_filtered.groupby('Mes')['Legajo'].nunique()
+            row = mt.div(dt.replace(0, np.nan)).fillna(0)
+            
+            # Promedio Anual Global
+            total_masa_global = df_filtered['Total Mensual'].sum()
+            total_man_months = df_filtered.groupby('Mes')['Legajo'].nunique().sum()
+            row['Promedio Anual'] = total_masa_global / total_man_months if total_man_months > 0 else 0
+            
+            # Unir todo
+            row = row.reindex(res.columns).fillna(0) # Asegurar mismas columnas
+            fin = pd.concat([res, pd.DataFrame([row], index=['PROMEDIO GENERAL'])])
+            
+            st.dataframe(
+                fin.style.format(lambda x: f"${format_number_es(x)}"), 
                 use_container_width=True
             )
-        
+            
         st.markdown("---")
 
 
