@@ -79,7 +79,7 @@ def format_integer_es(num):
 def to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
+        df.to_excel(writer, index=True, sheet_name='Sheet1') # Index True para capturar indices en pivots
     return output.getvalue()
 
 def to_pdf(df, periodo):
@@ -884,7 +884,7 @@ with tab_distribucion:
 # --- TAB 3 (COSTOS PROMEDIOS) ---
 with tab_costos:
     st.subheader("Análisis de Costos Promedios")
-    st.markdown("Haga clic en cualquier punto de los gráficos para ver el detalle del cálculo.")
+    st.markdown("Haga clic en cualquier punto de los gráficos para filtrar o ver detalles.")
     
     # Mapeo de opciones para el selector
     opts = {
@@ -911,6 +911,13 @@ with tab_costos:
     
     # Orden de meses para asegurar consistencia en gráficos y tablas
     meses_ordenados_costos = df.sort_values('Mes_Num')['Mes'].unique().tolist()
+    
+    # DETECCION INTELIGENTE: ¿Es un solo mes seleccionado?
+    unique_months_present = df_filtered['Mes'].unique()
+    is_single_month = len(unique_months_present) == 1
+    
+    if is_single_month:
+        st.info(f"Visualización de mes único detectada: {unique_months_present[0]}. Los gráficos se muestran como distribución (Torta).")
 
     if not sels:
         st.info("Por favor, seleccione al menos una dimensión para visualizar.")
@@ -919,8 +926,7 @@ with tab_costos:
         col_cat = opts[l] # Nombre real de la columna (ej: 'Nivel')
         st.markdown(f"#### Análisis: {l}")
         
-        # --- 1. GRÁFICO ---
-        # Agrupar datos para el gráfico de líneas
+        # --- 1. PREPARACIÓN DE DATOS ---
         g = df_filtered.groupby([col_cat, 'Mes', 'Mes_Num']).agg(
             M=('Total Mensual', 'sum'), 
             D=('Legajo', 'nunique')
@@ -930,38 +936,91 @@ with tab_costos:
         g['CP'] = g['M'] / g['D']
         g['CP'] = g['CP'].fillna(0)
         
-        # Selector de interacción (click)
-        clk = alt.selection_point(fields=['Mes', col_cat], on='click')
+        # --- 2. GENERACIÓN DEL GRÁFICO (CONDICIONAL) ---
         
-        # Definición del gráfico
-        ch = alt.Chart(g).mark_line(point=True).encode(
-            x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes'), 
-            y=alt.Y('CP:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')), 
-            color=alt.Color(f'{col_cat}:N', title=col_cat),
-            tooltip=[
-                alt.Tooltip('Mes:N'), 
-                alt.Tooltip(f'{col_cat}:N'), 
-                alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Numerador)'), 
-                alt.Tooltip('D:Q', title='Dotación (Denominador)'),
-                alt.Tooltip('CP:Q', format='$,.2f', title='Costo Prom.')
-            ]
-        ).add_params(clk).properties(height=350).configure_point(size=100)
-        
-        # Renderizar gráfico con evento de selección
-        evt = st.altair_chart(ch, use_container_width=True, on_select="rerun", key=f"ch_{col_cat}")
-        
-        # --- 2. LÓGICA DEL MODAL (CLICK) ---
-        if evt.selection.get(clk.name):
-            val = evt.selection[clk.name]
-            if val:
-                # Extraer datos del punto seleccionado
-                punto = val[0]
-                mes_sel = punto['Mes']
-                cat_sel = punto[col_cat]
-                # Llamar a la función del modal (definida globalmente)
-                mostrar_integracion_costo(mes_sel, col_cat, cat_sel, df_filtered)
+        if is_single_month:
+            # === CASO A: UN SOLO MES (PIE CHART) ===
+            # Mostramos la proporción de Masa Salarial, pero el tooltip muestra el Costo Promedio
+            base_pie = alt.Chart(g).encode(
+                theta=alt.Theta(field="M", type="quantitative", stack=True),
+                color=alt.Color(field=col_cat, type="nominal", title=col_cat),
+                tooltip=[
+                    alt.Tooltip('Mes:N', title='Mes'),
+                    alt.Tooltip(f'{col_cat}:N'),
+                    alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Total)'),
+                    alt.Tooltip('D:Q', title='Dotación'),
+                    alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')
+                ]
+            )
+            pie_mark = base_pie.mark_arc(innerRadius=60, outerRadius=100)
+            pie_text = base_pie.mark_text(radius=120).encode(
+                text=alt.Text("M:Q", format="$,.2s")
+            )
+            final_chart_costos = (pie_mark + pie_text).properties(height=350)
+            st.altair_chart(final_chart_costos, use_container_width=True)
             
-        # --- 3. TABLAS (DETALLE O RESUMEN) ---
+        else:
+            # === CASO B: EVOLUCIÓN TEMPORAL ===
+            
+            if l == "Relación":
+                # === CASO B.1: GRÁFICO COMBINADO (SOLO PARA RELACIÓN) ===
+                # Barras para 'Convenio'
+                base_rel = alt.Chart(g).encode(
+                    x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes')
+                )
+                
+                # Capa 1: Barras (Convenio)
+                bars_convenio = base_rel.transform_filter(
+                    alt.datum.Relación == 'Convenio'
+                ).mark_bar(opacity=0.7).encode(
+                    y=alt.Y('CP:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')),
+                    color=alt.value('#1f77b4'), # Azul estándar
+                    tooltip=[
+                        alt.Tooltip('Mes:N', title='Mes'), 
+                        alt.Tooltip(f'{col_cat}:N'), 
+                        alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Num)'), 
+                        alt.Tooltip('D:Q', title='Dotación (Den)'),
+                        alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')
+                    ]
+                )
+                
+                # Capa 2: Líneas (Fuera de Convenio y otros)
+                lines_fc = base_rel.transform_filter(
+                    alt.datum.Relación != 'Convenio'
+                ).mark_line(point=True, strokeWidth=3).encode(
+                    y=alt.Y('CP:Q'),
+                    color=alt.Color(f'{col_cat}:N', title=col_cat),
+                    tooltip=[
+                        alt.Tooltip('Mes:N', title='Mes'), 
+                        alt.Tooltip(f'{col_cat}:N'), 
+                        alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Num)'), 
+                        alt.Tooltip('D:Q', title='Dotación (Den)'),
+                        alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')
+                    ]
+                )
+                
+                # Combinar capas
+                final_chart_costos = (bars_convenio + lines_fc).properties(height=350).resolve_scale(y='shared')
+                st.altair_chart(final_chart_costos, use_container_width=True)
+                
+            else:
+                # === CASO B.2: GRÁFICO DE LÍNEAS ESTÁNDAR (PARA NIVEL, CLASIF, ETC) ===
+                final_chart_costos = alt.Chart(g).mark_line(point=True).encode(
+                    x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes'), 
+                    y=alt.Y('CP:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')), 
+                    color=alt.Color(f'{col_cat}:N', title=col_cat),
+                    tooltip=[
+                        alt.Tooltip('Mes:N', title='Mes'), 
+                        alt.Tooltip(f'{col_cat}:N'), 
+                        alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Num)'), 
+                        alt.Tooltip('D:Q', title='Dotación (Den)'),
+                        alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')
+                    ]
+                ).properties(height=350).configure_point(size=100)
+                
+                st.altair_chart(final_chart_costos, use_container_width=True)
+        
+        # --- 3. TABLAS (DETALLE O RESUMEN) Y BOTONES DE DESCARGA ---
         if det:
             # === VISTA DETALLADA POR LEGAJO ===
             st.write(f"**Detalle por Mes y Legajo - {l}**")
@@ -994,11 +1053,20 @@ with tab_costos:
             fmt = {m: lambda x: f"${format_number_es(x)}" if x > 0 else "-" for m in mp}
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             
+            df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
+            
             st.dataframe(
-                p[cols_base + mp + ['Promedio Mensual']].style.format(fmt), 
+                df_detailed_display.style.format(fmt), 
                 use_container_width=True, 
                 height=400
             )
+            
+            # BOTONES DE DESCARGA (DETALLE)
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=False).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
+            with col_d2:
+                st.download_button(f"📥 Descargar Detalle Excel ({l})", data=to_excel(df_detailed_display), file_name=f'detalle_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
             
         else:
             # === VISTA RESUMEN MATRICIAL ===
@@ -1040,6 +1108,13 @@ with tab_costos:
                 fin.style.format(lambda x: f"${format_number_es(x)}"), 
                 use_container_width=True
             )
+            
+            # BOTONES DE DESCARGA (RESUMEN)
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                st.download_button(f"📥 Descargar Resumen CSV ({l})", data=fin.to_csv(index=True).encode('utf-8'), file_name=f'resumen_costos_{l}.csv', mime='text/csv', use_container_width=True)
+            with col_d2:
+                st.download_button(f"📥 Descargar Resumen Excel ({l})", data=to_excel(fin.reset_index()), file_name=f'resumen_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
             
         st.markdown("---")
 
