@@ -252,12 +252,13 @@ if 'ms_selections' not in st.session_state:
     st.session_state.ms_selections = initial_selections
     st.rerun()
 
-# Botón de reset
-if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, key="ms_clear"):
-    initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
-    st.session_state.ms_selections = initial_selections
+# --- FUNCION CALLBACK PARA RESETEAR FILTROS (Soluciona el error) ---
+def reset_filters_callback():
+    st.session_state.ms_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.search_legajo_global = "" # Limpiar búsqueda también
-    st.rerun()
+
+# Botón de reset con callback
+st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, on_click=reset_filters_callback)
 
 st.sidebar.markdown("---")
 
@@ -893,7 +894,7 @@ with tab_costos:
     }
 
     # 2. Columnas para selectores
-    col_sel_dim, col_sel_view_mode = st.columns(2)
+    col_sel_dim = st.container()
     
     with col_sel_dim:
         # Multiselect para elegir qué gráficos mostrar - Default solo Relación
@@ -902,10 +903,6 @@ with tab_costos:
             options=list(analysis_options_map.keys()),
             default=["Relación"]
         )
-        
-    with col_sel_view_mode:
-        # Checkbox para alternar vista de tabla
-        show_detail_legajo = st.checkbox("Mostrar detalle por Legajo en tablas", value=False, help="Activa para ver el listado de empleados mes a mes.")
 
     st.markdown("---")
     
@@ -942,69 +939,81 @@ with tab_costos:
         
         st.altair_chart(chart, use_container_width=True)
         
-        # Renderizar Tabla según el Checkbox
-        if show_detail_legajo:
-            st.write(f"**Detalle por Mes y Legajo - {label}**")
-            
-            # 1. Seleccionar columnas base
-            cols_base = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_name]
-            cols_pivot = ['Mes', 'Mes_Num', 'Total Mensual'] # Columnas para pivotear
-            
-            # Filtrar DF con columnas necesarias
-            df_base = df_filtered[cols_base + cols_pivot].copy()
-            
-            # 2. Pivotear: Indices=Datos Legajo, Columnas=Mes, Valores=Total Mensual
-            # Usamos pivot_table para manejar duplicados sumando (aunque por legajo/mes debería ser único)
-            df_pivot = pd.pivot_table(
-                df_base,
-                values='Total Mensual',
-                index=cols_base,
-                columns='Mes',
-                aggfunc='sum',
-                fill_value=0
-            ).reset_index()
-            
-            # 3. Ordenar columnas de meses cronológicamente
-            meses_presentes = [m for m in meses_ordenados_costos if m in df_pivot.columns]
-            
-            # 4. Calcular Promedio Anual (o del periodo seleccionado) por Legajo
-            # Sumamos los meses presentes y dividimos por la cantidad de meses con dato > 0 (o total meses)
-            # Aquí calculamos promedio simple de los valores > 0
-            # Ojo: "Promedio Anual" = Suma Total / Cantidad de Meses con dato
-            valores_meses = df_pivot[meses_presentes]
-            df_pivot['Promedio Mensual'] = valores_meses.replace(0, np.nan).mean(axis=1).fillna(0)
-            
-            # 5. Reordenar columnas finales
-            cols_finales = cols_base + meses_presentes + ['Promedio Mensual']
-            df_display_pivot = df_pivot[cols_finales].sort_values(['Gerencia', 'Apellido y Nombres'])
-            
-            # Formatear para mostrar
-            format_dict = {m: lambda x: f"${format_number_es(x)}" if x > 0 else "-" for m in meses_presentes}
-            format_dict['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
-            
-            st.dataframe(
-                df_display_pivot.style.format(format_dict),
-                use_container_width=True,
-                height=400
-            )
-
-        else:
-            st.write(f"**Resumen Mensual de Promedios - {label}**")
-            # CORRECCIÓN DEL ERROR: Ordenar ANTES de filtrar columnas
-            if 'Mes_Num' in grouped_stats.columns:
-                grouped_stats = grouped_stats.sort_values('Mes_Num', ignore_index=True)
-            
-            cols_order = ['Mes', col_name, 'Masa', 'Dotacion', 'Costo_Promedio']
-            grouped_display = grouped_stats[cols_order]
-            
-            st.dataframe(
-                grouped_display.style.format({
-                    "Masa": lambda x: f"${format_number_es(x)}",
-                    "Costo_Promedio": lambda x: f"${format_number_es(x)}",
-                    "Dotacion": "{:,.0f}"
-                }),
-                use_container_width=True
-            )
+        # Renderizar Tabla AGREGADA (Pivoteada)
+        st.write(f"**Resumen Mensual de Costos Promedios - {label}**")
+        
+        # 1. Pivotear Masa
+        pivot_masa = pd.pivot_table(
+            df_filtered, 
+            values='Total Mensual', 
+            index=col_name, 
+            columns='Mes', 
+            aggfunc='sum', 
+            fill_value=0
+        )
+        
+        # 2. Pivotear Dotación (nunique)
+        pivot_dotacion = pd.pivot_table(
+            df_filtered, 
+            values='Legajo', 
+            index=col_name, 
+            columns='Mes', 
+            aggfunc='nunique', 
+            fill_value=0
+        )
+        
+        # 3. Asegurar orden de meses
+        cols_meses_presentes = [m for m in meses_ordenados_costos if m in pivot_masa.columns]
+        pivot_masa = pivot_masa[cols_meses_presentes]
+        pivot_dotacion = pivot_dotacion[cols_meses_presentes]
+        
+        # 4. Calcular Costo Promedio Mensual (Masa / Dotación)
+        # Reemplazamos 0 por NaN para evitar division por cero, luego volvemos a 0
+        pivot_promedio = pivot_masa.div(pivot_dotacion.replace(0, np.nan)).fillna(0)
+        
+        # 5. Calcular "Promedio Anual" (Columna Final)
+        # Definición: Masa Total Anual / Dotación Única Anual (para esa categoría)
+        # OJO: No es el promedio de los promedios. Es el costo promedio del periodo.
+        
+        # Masa Total por Categoría
+        masa_anual_cat = df_filtered.groupby(col_name)['Total Mensual'].sum()
+        # Dotación Única por Categoría (en todo el periodo)
+        dotacion_anual_cat = df_filtered.groupby(col_name)['Legajo'].nunique()
+        
+        promedio_anual_col = masa_anual_cat.div(dotacion_anual_cat.replace(0, np.nan)).fillna(0)
+        
+        # Agregar columna al final
+        pivot_promedio['Promedio Anual'] = promedio_anual_col
+        
+        # 6. Calcular "Costo Promedio Mensual" (Fila Final)
+        # Definición: Masa Total Mes / Dotación Total Mes (sin importar categoría)
+        
+        masa_mensual_total = df_filtered.groupby('Mes')['Total Mensual'].sum()
+        dotacion_mensual_total = df_filtered.groupby('Mes')['Legajo'].nunique()
+        
+        promedio_mensual_row = masa_mensual_total.div(dotacion_mensual_total.replace(0, np.nan)).fillna(0)
+        
+        # Ordenar la serie de fila final
+        promedio_mensual_row = promedio_mensual_row.reindex(cols_meses_presentes).fillna(0)
+        
+        # Calcular el "Promedio Anual Global" (intersección final)
+        total_masa_global = df_filtered['Total Mensual'].sum()
+        total_dot_global = df_filtered['Legajo'].nunique()
+        promedio_anual_global = total_masa_global / total_dot_global if total_dot_global > 0 else 0
+        
+        promedio_mensual_row['Promedio Anual'] = promedio_anual_global
+        
+        # Convertir a DF para pegar como fila
+        row_df = pd.DataFrame([promedio_mensual_row], index=['PROMEDIO MENSUAL'])
+        
+        # Concatenar
+        final_table = pd.concat([pivot_promedio, row_df])
+        
+        # 7. Formateo
+        st.dataframe(
+            final_table.style.format(lambda x: f"${format_number_es(x)}"),
+            use_container_width=True
+        )
         
         st.markdown("---")
 
@@ -1162,7 +1171,6 @@ with tab_conceptos:
             with col_dl_9:
                 st.download_button(label="📥 Descargar CSV", data=pivot_table_sipaf.to_csv(index=True).encode('utf-8'), file_name='resumen_sipaf.csv', mime='text/csv', use_container_width=True)
             with col_dl_10:
-                # CORRECCIÓN DEL ERROR DE TIPEO: pivot_table -> pivot_table_sipaf
                 st.download_button(label="📥 Descargar Excel", data=to_excel(pivot_table_sipaf.reset_index()), file_name='resumen_sipaf.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
         else:
             st.info("No hay datos de conceptos SIPAF para mostrar con los filtros seleccionados.")
