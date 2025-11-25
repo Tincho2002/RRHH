@@ -133,7 +133,10 @@ def apply_filters(df, selections):
 def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns:
         unique_values = dataframe[column_name].dropna().unique().tolist()
-        unique_values = [v for v in unique_values if v != 'no disponible']
+        # Eliminamos 'no disponible' de la lista de opciones para que no ensucie, 
+        # pero permitimos 'No Informado' (que es la nueva etiqueta para datos faltantes)
+        unique_values = [v for v in unique_values if v not in ['no disponible', 'nan', 'None']]
+        
         if column_name == 'Mes':
             all_months_order = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
             return sorted(unique_values, key=lambda m: all_months_order.index(m) if m in all_months_order else -1)
@@ -169,7 +172,6 @@ def load_data(uploaded_file):
         if isinstance(x, datetime):
             return x
         x_str = str(x).lower().strip()
-        # Mapeo manual para asegurar que entienda meses en español
         replacements = {
             'ene': 'jan', 'abr': 'apr', 'ago': 'aug', 'dic': 'dec',
             'enero': 'january', 'feb': 'february', 'mar': 'march', 'abril': 'april',
@@ -180,42 +182,64 @@ def load_data(uploaded_file):
             if es in x_str:
                 x_str = x_str.replace(es, en)
                 break
-        # Intento de parseo flexible
         try:
-            return pd.to_datetime(x_str, dayfirst=True) # Intenta día primero por si acaso
+            return pd.to_datetime(x_str, dayfirst=True)
         except:
             return pd.to_datetime(x_str, errors='coerce')
 
-    # Intentar conversión directa
     df['Período_Temp'] = pd.to_datetime(df['Período'], errors='coerce')
-    
-    # Si hay NaT (fallos), intentar parser manual español
     mask_nat = df['Período_Temp'].isna()
     if mask_nat.any():
         df.loc[mask_nat, 'Período_Temp'] = df.loc[mask_nat, 'Período'].apply(parse_spanish_date)
     
     df['Período'] = df['Período_Temp']
     df.drop(columns=['Período_Temp'], inplace=True)
-    
     df.dropna(subset=['Período'], inplace=True)
+    
     df['Mes_Num'] = df['Período'].dt.month.astype(int)
     meses_es = {1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
     df['Mes'] = df['Mes_Num'].map(meses_es)
     
     df.rename(columns={'Clasificación Ministerio de Hacienda': 'Clasificacion_Ministerio', 'Nro. de Legajo': 'Legajo'}, inplace=True)
-    key_filter_columns = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco', 'Legajo']
-    for col in key_filter_columns:
-        if col in df.columns:
-            if col in ['Ceco', 'Legajo']:
-                df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64').astype(str).replace('<NA>', 'no disponible')
-            df[col] = df[col].astype(str).str.strip().replace(['', 'None', 'nan', 'nan.0', '0'], 'no disponible')
-        else:
-            df[col] = 'no disponible'
+    
+    # --- CORRECCIÓN PRINCIPAL: NO ELIMINAR FILAS INCOMPLETAS + GENERAR ID PARA LEGAJOS FALTANTES ---
+    
+    # 1. Manejo inteligente de Legajos faltantes para asegurar unicidad en Dotación
+    if 'Legajo' in df.columns:
+        # Intentar convertir a numérico primero para limpiar ".0"
+        s_numeric = pd.to_numeric(df['Legajo'], errors='coerce')
+        mask_valid = s_numeric.notna()
+        
+        # Asignar valor limpio a los válidos
+        df.loc[mask_valid, 'Legajo'] = s_numeric[mask_valid].astype(int).astype(str)
+        
+        # Para los vacíos/inválidos, generar un ID único ficticio basado en el índice
+        # Esto asegura que nunique() los cuente como personas distintas y no como 1 sola "Sin Dato"
+        mask_invalid = ~mask_valid
+        if mask_invalid.any():
+            # Usamos "S/L" (Sin Legajo) + el índice de la fila para garantizar unicidad
+            df.loc[mask_invalid, 'Legajo'] = 'S/L-' + df.index.astype(str)
+    else:
+        # Si no existe la columna, creamos IDs ficticios para todos
+        df['Legajo'] = 'S/L-' + df.index.astype(str)
 
+    # 2. Rellenar categorías faltantes en lugar de borrar filas (Evita pérdida de $$)
+    cols_to_fill = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco']
+    for col in cols_to_fill:
+        if col in df.columns:
+            # Rellenar nulos con "No Informado"
+            df[col] = df[col].fillna('No Informado').astype(str)
+            # Limpiar strings basura
+            df[col] = df[col].replace(['nan', 'None', '', 'nan.0', '0', '<NA>'], 'No Informado')
+        else:
+            df[col] = 'No Informado'
+
+    # Conversión numérica segura para Dotación
     if 'Dotación' in df.columns:
         df['Dotación'] = pd.to_numeric(df['Dotación'], errors='coerce').fillna(0).astype(int)
 
-    df.dropna(subset=['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación'], inplace=True)
+    # ELIMINADO: df.dropna(...) -> Esto causaba la diferencia en el total de Masa Salarial
+    
     df.reset_index(drop=True, inplace=True)
     return df
 
