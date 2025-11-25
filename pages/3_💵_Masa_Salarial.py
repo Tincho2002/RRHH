@@ -161,7 +161,6 @@ def load_data(uploaded_file):
         st.error("Error Crítico: La columna 'Período' no se encuentra.")
         return pd.DataFrame()
     
-    # --- MEJORA: Parseo robusto de fechas en español ---
     def parse_spanish_date(x):
         if isinstance(x, datetime): return x
         x_str = str(x).lower().strip()
@@ -187,8 +186,6 @@ def load_data(uploaded_file):
     
     df['Período'] = df['Período_Temp']
     df.drop(columns=['Período_Temp'], inplace=True)
-    
-    # SOLO eliminamos si realmente no hay fecha
     df.dropna(subset=['Período'], inplace=True)
     
     df['Mes_Num'] = df['Período'].dt.month.astype(int)
@@ -197,25 +194,19 @@ def load_data(uploaded_file):
     
     df.rename(columns={'Clasificación Ministerio de Hacienda': 'Clasificacion_Ministerio', 'Nro. de Legajo': 'Legajo'}, inplace=True)
     
-    # --- CORRECCIÓN CRÍTICA 1: Convertir Total Mensual a numérico forzosamente ---
-    # Esto asegura que si Excel trajo un texto o un espacio, se convierta a 0 y no rompa sumas
     if 'Total Mensual' in df.columns:
         df['Total Mensual'] = pd.to_numeric(df['Total Mensual'], errors='coerce').fillna(0)
 
-    # --- CORRECCIÓN CRÍTICA 2: Manejo de Legajos Faltantes ---
     if 'Legajo' in df.columns:
         s_numeric = pd.to_numeric(df['Legajo'], errors='coerce')
         mask_valid = s_numeric.notna()
         df.loc[mask_valid, 'Legajo'] = s_numeric[mask_valid].astype(int).astype(str)
-        
         mask_invalid = ~mask_valid
         if mask_invalid.any():
-            # Generar ID único usando el índice SOLO para las filas inválidas
             df.loc[mask_invalid, 'Legajo'] = 'S/L-' + df.index[mask_invalid].astype(str)
     else:
         df['Legajo'] = 'S/L-' + df.index.astype(str)
 
-    # --- CORRECCIÓN CRÍTICA 3: Rellenar vacíos en vez de eliminar fila ---
     cols_to_fill = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco']
     for col in cols_to_fill:
         if col in df.columns:
@@ -224,8 +215,12 @@ def load_data(uploaded_file):
         else:
             df[col] = 'No Informado'
 
+    # Asegurar que Dotación es numérica
     if 'Dotación' in df.columns:
-        df['Dotación'] = pd.to_numeric(df['Dotación'], errors='coerce').fillna(0).astype(int)
+        df['Dotación'] = pd.to_numeric(df['Dotación'], errors='coerce').fillna(0)
+    else:
+        # Si no existe, creamos una por defecto (1 por fila), aunque el usuario dice que existe.
+        df['Dotación'] = 1
 
     df.reset_index(drop=True, inplace=True)
     return df
@@ -246,23 +241,17 @@ if df.empty:
     st.error("El archivo cargado está vacío o no se pudo procesar. El dashboard no puede continuar.")
     st.stop()
 
-# --- RESETEO AUTOMÁTICO DE FILTROS SI CAMBIA EL ARCHIVO ---
-# Esto soluciona que los "No Informado" queden ocultos si vienes de otro archivo
 if 'last_uploaded_file' not in st.session_state:
     st.session_state.last_uploaded_file = None
 
 if st.session_state.last_uploaded_file != uploaded_file.name:
-    # Forzamos reinicio de filtros
     if 'ms_selections' in st.session_state:
         del st.session_state.ms_selections
     st.session_state.last_uploaded_file = uploaded_file.name
-    # (El reinicio ocurrirá en el bloque siguiente)
 
-    
 # --- SIDEBAR: filtros ---
 st.sidebar.header('Filtros del Dashboard')
 
-# NUEVO: BUSCADOR DE LEGAJO
 search_query = st.sidebar.text_input("🔍 Buscar por Legajo (Omite otros filtros)", key="search_legajo_global", help="Escriba un número de legajo para ver su historia completa ignorando los filtros de abajo.")
 
 if search_query:
@@ -270,13 +259,11 @@ if search_query:
 
 filter_cols = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Mes', 'Ceco', 'Legajo']
 
-# Inicializar selección en session_state si no existe (o fue borrada arriba)
 if 'ms_selections' not in st.session_state:
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.ms_selections = initial_selections
     st.rerun()
 
-# --- FUNCION CALLBACK PARA RESETEAR FILTROS ---
 def reset_filters_callback():
     st.session_state.ms_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
     st.session_state.search_legajo_global = "" 
@@ -285,7 +272,6 @@ st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, on_click=re
 
 st.sidebar.markdown("---")
 
-# Renderizado de filtros
 if not search_query:
     old_selections = {k: list(v) for k, v in st.session_state.ms_selections.items()}
     for col in filter_cols:
@@ -303,7 +289,6 @@ if not search_query:
     if old_selections != st.session_state.ms_selections:
         st.rerun()
 
-# Aplicar filtros
 df_filtered = apply_filters(df, st.session_state.ms_selections)
 
 
@@ -311,7 +296,6 @@ df_filtered = apply_filters(df, st.session_state.ms_selections)
 # --- INICIO: LÓGICA DE MÉTRICAS CON DELTA ---
 # =============================================================================
 
-# 1. Identificar el mes actual y el mes anterior
 all_months_sorted = get_sorted_unique_options(df, 'Mes')
 selected_months = st.session_state.ms_selections.get('Mes', [])
 sorted_selected_months = [m for m in all_months_sorted if m in selected_months]
@@ -335,7 +319,6 @@ else:
                 previous_month_num_fallback = all_months_nums_sorted_in_df[latest_index_fallback - 1]
                 previous_month_name = df[df['Mes_Num'] == previous_month_num_fallback]['Mes'].iloc[0]
 
-# 2. Crear DataFrames base
 selections_without_month = st.session_state.ms_selections.copy()
 selections_without_month.pop('Mes', [])
 df_metrics_base = apply_filters(df, selections_without_month)
@@ -352,13 +335,13 @@ if df_current.empty and not df_metrics_base.empty and not sorted_selected_months
      df_current = df_metrics_base[df_metrics_base['Mes'] == latest_month_name]
 
 
-# 3. Función auxiliar métricas
 def calculate_monthly_metrics(df_month):
     if df_month.empty:
         return {'total_masa': 0, 'empleados': 0, 'costo_medio_conv': 0, 'costo_medio_fc': 0}
     
     total_masa = df_month['Total Mensual'].sum()
-    empleados = df_month['Legajo'].nunique()
+    # CAMBIO: Usar suma de columna Dotación en lugar de conteo de Legajos
+    empleados = df_month['Dotación'].sum()
     
     is_fc = df_month['Nivel'] == 'FC'
     df_fc = df_month[is_fc]
@@ -367,8 +350,9 @@ def calculate_monthly_metrics(df_month):
     total_masa_convenio = df_convenio['Total Mensual'].sum()
     total_masa_fc = df_fc['Total Mensual'].sum()
     
-    dotacion_convenio = df_convenio['Legajo'].nunique()
-    dotacion_fc = df_fc['Legajo'].nunique()
+    # CAMBIO: Usar suma de Dotación
+    dotacion_convenio = df_convenio['Dotación'].sum()
+    dotacion_fc = df_fc['Dotación'].sum()
     
     costo_medio_conv = total_masa_convenio / dotacion_convenio if dotacion_convenio > 0 else 0
     costo_medio_fc = total_masa_fc / dotacion_fc if dotacion_fc > 0 else 0
@@ -380,14 +364,11 @@ def calculate_monthly_metrics(df_month):
         'costo_medio_fc': costo_medio_fc
     }
 
-# 4. Calcular métricas
 metrics_current = calculate_monthly_metrics(df_current)
 metrics_previous = calculate_monthly_metrics(df_previous)
 
-# === Total Anual ===
 total_anual_acumulado = df_filtered['Total Mensual'].sum()
 
-# 5. Función Delta
 def get_delta_pct_str(current, previous):
     if previous > 0:
         delta = ((current - previous) / previous) * 100
@@ -397,7 +378,6 @@ def get_delta_pct_str(current, previous):
         delta = 0.0
     return delta
 
-# 6. Calcular deltas
 delta_total = get_delta_pct_str(metrics_current['total_masa'], metrics_previous['total_masa'])
 delta_empleados = get_delta_pct_str(metrics_current['empleados'], metrics_previous['empleados'])
 delta_costo_conv = get_delta_pct_str(metrics_current['costo_medio_conv'], metrics_previous['costo_medio_conv'])
@@ -405,14 +385,11 @@ delta_costo_fc = get_delta_pct_str(metrics_current['costo_medio_fc'], metrics_pr
 
 display_month_name = latest_month_name if latest_month_name else "N/A"
 
-# ----------------------------------------------------------------------------
 # --- TARJETAS DE MÉTRICAS ---
-# ----------------------------------------------------------------------------
 cards_html = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap');
 
-/* Contenedor Grid Responsivo */
 .metrics-grid {{
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -427,7 +404,6 @@ cards_html = f"""
     }}
 }}
 
-/* Tarjeta Base */
 .metric-card {{
     background: white;
     border-radius: 12px;
@@ -448,14 +424,12 @@ cards_html = f"""
     box-shadow: 0 10px 15px rgba(0,0,0,0.1);
 }}
 
-/* Bordes de Color */
 .border-orange {{ border-top: 4px solid #f97316; }} 
 .border-blue {{ border-top: 4px solid #3b82f6; }}
 .border-cyan {{ border-top: 4px solid #06b6d4; }}
 .border-violet {{ border-top: 4px solid #8b5cf6; }}
 .border-pink {{ border-top: 4px solid #ec4899; }}
 
-/* Texto */
 .card-label {{
     font-size: 0.8rem; 
     font-weight: 600;
@@ -478,7 +452,6 @@ cards_html = f"""
     word-wrap: break-word; 
 }}
 
-/* Delta (Pastillas) */
 .card-delta {{
     font-size: 0.75rem;
     font-weight: 600;
@@ -514,10 +487,10 @@ cards_html = f"""
     </div>
 </div>
 
-<!-- Tarjeta 2: Empleados -->
+<!-- Tarjeta 2: Dotación Liquidada -->
 <div class="metric-card border-cyan">
-    <div class="card-label" title="Empleados Únicos ({display_month_name})">Empleados Únicos ({display_month_name})</div>
-    <div class="card-value">{format_integer_es(metrics_current['empleados'])}</div>
+    <div class="card-label" title="Dotación Liquidada ({display_month_name})">Dotación Liquidada ({display_month_name})</div>
+    <div class="card-value">{format_number_es(metrics_current['empleados'])}</div>
     <div class="card-delta {'delta-green' if delta_empleados >= 0 else 'delta-red'}">
         {'▲' if delta_empleados >= 0 else '▼'} {abs(delta_empleados):.1f}%
     </div>
@@ -905,9 +878,10 @@ with tab_costos:
         col_cat = opts[l] 
         st.markdown(f"#### Análisis: {l}")
         
+        # CAMBIO: Agrupar sumando Dotación en vez de contar Legajos
         g = df_filtered.groupby([col_cat, 'Mes', 'Mes_Num']).agg(
             M=('Total Mensual', 'sum'), 
-            D=('Legajo', 'nunique')
+            D=('Dotación', 'sum')
         ).reset_index()
         
         g['CP'] = g['M'] / g['D']
@@ -988,12 +962,13 @@ with tab_costos:
         else:
             st.write(f"**Resumen Mensual Desglosado (Masa y Dotación) - {l}**")
             
+            # CAMBIO: Pivotear usando Dotación (suma) en vez de Legajo (conteo)
             pivot_multi = pd.pivot_table(
                 df_filtered,
-                values=['Total Mensual', 'Legajo'],
+                values=['Total Mensual', 'Dotación'],
                 index=col_cat,
                 columns='Mes',
-                aggfunc={'Total Mensual': 'sum', 'Legajo': 'nunique'},
+                aggfunc={'Total Mensual': 'sum', 'Dotación': 'sum'},
                 fill_value=0
             )
             
@@ -1001,20 +976,21 @@ with tab_costos:
             
             for mes in available_months:
                  masa = pivot_multi[('Total Mensual', mes)]
-                 dot = pivot_multi[('Legajo', mes)]
+                 dot = pivot_multi[('Dotación', mes)]
                  avg = masa.div(dot.replace(0, np.nan)).fillna(0)
                  pivot_multi[('Promedio', mes)] = avg
 
             new_columns = []
             for mes in available_months:
                 new_columns.append(('Total Mensual', mes))
-                new_columns.append(('Legajo', mes))
+                new_columns.append(('Dotación', mes))
                 new_columns.append(('Promedio', mes))
             
             pivot_multi = pivot_multi.reindex(columns=new_columns)
             
             masa_anual = df_filtered.groupby(col_cat)['Total Mensual'].sum()
-            dot_acum_anual = df_filtered.groupby([col_cat, 'Mes'])['Legajo'].nunique().groupby(col_cat).sum()
+            # CAMBIO: Sumar la Dotación en lugar de contar Legajos
+            dot_acum_anual = df_filtered.groupby([col_cat, 'Mes'])['Dotación'].sum().groupby(col_cat).sum()
             costo_prom_anual = masa_anual.div(dot_acum_anual.replace(0, np.nan)).fillna(0)
             
             prom_cols_tuples = [('Promedio', m) for m in available_months]
@@ -1025,7 +1001,7 @@ with tab_costos:
             pivot_multi[('Total Anual', 'Costo Promedio Ponderado ($)')] = costo_prom_anual
             pivot_multi[('Total Anual', 'Promedio de Promedios ($)')] = prom_de_promedios
 
-            total_row_sums = pivot_multi[[c for c in pivot_multi.columns if c[0] in ['Total Mensual', 'Legajo']]].sum()
+            total_row_sums = pivot_multi[[c for c in pivot_multi.columns if c[0] in ['Total Mensual', 'Dotación']]].sum()
             
             total_row_vals = {}
             for col in total_row_sums.index:
@@ -1033,12 +1009,12 @@ with tab_costos:
             
             for mes in available_months:
                 m_t = total_row_vals.get(('Total Mensual', mes), 0)
-                d_t = total_row_vals.get(('Legajo', mes), 0)
+                d_t = total_row_vals.get(('Dotación', mes), 0)
                 p_t = m_t / d_t if d_t > 0 else 0
                 total_row_vals[('Promedio', mes)] = p_t
             
             t_masa_anual = sum([total_row_vals.get(('Total Mensual', m), 0) for m in available_months])
-            t_dot_anual = sum([total_row_vals.get(('Legajo', m), 0) for m in available_months])
+            t_dot_anual = sum([total_row_vals.get(('Dotación', m), 0) for m in available_months])
             t_prom_pond = t_masa_anual / t_dot_anual if t_dot_anual > 0 else 0
             
             all_monthly_avgs = [total_row_vals.get(('Promedio', m), 0) for m in available_months]
@@ -1056,7 +1032,7 @@ with tab_costos:
             for metric, mes in pivot_multi.columns:
                 if metric == 'Total Mensual':
                     flat_cols.append(f"{mes} - Masa ($)")
-                elif metric == 'Legajo':
+                elif metric == 'Dotación':
                     flat_cols.append(f"{mes} - Dot. (#)")
                 elif metric == 'Promedio':
                     flat_cols.append(f"Prom. {mes} ($)")
@@ -1071,7 +1047,7 @@ with tab_costos:
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
             format_dict = {c: lambda x: f"${format_number_es(x)}" for c in cols_masa}
-            format_dict.update({c: lambda x: f"{int(x)}" for c in cols_dot})
+            format_dict.update({c: lambda x: f"{format_number_es(x)}" for c in cols_dot}) # Dotacion puede ser float ahora
             
             st.dataframe(
                 pivot_multi.style.format(format_dict),
