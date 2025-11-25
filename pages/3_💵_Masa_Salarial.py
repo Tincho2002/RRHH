@@ -1130,8 +1130,12 @@ with tab_conceptos:
                 else:
                     chart_data_mensual = df_melted[df_melted['Concepto'] != 'Total Mensual']
                     chart_data_mensual = chart_data_mensual.groupby(['Concepto', 'Mes', 'Mes_Num'])['Monto'].sum().reset_index()
-                    total_por_concepto = chart_data_mensual.groupby('Concepto')['Monto'].sum().sort_values(ascending=False).index.tolist()
+                    
+                    # Calculate totals for labels
+                    totals_concept = chart_data_mensual.groupby('Concepto')['Monto'].sum().reset_index()
 
+                    # Base Bar Chart
+                    total_por_concepto = chart_data_mensual.groupby('Concepto')['Monto'].sum().sort_values(ascending=False).index.tolist()
                     chart_height_mensual = (len(total_por_concepto) * 35) + 50
 
                     bar_chart_mensual = alt.Chart(chart_data_mensual).mark_bar().encode(
@@ -1140,10 +1144,25 @@ with tab_conceptos:
                         color=alt.Color('Mes:N', sort=meses_ordenados_viz_conc, title='Mes'),
                         order=alt.Order('Mes_Num', sort='ascending'),
                         tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Mes:N'), alt.Tooltip('Monto:Q', format='$,.2f')]
-                    ).properties(
+                    )
+
+                    # Text Labels
+                    text_totals_mensual = alt.Chart(totals_concept).mark_text(
+                        align='left',
+                        baseline='middle',
+                        dx=3,
+                        color='black'
+                    ).encode(
+                        y=alt.Y('Concepto:N', sort=total_por_concepto),
+                        x=alt.X('Monto:Q'),
+                        text=alt.Text('Monto:Q', format='$,.2s')
+                    )
+
+                    final_chart_mensual = (bar_chart_mensual + text_totals_mensual).properties(
                         height=chart_height_mensual
                     ).configure(background='transparent').configure_view(fill='transparent')
-                    st.altair_chart(bar_chart_mensual, use_container_width=True)
+                    
+                    st.altair_chart(final_chart_mensual, use_container_width=True)
 
             with col_table_concepto:
                 height_table = chart_height_concepto + 35 if vista_conceptos == "Vista Acumulada" else chart_height_mensual
@@ -1199,6 +1218,11 @@ with tab_conceptos:
                     st.altair_chart(bar_chart_sipaf, use_container_width=True)
                 else:
                     chart_data_sipaf_mensual = df_melted_sipaf.groupby(['Concepto', 'Mes', 'Mes_Num'])['Monto'].sum().reset_index()
+
+                    # Calculate totals for labels
+                    totals_sipaf = chart_data_sipaf_mensual.groupby('Concepto')['Monto'].sum().reset_index()
+
+                    # Base Bar Chart
                     total_por_concepto_sipaf = chart_data_sipaf_mensual.groupby('Concepto')['Monto'].sum().sort_values(ascending=False).index.tolist()
                     chart_height_sipaf_mensual = (len(total_por_concepto_sipaf) * 35) + 50
 
@@ -1208,10 +1232,25 @@ with tab_conceptos:
                         color=alt.Color('Mes:N', sort=meses_ordenados_viz_conc, title='Mes'),
                         order=alt.Order('Mes_Num', sort='ascending'),
                         tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Mes:N'), alt.Tooltip('Monto:Q', format='$,.2f')]
-                    ).properties(
+                    )
+
+                    # Text Labels
+                    text_totals_sipaf = alt.Chart(totals_sipaf).mark_text(
+                        align='left',
+                        baseline='middle',
+                        dx=3,
+                        color='black'
+                    ).encode(
+                        y=alt.Y('Concepto:N', sort=total_por_concepto_sipaf),
+                        x=alt.X('Monto:Q'),
+                        text=alt.Text('Monto:Q', format='$,.2s')
+                    )
+
+                    final_chart_sipaf = (bar_chart_sipaf_mensual + text_totals_sipaf).properties(
                         height=chart_height_sipaf_mensual
                     ).configure(background='transparent').configure_view(fill='transparent')
-                    st.altair_chart(bar_chart_sipaf_mensual, use_container_width=True)
+
+                    st.altair_chart(final_chart_sipaf, use_container_width=True)
 
             with col_table_sipaf:
                 height_table_sipaf = chart_height_sipaf + 35 if vista_conceptos == "Vista Acumulada" else chart_height_sipaf_mensual
