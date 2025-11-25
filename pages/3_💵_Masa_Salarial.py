@@ -74,6 +74,7 @@ def format_integer_es(val):
     """
     Formatea enteros con punto de miles. 
     Si el valor NO es numérico (ej: un ID alfanumérico de Ceco o Legajo), lo devuelve como string tal cual.
+    Esto soluciona el problema de columnas vacías.
     """
     if pd.isna(val): return ""
     if isinstance(val, (int, float, np.number)):
@@ -214,14 +215,18 @@ def load_data(uploaded_file):
         s_numeric = pd.to_numeric(df['Legajo'], errors='coerce')
         
         # 2. Crear serie de Legajos Numéricos Limpios (Strings sin .0)
+        # fillna(0) es temporal, luego np.where lo sobreescribe si era NaN original
         numeric_legajos = s_numeric.fillna(0).astype(int).astype(str)
         
-        # 3. Crear serie de Legajos Virtuales para los fallidos
+        # 3. Crear serie de Legajos Virtuales para TODOS (por si acaso)
         virtual_legajos = 'S/L-' + df.index.astype(str)
         
-        # 4. Combinar usando np.where: Si es un número válido, usa el número; si no, usa el virtual.
+        # 4. Combinar usando np.where: 
+        # Si el valor numérico NO es NA, usa el número limpio.
+        # Si ES NA (era texto sucio o vacío), usa el virtual.
         df['Legajo'] = np.where(s_numeric.notna(), numeric_legajos, virtual_legajos)
     else:
+        # Si no existe la columna, creamos virtuales para todos
         df['Legajo'] = 'S/L-' + df.index.astype(str)
 
     # LIMPIEZA AGRESIVA DE CATEGORÍAS PARA ARREGLAR FILTROS VACÍOS, CASCADA Y CECO VACÍO
