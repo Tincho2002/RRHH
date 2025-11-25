@@ -940,7 +940,6 @@ with tab_costos:
         
         if is_single_month:
             # === CASO A: UN SOLO MES (PIE CHART) ===
-            # Mostramos la proporción de Masa Salarial, pero el tooltip muestra el Costo Promedio
             base_pie = alt.Chart(g).encode(
                 theta=alt.Theta(field="M", type="quantitative", stack=True),
                 color=alt.Color(field=col_cat, type="nominal", title=col_cat),
@@ -964,47 +963,34 @@ with tab_costos:
             
             if l == "Relación":
                 # === CASO B.1: GRÁFICO COMBINADO (SOLO PARA RELACIÓN) ===
-                # Barras para 'Convenio'
                 base_rel = alt.Chart(g).encode(
                     x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes')
                 )
                 
-                # Capa 1: Barras (Convenio)
+                # Barras: Convenio (Azul) - Usamos Scale y Color explícito para forzar leyenda
                 bars_convenio = base_rel.transform_filter(
                     alt.datum.Relación == 'Convenio'
-                ).mark_bar(opacity=0.7).encode(
+                ).mark_bar(opacity=0.7, width=20).encode(
                     y=alt.Y('CP:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')),
-                    color=alt.value('#1f77b4'), # Azul estándar
-                    tooltip=[
-                        alt.Tooltip('Mes:N', title='Mes'), 
-                        alt.Tooltip(f'{col_cat}:N'), 
-                        alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Num)'), 
-                        alt.Tooltip('D:Q', title='Dotación (Den)'),
-                        alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')
-                    ]
+                    color=alt.Color('Relación:N', scale=alt.Scale(domain=['Convenio'], range=['#1f77b4']), legend=alt.Legend(title="Relación")),
+                    tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Relación:N'), alt.Tooltip('M:Q', format='$,.2f', title='Masa'), alt.Tooltip('D:Q', title='Dotación'), alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')]
                 )
                 
-                # Capa 2: Líneas (Fuera de Convenio y otros)
+                # Líneas: Fuera de Convenio (Naranja/Otro) - Usamos Scale compatible o dejamos auto
+                # Para que funcione bien la leyenda combinada, es mejor manejar dominios separados pero visualizar juntos
                 lines_fc = base_rel.transform_filter(
                     alt.datum.Relación != 'Convenio'
                 ).mark_line(point=True, strokeWidth=3).encode(
                     y=alt.Y('CP:Q'),
-                    color=alt.Color(f'{col_cat}:N', title=col_cat),
-                    tooltip=[
-                        alt.Tooltip('Mes:N', title='Mes'), 
-                        alt.Tooltip(f'{col_cat}:N'), 
-                        alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Num)'), 
-                        alt.Tooltip('D:Q', title='Dotación (Den)'),
-                        alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')
-                    ]
+                    color=alt.Color('Relación:N', legend=alt.Legend(title="Relación")), # Auto color para el resto
+                    tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Relación:N'), alt.Tooltip('M:Q', format='$,.2f', title='Masa'), alt.Tooltip('D:Q', title='Dotación'), alt.Tooltip('CP:Q', format='$,.2f', title='Costo Promedio')]
                 )
                 
-                # Combinar capas
-                final_chart_costos = (bars_convenio + lines_fc).properties(height=350).resolve_scale(y='shared')
+                final_chart_costos = (bars_convenio + lines_fc).properties(height=350).resolve_scale(color='independent') # Resolve independent para permitir múltiples leyendas si es necesario, o merged
                 st.altair_chart(final_chart_costos, use_container_width=True)
                 
             else:
-                # === CASO B.2: GRÁFICO DE LÍNEAS ESTÁNDAR (PARA NIVEL, CLASIF, ETC) ===
+                # === CASO B.2: GRÁFICO DE LÍNEAS ESTÁNDAR ===
                 final_chart_costos = alt.Chart(g).mark_line(point=True).encode(
                     x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes'), 
                     y=alt.Y('CP:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')), 
@@ -1022,99 +1008,110 @@ with tab_costos:
         
         # --- 3. TABLAS (DETALLE O RESUMEN) Y BOTONES DE DESCARGA ---
         if det:
-            # === VISTA DETALLADA POR LEGAJO ===
+            # (El código de vista detallada se mantiene igual)
             st.write(f"**Detalle por Mes y Legajo - {l}**")
-            
             cols_base = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_cat]
-            # Filtrar y copiar datos necesarios
             df_b = df_filtered[cols_base + ['Mes', 'Mes_Num', 'Total Mensual']].copy()
-            
-            # Pivotear para tener meses en columnas
-            p = pd.pivot_table(
-                df_b, 
-                values='Total Mensual', 
-                index=cols_base, 
-                columns='Mes', 
-                aggfunc='sum', 
-                fill_value=0
-            ).reset_index()
-            
-            # Ordenar columnas de meses
+            p = pd.pivot_table(df_b, values='Total Mensual', index=cols_base, columns='Mes', aggfunc='sum', fill_value=0).reset_index()
             mp = [m for m in meses_ordenados_costos if m in p.columns]
-            
-            # Calcular Promedio Mensual del Legajo (Suma / Cantidad de meses con dato)
             vals = p[mp]
             p['Promedio Mensual'] = vals.replace(0, np.nan).mean(axis=1).fillna(0)
-            
-            # Ordenar filas
             p = p.sort_values(['Gerencia', 'Apellido y Nombres'])
-            
-            # Formato condicional (guion si es 0)
             fmt = {m: lambda x: f"${format_number_es(x)}" if x > 0 else "-" for m in mp}
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
-            
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
-            
-            st.dataframe(
-                df_detailed_display.style.format(fmt), 
-                use_container_width=True, 
-                height=400
-            )
-            
-            # BOTONES DE DESCARGA (DETALLE)
+            st.dataframe(df_detailed_display.style.format(fmt), use_container_width=True, height=400)
             col_d1, col_d2 = st.columns(2)
-            with col_d1:
-                st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=False).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
-            with col_d2:
-                st.download_button(f"📥 Descargar Detalle Excel ({l})", data=to_excel(df_detailed_display), file_name=f'detalle_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+            with col_d1: st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=False).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
+            with col_d2: st.download_button(f"📥 Descargar Detalle Excel ({l})", data=to_excel(df_detailed_display), file_name=f'detalle_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
             
         else:
-            # === VISTA RESUMEN MATRICIAL ===
-            st.write(f"**Resumen Mensual de Costos Promedios - {l}**")
+            # === VISTA RESUMEN MATRICIAL APERTURADA (SOLICITUD DE USUARIO) ===
+            st.write(f"**Resumen Mensual Desglosado (Masa y Dotación) - {l}**")
             
-            # Pivotear Masa y Dotación
-            pm = pd.pivot_table(df_filtered, values='Total Mensual', index=col_cat, columns='Mes', aggfunc='sum', fill_value=0)
-            pd_ = pd.pivot_table(df_filtered, values='Legajo', index=col_cat, columns='Mes', aggfunc='nunique', fill_value=0)
+            # 1. Pivotear tanto Masa como Dotación
+            # Esto crea un MultiIndex en columnas: (Masa, Enero), (Dotación, Enero)...
+            pivot_multi = pd.pivot_table(
+                df_filtered,
+                values=['Total Mensual', 'Legajo'],
+                index=col_cat,
+                columns='Mes',
+                aggfunc={'Total Mensual': 'sum', 'Legajo': 'nunique'},
+                fill_value=0
+            )
             
-            # Asegurar columnas
-            mp = [m for m in meses_ordenados_costos if m in pm.columns]
-            pm = pm[mp]
-            pd_ = pd_[mp]
+            # 2. Reordenar las columnas para agrupar por Mes
+            # Obtener meses presentes en el orden correcto
+            available_months = [m for m in meses_ordenados_costos if m in pivot_multi.columns.levels[1]]
             
-            # Calcular Costo Promedio Mensual (Matriz Principal)
-            res = pm.div(pd_.replace(0, np.nan)).fillna(0)
+            # Crear una lista ordenada de tuplas para reindexar
+            # Queremos: Enero->(Masa, Dot), Febrero->(Masa, Dot)...
+            new_columns = []
+            for mes in available_months:
+                new_columns.append(('Total Mensual', mes))
+                new_columns.append(('Legajo', mes))
             
-            # Calcular "Promedio Anual" (Columna Final)
-            # Fórmula: Total Masa Anual / Total Dotación Meses-Persona
-            ma = df_filtered.groupby(col_cat)['Total Mensual'].sum()
-            da = df_filtered.groupby([col_cat, 'Mes'])['Legajo'].nunique().groupby(col_cat).sum()
-            res['Promedio Anual'] = ma.div(da.replace(0, np.nan)).fillna(0)
+            # Reordenar columnas del pivot
+            pivot_multi = pivot_multi.reindex(columns=new_columns)
             
-            # Calcular Fila "PROMEDIO GENERAL" (Pie de tabla)
-            mt = df_filtered.groupby('Mes')['Total Mensual'].sum()
-            dt = df_filtered.groupby('Mes')['Legajo'].nunique()
-            row = mt.div(dt.replace(0, np.nan)).fillna(0)
+            # 3. Calcular Totales Anuales (Columnas Finales)
+            # Masa Anual Total
+            masa_anual = df_filtered.groupby(col_cat)['Total Mensual'].sum()
+            # Dotación Acumulada (Suma de dotaciones mensuales) - Divisor correcto para promedio ponderado anual
+            dot_acum_anual = df_filtered.groupby([col_cat, 'Mes'])['Legajo'].nunique().groupby(col_cat).sum()
+            # Costo Promedio Anual
+            costo_prom_anual = masa_anual.div(dot_acum_anual.replace(0, np.nan)).fillna(0)
             
-            # Promedio Anual Global
-            total_masa_global = df_filtered['Total Mensual'].sum()
-            total_man_months = df_filtered.groupby('Mes')['Legajo'].nunique().sum()
-            row['Promedio Anual'] = total_masa_global / total_man_months if total_man_months > 0 else 0
+            # Agregar estas columnas al DataFrame (necesitamos alinearlas con el índice)
+            pivot_multi[('Total Anual', 'Masa Total ($)')] = masa_anual
+            pivot_multi[('Total Anual', 'Dotación Acum. (#)')] = dot_acum_anual
+            pivot_multi[('Total Anual', 'Costo Promedio ($)')] = costo_prom_anual
+
+            # 4. Calcular Fila "PROMEDIO GENERAL" (Totales Verticales)
+            # Sumamos las columnas numéricas
+            total_row = pivot_multi.sum()
+            # Corregir el Costo Promedio Anual del Total General (no es suma, es recálculo)
+            total_masa_gral = total_row[('Total Anual', 'Masa Total ($)')]
+            total_dot_gral = total_row[('Total Anual', 'Dotación Acum. (#)')]
+            total_row[('Total Anual', 'Costo Promedio ($)')] = total_masa_gral / total_dot_gral if total_dot_gral > 0 else 0
             
-            # Unir todo
-            row = row.reindex(res.columns).fillna(0) # Asegurar mismas columnas
-            fin = pd.concat([res, pd.DataFrame([row], index=['PROMEDIO GENERAL'])])
+            # Añadir fila al DF
+            pivot_multi.loc['PROMEDIO GENERAL'] = total_row
+            
+            # 5. Aplanar MultiIndex para mostrar en Streamlit (limpieza visual)
+            # Formato: "Enero Masa ($)", "Enero Dot (#)"
+            flat_cols = []
+            for metric, mes in pivot_multi.columns:
+                if metric == 'Total Mensual':
+                    flat_cols.append(f"{mes} - Masa ($)")
+                elif metric == 'Legajo':
+                    flat_cols.append(f"{mes} - Dot. (#)")
+                elif metric == 'Total Anual':
+                    flat_cols.append(f"ANUAL - {mes}") # mes aquí trae el subtítulo (Masa Total, etc)
+                else:
+                    flat_cols.append(f"{mes} {metric}")
+            
+            pivot_multi.columns = flat_cols
+            
+            # 6. Formateo
+            # Identificar columnas de moneda y columnas de enteros
+            cols_masa = [c for c in flat_cols if "($)" in c]
+            cols_dot = [c for c in flat_cols if "(#)" in c]
+            
+            format_dict = {c: lambda x: f"${format_number_es(x)}" for c in cols_masa}
+            format_dict.update({c: lambda x: f"{int(x)}" for c in cols_dot})
             
             st.dataframe(
-                fin.style.format(lambda x: f"${format_number_es(x)}"), 
+                pivot_multi.style.format(format_dict),
                 use_container_width=True
             )
             
             # BOTONES DE DESCARGA (RESUMEN)
             col_d1, col_d2 = st.columns(2)
             with col_d1:
-                st.download_button(f"📥 Descargar Resumen CSV ({l})", data=fin.to_csv(index=True).encode('utf-8'), file_name=f'resumen_costos_{l}.csv', mime='text/csv', use_container_width=True)
+                st.download_button(f"📥 Descargar Resumen CSV ({l})", data=pivot_multi.to_csv(index=True).encode('utf-8'), file_name=f'resumen_costos_{l}.csv', mime='text/csv', use_container_width=True)
             with col_d2:
-                st.download_button(f"📥 Descargar Resumen Excel ({l})", data=to_excel(fin.reset_index()), file_name=f'resumen_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+                st.download_button(f"📥 Descargar Resumen Excel ({l})", data=to_excel(pivot_multi.reset_index()), file_name=f'resumen_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
             
         st.markdown("---")
 
