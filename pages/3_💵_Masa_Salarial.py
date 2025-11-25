@@ -74,7 +74,6 @@ def format_integer_es(val):
     """
     Formatea enteros con punto de miles. 
     Si el valor NO es numérico (ej: un ID alfanumérico de Ceco o Legajo), lo devuelve como string tal cual.
-    Esto soluciona el problema de columnas vacías.
     """
     if pd.isna(val): return ""
     if isinstance(val, (int, float, np.number)):
@@ -163,6 +162,9 @@ def load_data(uploaded_file):
         return pd.DataFrame()
         
     df.columns = [str(col).strip() for col in df.columns]
+    # Eliminar columnas duplicadas si las hubiera para evitar errores
+    df = df.loc[:, ~df.columns.duplicated()]
+
     if 'Unnamed: 0' in df.columns:
         df = df.drop(columns=['Unnamed: 0'])
     if 'Período' not in df.columns:
@@ -205,13 +207,20 @@ def load_data(uploaded_file):
     if 'Total Mensual' in df.columns:
         df['Total Mensual'] = pd.to_numeric(df['Total Mensual'], errors='coerce').fillna(0)
 
+    # --- CORRECCIÓN CRÍTICA DE LEGAJOS (USANDO VECTORIZACIÓN) ---
+    # Esto evita el error "ValueError: All arrays must be of the same length"
     if 'Legajo' in df.columns:
+        # 1. Intentar convertir a numérico
         s_numeric = pd.to_numeric(df['Legajo'], errors='coerce')
-        mask_valid = s_numeric.notna()
-        df.loc[mask_valid, 'Legajo'] = s_numeric[mask_valid].astype(int).astype(str)
-        mask_invalid = ~mask_valid
-        if mask_invalid.any():
-            df.loc[mask_invalid, 'Legajo'] = 'S/L-' + df.index[mask_invalid].astype(str)
+        
+        # 2. Crear serie de Legajos Numéricos Limpios (Strings sin .0)
+        numeric_legajos = s_numeric.fillna(0).astype(int).astype(str)
+        
+        # 3. Crear serie de Legajos Virtuales para los fallidos
+        virtual_legajos = 'S/L-' + df.index.astype(str)
+        
+        # 4. Combinar usando np.where: Si es un número válido, usa el número; si no, usa el virtual.
+        df['Legajo'] = np.where(s_numeric.notna(), numeric_legajos, virtual_legajos)
     else:
         df['Legajo'] = 'S/L-' + df.index.astype(str)
 
@@ -987,7 +996,6 @@ with tab_costos:
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
-            # MEJORA VISUAL: Ocultar índice, fijar columnas y alinear valores numéricos
             st.dataframe(
                 df_detailed_display.style.format(fmt).set_properties(subset=mp + ['Promedio Mensual'], **{'text-align': 'right'}), 
                 use_container_width=True, 
@@ -1085,13 +1093,14 @@ with tab_costos:
             
             pivot_multi.columns = flat_cols
             
+            # Reset index to make the category a column (better visual fit)
             pivot_multi = pivot_multi.reset_index()
             
             cols_masa = [c for c in flat_cols if "($)" in c]
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
             format_dict = {c: lambda x: f"${format_number_es(x)}" for c in cols_masa}
-            format_dict.update({c: lambda x: f"{int(x)}" for c in cols_dot}) 
+            format_dict.update({c: lambda x: f"{format_integer_es(x)}" for c in cols_dot}) 
             
             st.dataframe(
                 pivot_multi.style.format(format_dict),
