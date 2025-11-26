@@ -1001,10 +1001,20 @@ with tab_costos:
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
-            # --- MODIFICACIÓN VISUAL SOLICITADA ---
-            # 1. Se cambió use_container_width=False para evitar que las columnas se aplasten.
-            # 2. Se coloreó la columna de Promedio con un color sobrio pero llamativo (#FFE0B2 - Crema/Naranja Suave).
-            # 3. Se fijó un ancho mínimo para columnas clave mediante column_config.
+            # --- MODIFICACIÓN VISUAL CORREGIDA ---
+            # Se eliminó fixed=True que causaba error.
+            # Se fuerza width="medium" para los meses para evitar que se aplasten en tablas estrechas como Nivel.
+            
+            config_columnas = {
+                "Legajo": st.column_config.TextColumn("Legajo", width="small"),
+                "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large"),
+                col_cat: st.column_config.TextColumn(col_cat, width="medium"),
+                "Promedio Mensual": st.column_config.TextColumn("Promedio Mensual", width="medium"),
+            }
+            # Agregar meses dinámicamente para asegurar que no se aplasten
+            for m in mp:
+                config_columnas[m] = st.column_config.TextColumn(m, width="medium")
+
             st.dataframe(
                 df_detailed_display.style.format(fmt)
                 .set_properties(subset=mp + ['Promedio Mensual'], **{'text-align': 'right'})
@@ -1012,10 +1022,7 @@ with tab_costos:
                 use_container_width=False, 
                 height=400,
                 hide_index=True,
-                column_config={
-                    "Legajo": st.column_config.TextColumn("Legajo", width="small"),
-                    "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large"),
-                }
+                column_config=config_columnas
             )
             
             col_d1, col_d2 = st.columns(2)
@@ -1110,7 +1117,6 @@ with tab_costos:
             cols_masa = [c for c in flat_cols if "($)" in c]
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
-            # --- MODIFICACIÓN VISUAL SOLICITADA ---
             # Identificar columnas de Promedio para colorear
             cols_promedio = [c for c in pivot_multi.columns if "Prom." in c or "PROMEDIO" in c.upper() or "Anual" in c]
 
