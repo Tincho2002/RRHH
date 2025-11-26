@@ -1003,17 +1003,17 @@ with tab_costos:
             
             # --- MODIFICACIÓN VISUAL CORREGIDA ---
             # Se ajusta el ancho a "110" (int) en pixeles para un ajuste fino
-            # Se mantiene el uso de column_config para asegurar que los meses tengan un ancho consistente.
+            # Se usa st.column_config.Column en lugar de TextColumn para minimizar el alineado forzoso a la izquierda
             
             config_columnas = {
                 "Legajo": st.column_config.TextColumn("Legajo", width="small"),
                 "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large"),
-                col_cat: st.column_config.TextColumn(col_cat, width=110), # Ajustado a 110px
-                "Promedio Mensual": st.column_config.TextColumn("Promedio Mensual", width=110), # Ajustado a 110px
+                col_cat: st.column_config.Column(col_cat, width=110), # Ajustado a 110px
+                "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110), # Ajustado a 110px
             }
             # Agregar meses dinámicamente
             for m in mp:
-                config_columnas[m] = st.column_config.TextColumn(m, width=110) # Ajustado a 110px
+                config_columnas[m] = st.column_config.Column(m, width=110) # Ajustado a 110px
 
             st.dataframe(
                 df_detailed_display.style.format(fmt)
