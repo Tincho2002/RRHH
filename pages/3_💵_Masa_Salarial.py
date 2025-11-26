@@ -1001,16 +1001,17 @@ with tab_costos:
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
-            # Establecer índice para que sea "sticky" (fijo) al scrollear
-            df_detailed_display = df_detailed_display.set_index(['Legajo'])
+            # --- MODIFICACIÓN VISUAL CORREGIDA ---
+            # 1. Revertimos set_index para evitar KeyError.
+            # 2. Ajustamos el ancho a 110px usando st.column_config.Column para no forzar texto a izquierda.
             
             config_columnas = {
-                "Legajo": st.column_config.Column("Legajo", width="small", disabled=True),
-                "Apellido y Nombres": st.column_config.Column("Apellido y Nombres", width="large"),
+                "Legajo": st.column_config.TextColumn("Legajo", width="small"),
+                "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large"),
                 col_cat: st.column_config.Column(col_cat, width=110), 
                 "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110), 
             }
-            # Agregar meses dinámicamente
+            # Agregar meses dinámicamente con Column para respetar alineación CSS
             for m in mp:
                 config_columnas[m] = st.column_config.Column(m, width=110)
 
@@ -1020,12 +1021,13 @@ with tab_costos:
                 .set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'}), 
                 use_container_width=False, 
                 height=400,
+                hide_index=True,
                 column_config=config_columnas
             )
             
             col_d1, col_d2 = st.columns(2)
-            with col_d1: st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=True).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
-            with col_d2: st.download_button(f"📥 Descargar Detalle Excel ({l})", data=to_excel(df_detailed_display.reset_index()), file_name=f'detalle_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+            with col_d1: st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=False).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
+            with col_d2: st.download_button(f"📥 Descargar Detalle Excel ({l})", data=to_excel(df_detailed_display), file_name=f'detalle_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
             
         else:
             st.write(f"**Resumen Mensual Desglosado (Masa y Dotación) - {l}**")
@@ -1120,9 +1122,6 @@ with tab_costos:
 
             format_dict = {c: lambda x: f"${format_number_es(x)}" for c in cols_masa}
             format_dict.update({c: lambda x: f"{int(x)}" for c in cols_dot}) 
-            
-            # 1. use_container_width=False para permitir scroll horizontal y corregir primera columna
-            # 2. Color de fondo para columnas de promedio
             
             # Configuración de columnas para la tabla resumen
             config_resumen = {}
@@ -1248,7 +1247,6 @@ with tab_conceptos:
                 config_concepto = {
                     c: st.column_config.Column(c, width=110) for c in cols_concepto
                 }
-                # Concepto ya es el índice, por lo que hide_index=False lo mostrará y lo fijará
                 
                 st.dataframe(
                     pivot_table.style.format(formatter=lambda x: f"${format_number_es(x)}")
