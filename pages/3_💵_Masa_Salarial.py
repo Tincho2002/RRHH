@@ -1150,18 +1150,17 @@ with tab_costos:
 
             config_resumen = {}
             for c in pivot_to_show.columns:
-                # Si es columna numérica (masa o promedio), asignarle ancho fijo
-                config_resumen[c] = st.column_config.Column(c, width=110)
+                if "Masa" in c:
+                    config_resumen[c] = st.column_config.Column(c, width=160) # Aumento de ancho para Masa Salarial
+                elif "Promedio" in c or "Prom." in c:
+                     config_resumen[c] = st.column_config.Column(c, width=120) # Ancho medio para Promedio
+                elif "Dot." in c or "Dotación" in c:
+                     config_resumen[c] = st.column_config.Column(c, width=90) # Ancho menor para Dotación
             
             # Crear Styler simple (solo color, ya no format)
             styler_multi = pivot_to_show.style
-            # Color de fondo
-            cols_color_valid = [c for c in cols_promedio if c in pivot_to_show.columns]
-            if cols_color_valid:
-                styler_multi.set_properties(subset=cols_color_valid, **{'background-color': '#FFE0B2', 'color': '#000000'})
-            
-            # Alineación derecha para TODAS las columnas de datos
-            styler_multi.set_properties(**{'text-align': 'right'}) 
+            styler_multi.set_properties(subset=[c for c in cols_promedio if c in pivot_to_show.columns], **{'background-color': '#FFE0B2', 'color': '#000000'})
+            styler_multi.set_properties(**{'text-align': 'right'}) # Alineación general derecha
 
             st.dataframe(
                 styler_multi,
