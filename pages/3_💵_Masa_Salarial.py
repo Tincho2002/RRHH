@@ -1013,8 +1013,8 @@ with tab_costos:
                 height=400,
                 hide_index=True,
                 column_config={
-                    "Legajo": st.column_config.TextColumn("Legajo", width="small", fixed=True),
-                    "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large", fixed=True),
+                    "Legajo": st.column_config.TextColumn("Legajo", width="small"),
+                    "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large"),
                 }
             )
             
