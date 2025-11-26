@@ -1029,10 +1029,13 @@ with tab_costos:
 
             # 5. Aplicar estilos CSS (Alineación y Color)
             styler = df_show.style
-            styler.set_properties(**{'text-align': 'right'})
+            
+            # ALINEACIÓN DERECHA EXPLÍCITA PARA TODAS LAS COLUMNAS DE DATOS
+            # Usar 'subset' es más seguro para que Streamlit entienda que son columnas de datos
+            styler.set_properties(subset=df_show.columns, **{'text-align': 'right'})
             
             if 'Promedio Mensual' in df_show.columns:
-                styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'})
+                styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold', 'text-align': 'right'})
 
             st.dataframe(styler, use_container_width=False, height=400, column_config=col_config)
             
@@ -1159,8 +1162,17 @@ with tab_costos:
             
             # Crear Styler simple (solo color, ya no format)
             styler_multi = pivot_to_show.style
-            styler_multi.set_properties(subset=[c for c in cols_promedio if c in pivot_to_show.columns], **{'background-color': '#FFE0B2', 'color': '#000000'})
-            styler_multi.set_properties(**{'text-align': 'right'}) # Alineación general derecha
+            
+            # AQUI ESTÁ EL CAMBIO IMPORTANTE:
+            # Usamos 'subset' explícitamente con las columnas para forzar la alineación
+            # De lo contrario Streamlit a veces lo ignora si cree que es texto simple.
+            styler_multi.set_properties(subset=pivot_to_show.columns, **{'text-align': 'right'})
+
+            # Aplicar color solo al subset de promedios, pero manteniendo la alineación derecha
+            styler_multi.set_properties(
+                subset=[c for c in cols_promedio if c in pivot_to_show.columns], 
+                **{'background-color': '#FFE0B2', 'color': '#000000', 'text-align': 'right'}
+            )
 
             st.dataframe(
                 styler_multi,
