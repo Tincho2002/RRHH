@@ -998,31 +998,26 @@ with tab_costos:
             p['Promedio Mensual'] = vals.replace(0, np.nan).mean(axis=1).fillna(0)
             p = p.sort_values(['Gerencia', 'Apellido y Nombres'])
             
-            # -------------------------------------------------------------------------
-            # SOLUCIÓN ROBUSTA: PRE-FORMATO DE DATOS + STYLER SIMPLE
-            # -------------------------------------------------------------------------
+            # =============================================================================
+            # NUEVA SOLUCIÓN: FORMATEAR DIRECTAMENTE LOS DATOS
+            # =============================================================================
+            # Evitamos conflictos con styler.format() y set_index() al convertir a string primero.
             
-            # 1. Convertir las columnas numéricas a texto formateado ($ ...) AQUÍ MISMO.
-            #    Esto evita usar `style.format()` después y elimina el riesgo de KeyError.
-            numeric_cols_to_format = mp + ['Promedio Mensual']
-            
-            for col in numeric_cols_to_format:
+            # 1. Formatear columnas numéricas a string ($ ...)
+            cols_numericas = mp + ['Promedio Mensual']
+            for col in cols_numericas:
                 if col in p.columns:
-                    # Aplicar formato solo a valores numéricos, dejar guiones o vacíos como están si los hubiera
-                    p[col] = p[col].apply(lambda x: f"${format_number_es(x)}" if isinstance(x, (int, float)) else x)
+                    # Si es numérico, aplicar formato moneda; si es 0 o nulo, guión o vacío según lógica
+                    p[col] = p[col].apply(lambda x: f"${format_number_es(x)}" if pd.notnull(x) and x != 0 else ("-" if x == 0 else ""))
 
-            # Seleccionar columnas finales para mostrar
+            # 2. Definir el DataFrame final a mostrar
             cols_finales = cols_base + mp + ['Promedio Mensual']
             df_detailed_display = p[cols_finales].copy()
             
-            # 2. Configurar columnas que serán ÍNDICE (Fijas a la izquierda)
-            index_cols = ['Legajo', 'Apellido y Nombres']
+            # 3. Fijar columnas usando set_index
+            df_show = df_detailed_display.set_index(['Legajo', 'Apellido y Nombres'])
             
-            # 3. Crear DataFrame para mostrar con índice
-            df_show = df_detailed_display.set_index(index_cols)
-            
-            # 4. Configurar anchos con Streamlit Column Config
-            #    Usamos st.column_config.Column (genérico) para evitar alineación forzada a izquierda
+            # 4. Configurar anchos fijos (110px)
             col_config = {
                 col_cat: st.column_config.Column(col_cat, width=110),
                 "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110),
@@ -1030,15 +1025,11 @@ with tab_costos:
             for m in mp:
                 col_config[m] = st.column_config.Column(m, width=110)
 
-            # 5. Crear Styler SOLO para estilos CSS (Alineación y Color)
-            #    Ya NO usamos .format() aquí.
+            # 5. Aplicar estilos CSS (Alineación y Color) sobre el objeto Styler
+            # IMPORTANTE: Ya NO usamos .format() aquí porque los datos ya son strings formateados.
             styler = df_show.style
-            
-            # Aplicar alineación derecha a todas las columnas de datos (que ahora son strings)
-            # Usamos css property directa para asegurar que Streamlit lo respete
             styler.set_properties(**{'text-align': 'right'})
             
-            # Aplicar color de fondo a Promedio Mensual si existe
             if 'Promedio Mensual' in df_show.columns:
                 styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'})
 
@@ -1136,6 +1127,23 @@ with tab_costos:
             cols_masa = [c for c in flat_cols if "($)" in c]
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
+            # =============================================================================
+            # CORRECCIÓN NAME ERROR: APLICAR FORMATO DIRECTO AQUÍ TAMBIÉN
+            # =============================================================================
+            
+            # Identificar columnas a colorear
+            cols_promedio = [c for c in pivot_multi.columns if "Prom." in c or "PROMEDIO" in c.upper() or "Anual" in c]
+
+            # Aplicar formato de moneda a columnas de Masa y Promedio directamente
+            for c in cols_masa:
+                if c in pivot_multi.columns:
+                    pivot_multi[c] = pivot_multi[c].apply(lambda x: f"${format_number_es(x)}" if pd.notnull(x) else "")
+            
+            # Aplicar formato entero a columnas de Dotación
+            for c in cols_dot:
+                if c in pivot_multi.columns:
+                    pivot_multi[c] = pivot_multi[c].apply(lambda x: f"{int(x)}" if pd.notnull(x) else "")
+
             # Configuración de columnas para la tabla resumen
             config_resumen = {}
             for c in pivot_multi.columns:
@@ -1143,9 +1151,13 @@ with tab_costos:
                 if any(x in c for x in ['($)', 'Masa', 'Promedio']):
                      config_resumen[c] = st.column_config.Column(c, width=110)
             
+            # Crear Styler simple (solo color, ya no format)
+            styler_multi = pivot_multi.style
+            styler_multi.set_properties(subset=cols_promedio, **{'background-color': '#FFE0B2', 'color': '#000000'})
+            styler_multi.set_properties(**{'text-align': 'right'}) # Alineación general derecha
+
             st.dataframe(
-                pivot_multi.style.format(format_dict)
-                .set_properties(subset=cols_promedio, **{'background-color': '#FFE0B2', 'color': '#000000'}),
+                styler_multi,
                 use_container_width=False,
                 hide_index=True,
                 column_config=config_resumen
@@ -1255,24 +1267,16 @@ with tab_conceptos:
             with col_table_concepto:
                 height_table = chart_height_concepto + 35 if vista_conceptos == "Vista Acumulada" else chart_height_mensual
                 
-                # ---------------------------------------------------------
-                # MODIFICACIÓN PESTAÑA CONCEPTOS (MISMA LÓGICA DE PRE-FORMATO)
-                # ---------------------------------------------------------
-                
-                # 1. Formatear datos numéricos a string en el DataFrame original 'pivot_table'
-                #    Nota: pivot_table tiene 'Concepto' como índice.
-                
+                # Formato directo en datos para evitar KeyError con set_index/styles
                 df_concepto_show = pivot_table.copy()
                 for col in df_concepto_show.columns:
                     if pd.api.types.is_numeric_dtype(df_concepto_show[col]):
                         df_concepto_show[col] = df_concepto_show[col].apply(lambda x: f"${format_number_es(x)}")
 
-                # 2. Configurar columnas (Index 'Concepto' se muestra automático, configuramos las de datos)
                 config_concepto = {
                     c: st.column_config.Column(c, width=110) for c in df_concepto_show.columns
                 }
                 
-                # 3. Crear Styler simple (solo alineación)
                 styler_conceptos = df_concepto_show.style
                 styler_conceptos.set_properties(**{'text-align': 'right'})
                 
@@ -1367,21 +1371,16 @@ with tab_conceptos:
             with col_table_sipaf:
                 height_table_sipaf = chart_height_sipaf + 35 if vista_conceptos == "Vista Acumulada" else chart_height_sipaf_mensual
                 
-                # ---------------------------------------------------------
-                # MODIFICACIÓN PESTAÑA SIPAF (MISMA LÓGICA DE PRE-FORMATO)
-                # ---------------------------------------------------------
-                
+                # Formato directo
                 df_sipaf_show = pivot_table_sipaf.copy()
                 for col in df_sipaf_show.columns:
                     if pd.api.types.is_numeric_dtype(df_sipaf_show[col]):
                         df_sipaf_show[col] = df_sipaf_show[col].apply(lambda x: f"${format_number_es(x)}")
 
-                # Configurar columnas
                 config_sipaf = {
                     c: st.column_config.Column(c, width=110) for c in df_sipaf_show.columns
                 }
                 
-                # Crear Styler simple
                 styler_sipaf = df_sipaf_show.style
                 styler_sipaf.set_properties(**{'text-align': 'right'})
                 
