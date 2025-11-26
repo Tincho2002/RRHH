@@ -999,34 +999,35 @@ with tab_costos:
             p = p.sort_values(['Gerencia', 'Apellido y Nombres'])
             
             # =============================================================================
-            # NUEVA SOLUCIÓN: FORMATEAR DIRECTAMENTE LOS DATOS
+            # SOLUCIÓN DEFINITIVA PARA EVITAR KEYERROR POR DUPLICADOS DE ÍNDICE
             # =============================================================================
-            # Evitamos conflictos con styler.format() y set_index() al convertir a string primero.
             
-            # 1. Formatear columnas numéricas a string ($ ...)
+            # 1. Formatear columnas numéricas a string ($ ...) directamente
             cols_numericas = mp + ['Promedio Mensual']
             for col in cols_numericas:
                 if col in p.columns:
-                    # Si es numérico, aplicar formato moneda; si es 0 o nulo, guión o vacío según lógica
                     p[col] = p[col].apply(lambda x: f"${format_number_es(x)}" if pd.notnull(x) and x != 0 else ("-" if x == 0 else ""))
 
-            # 2. Definir el DataFrame final a mostrar
+            # 2. Definir columnas a mostrar
             cols_finales = cols_base + mp + ['Promedio Mensual']
             df_detailed_display = p[cols_finales].copy()
             
-            # 3. Fijar columnas usando set_index
-            df_show = df_detailed_display.set_index(['Legajo', 'Apellido y Nombres'])
+            # 3. FIJAR COLUMNAS USANDO TODAS LAS COLUMNAS DE TEXTO COMO ÍNDICE
+            # Esto evita duplicados si un Legajo cambia de Gerencia o Categoría (lo cual generaría KeyErrors si solo usamos Legajo)
+            index_cols_safe = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_cat]
             
-            # 4. Configurar anchos fijos (110px)
+            # Convertir a índice para fijar
+            df_show = df_detailed_display.set_index(index_cols_safe)
+            
+            # 4. Configurar anchos fijos (110px) solo para columnas de datos
+            # Las columnas de índice se configuran automáticamente
             col_config = {
-                col_cat: st.column_config.Column(col_cat, width=110),
                 "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110),
             }
             for m in mp:
                 col_config[m] = st.column_config.Column(m, width=110)
 
-            # 5. Aplicar estilos CSS (Alineación y Color) sobre el objeto Styler
-            # IMPORTANTE: Ya NO usamos .format() aquí porque los datos ya son strings formateados.
+            # 5. Aplicar estilos CSS (Alineación y Color)
             styler = df_show.style
             styler.set_properties(**{'text-align': 'right'})
             
@@ -1126,10 +1127,6 @@ with tab_costos:
             
             cols_masa = [c for c in flat_cols if "($)" in c]
             cols_dot = [c for c in flat_cols if "(#)" in c]
-            
-            # =============================================================================
-            # CORRECCIÓN NAME ERROR: APLICAR FORMATO DIRECTO AQUÍ TAMBIÉN
-            # =============================================================================
             
             # Identificar columnas a colorear
             cols_promedio = [c for c in pivot_multi.columns if "Prom." in c or "PROMEDIO" in c.upper() or "Anual" in c]
@@ -1267,7 +1264,7 @@ with tab_conceptos:
             with col_table_concepto:
                 height_table = chart_height_concepto + 35 if vista_conceptos == "Vista Acumulada" else chart_height_mensual
                 
-                # Formato directo en datos para evitar KeyError con set_index/styles
+                # Formato directo
                 df_concepto_show = pivot_table.copy()
                 for col in df_concepto_show.columns:
                     if pd.api.types.is_numeric_dtype(df_concepto_show[col]):
