@@ -1002,18 +1002,18 @@ with tab_costos:
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
             # --- MODIFICACIÓN VISUAL CORREGIDA ---
-            # Se eliminó fixed=True que causaba error.
-            # Se fuerza width="medium" para los meses para evitar que se aplasten en tablas estrechas como Nivel.
+            # Se ajusta el ancho a "small" para evitar que la tabla sea excesivamente ancha.
+            # Se mantiene el uso de column_config para asegurar que los meses tengan un ancho consistente.
             
             config_columnas = {
                 "Legajo": st.column_config.TextColumn("Legajo", width="small"),
                 "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large"),
-                col_cat: st.column_config.TextColumn(col_cat, width="medium"),
-                "Promedio Mensual": st.column_config.TextColumn("Promedio Mensual", width="medium"),
+                col_cat: st.column_config.TextColumn(col_cat, width="small"), # Ajustado a small
+                "Promedio Mensual": st.column_config.TextColumn("Promedio Mensual", width="small"), # Ajustado a small
             }
-            # Agregar meses dinámicamente para asegurar que no se aplasten
+            # Agregar meses dinámicamente
             for m in mp:
-                config_columnas[m] = st.column_config.TextColumn(m, width="medium")
+                config_columnas[m] = st.column_config.TextColumn(m, width="small") # Ajustado a small
 
             st.dataframe(
                 df_detailed_display.style.format(fmt)
