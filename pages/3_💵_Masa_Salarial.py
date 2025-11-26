@@ -1001,19 +1001,18 @@ with tab_costos:
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
-            # --- MODIFICACIÓN VISUAL CORREGIDA ---
-            # Se ajusta el ancho a "110" (int) en pixeles para un ajuste fino
-            # Se usa st.column_config.Column en lugar de TextColumn para minimizar el alineado forzoso a la izquierda
+            # Establecer índice para que sea "sticky" (fijo) al scrollear
+            df_detailed_display = df_detailed_display.set_index(['Legajo'])
             
             config_columnas = {
-                "Legajo": st.column_config.TextColumn("Legajo", width="small"),
-                "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large"),
-                col_cat: st.column_config.Column(col_cat, width=110), # Ajustado a 110px
-                "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110), # Ajustado a 110px
+                "Legajo": st.column_config.Column("Legajo", width="small", disabled=True),
+                "Apellido y Nombres": st.column_config.Column("Apellido y Nombres", width="large"),
+                col_cat: st.column_config.Column(col_cat, width=110), 
+                "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110), 
             }
             # Agregar meses dinámicamente
             for m in mp:
-                config_columnas[m] = st.column_config.Column(m, width=110) # Ajustado a 110px
+                config_columnas[m] = st.column_config.Column(m, width=110)
 
             st.dataframe(
                 df_detailed_display.style.format(fmt)
@@ -1021,13 +1020,12 @@ with tab_costos:
                 .set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'}), 
                 use_container_width=False, 
                 height=400,
-                hide_index=True,
                 column_config=config_columnas
             )
             
             col_d1, col_d2 = st.columns(2)
-            with col_d1: st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=False).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
-            with col_d2: st.download_button(f"📥 Descargar Detalle Excel ({l})", data=to_excel(df_detailed_display), file_name=f'detalle_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
+            with col_d1: st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=True).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
+            with col_d2: st.download_button(f"📥 Descargar Detalle Excel ({l})", data=to_excel(df_detailed_display.reset_index()), file_name=f'detalle_costos_{l}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
             
         else:
             st.write(f"**Resumen Mensual Desglosado (Masa y Dotación) - {l}**")
@@ -1125,11 +1123,20 @@ with tab_costos:
             
             # 1. use_container_width=False para permitir scroll horizontal y corregir primera columna
             # 2. Color de fondo para columnas de promedio
+            
+            # Configuración de columnas para la tabla resumen
+            config_resumen = {}
+            for c in pivot_multi.columns:
+                # Si es columna numérica (masa o promedio), asignarle ancho fijo
+                if any(x in c for x in ['($)', 'Masa', 'Promedio']):
+                     config_resumen[c] = st.column_config.Column(c, width=110)
+            
             st.dataframe(
                 pivot_multi.style.format(format_dict)
                 .set_properties(subset=cols_promedio, **{'background-color': '#FFE0B2', 'color': '#000000'}),
                 use_container_width=False,
-                hide_index=True
+                hide_index=True,
+                column_config=config_resumen
             )
             
             col_d1, col_d2 = st.columns(2)
@@ -1235,7 +1242,21 @@ with tab_conceptos:
 
             with col_table_concepto:
                 height_table = chart_height_concepto + 35 if vista_conceptos == "Vista Acumulada" else chart_height_mensual
-                st.dataframe(pivot_table.style.format(formatter=lambda x: f"${format_number_es(x)}").set_properties(**{'text-align': 'right'}), use_container_width=True, height=height_table)
+                
+                # Configurar columnas para tab 4 (Conceptos)
+                cols_concepto = pivot_table.columns.tolist()
+                config_concepto = {
+                    c: st.column_config.Column(c, width=110) for c in cols_concepto
+                }
+                # Concepto ya es el índice, por lo que hide_index=False lo mostrará y lo fijará
+                
+                st.dataframe(
+                    pivot_table.style.format(formatter=lambda x: f"${format_number_es(x)}")
+                    .set_properties(**{'text-align': 'right'}), 
+                    use_container_width=False, 
+                    height=height_table,
+                    column_config=config_concepto
+                )
 
             st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
             col_dl_7, col_dl_8 = st.columns(2)
@@ -1320,7 +1341,20 @@ with tab_conceptos:
 
             with col_table_sipaf:
                 height_table_sipaf = chart_height_sipaf + 35 if vista_conceptos == "Vista Acumulada" else chart_height_sipaf_mensual
-                st.dataframe(pivot_table_sipaf.style.format(formatter=lambda x: f"${format_number_es(x)}").set_properties(**{'text-align': 'right'}), use_container_width=True, height=height_table_sipaf)
+                
+                # Configurar columnas para SIPAF
+                cols_sipaf = pivot_table_sipaf.columns.tolist()
+                config_sipaf = {
+                    c: st.column_config.Column(c, width=110) for c in cols_sipaf
+                }
+                
+                st.dataframe(
+                    pivot_table_sipaf.style.format(formatter=lambda x: f"${format_number_es(x)}")
+                    .set_properties(**{'text-align': 'right'}), 
+                    use_container_width=False, 
+                    height=height_table_sipaf,
+                    column_config=config_sipaf
+                )
 
             st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
             col_dl_9, col_dl_10 = st.columns(2)
