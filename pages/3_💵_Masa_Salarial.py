@@ -1001,27 +1001,33 @@ with tab_costos:
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
-            # --- MODIFICACIÓN VISUAL CORREGIDA ---
-            # 1. Revertimos set_index para evitar KeyError.
-            # 2. Ajustamos el ancho a 110px usando st.column_config.Column para no forzar texto a izquierda.
+            # --- MODIFICACIÓN VISUAL CORREGIDA (INDEX) ---
+            # 1. Convertimos a Índice las columnas que queremos fijar.
+            # 2. Filtramos 'subset' para que NO incluya las columnas del índice (evita KeyError).
             
+            cols_to_fix = ['Legajo', 'Apellido y Nombres']
+            df_to_show = df_detailed_display.set_index(cols_to_fix)
+            
+            # Columnas numéricas (excluyendo las que ahora son índice y la categoría)
+            # La categoría (ej: Relación) sigue siendo columna regular, la incluimos en config pero no en format de moneda si es texto
+            cols_data_numeric = [c for c in df_to_show.columns if c in mp + ['Promedio Mensual']]
+
             config_columnas = {
-                "Legajo": st.column_config.TextColumn("Legajo", width="small"),
-                "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large"),
                 col_cat: st.column_config.Column(col_cat, width=110), 
                 "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110), 
             }
-            # Agregar meses dinámicamente con Column para respetar alineación CSS
             for m in mp:
                 config_columnas[m] = st.column_config.Column(m, width=110)
 
+            # Aplicar estilo sobre el DF con índice
+            styler = df_to_show.style.format(fmt)
+            styler.set_properties(subset=cols_data_numeric, **{'text-align': 'right'})
+            styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'})
+
             st.dataframe(
-                df_detailed_display.style.format(fmt)
-                .set_properties(subset=mp + ['Promedio Mensual'], **{'text-align': 'right'})
-                .set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'}), 
+                styler,
                 use_container_width=False, 
                 height=400,
-                hide_index=True,
                 column_config=config_columnas
             )
             
@@ -1412,9 +1418,24 @@ with tab_tabla:
         # Columnas que queremos alinear a la derecha (incluyendo IDs aunque sean texto)
         columns_to_align_right = [col for col in currency_columns + integer_columns + ['Ceco', 'Nro. de Legajo'] if col in df_page.columns]
         
-        # --- MODIFICACIÓN VISUAL SOLICITADA ---
-        # use_container_width=False para permitir que la tabla se desplace horizontalmente y no corte las columnas
-        st.dataframe(df_page.style.format(format_mapper, na_rep="").set_properties(subset=columns_to_align_right, **{'text-align': 'right'}), use_container_width=False, hide_index=True)
+        # Aplicar fijación de columnas también a esta tabla
+        cols_fix_tabla = ['Período', 'Legajo', 'Apellido y Nombres']
+        existing_fix_cols = [c for c in cols_fix_tabla if c in df_page.columns]
+        
+        if existing_fix_cols:
+            df_page_show = df_page.set_index(existing_fix_cols)
+            # Ajustar formateo para no incluir índice
+            format_mapper_no_index = {k: v for k, v in format_mapper.items() if k not in existing_fix_cols}
+            cols_align_no_index = [c for c in columns_to_align_right if c not in existing_fix_cols]
+            
+            st.dataframe(
+                df_page_show.style.format(format_mapper_no_index, na_rep="")
+                .set_properties(subset=cols_align_no_index, **{'text-align': 'right'}), 
+                use_container_width=False, 
+                hide_index=False # Mostrar índice para que se fije
+            )
+        else:
+            st.dataframe(df_page.style.format(format_mapper, na_rep="").set_properties(subset=columns_to_align_right, **{'text-align': 'right'}), use_container_width=False, hide_index=True)
     else:
         st.info("No hay datos que coincidan con los filtros seleccionados.")
 
