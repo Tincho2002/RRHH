@@ -1031,11 +1031,12 @@ with tab_costos:
             styler = df_show.style
             
             # ALINEACIÓN DERECHA EXPLÍCITA PARA TODAS LAS COLUMNAS DE DATOS
-            # Usar 'subset' es más seguro para que Streamlit entienda que son columnas de datos
-            styler.set_properties(subset=df_show.columns, **{'text-align': 'right'})
+            # Usar 'subset' convertido a lista para asegurar compatibilidad
+            cols_subset = list(df_show.columns)
+            styler.set_properties(subset=cols_subset, **{'text-align': 'right !important'})
             
             if 'Promedio Mensual' in df_show.columns:
-                styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold', 'text-align': 'right'})
+                styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold', 'text-align': 'right !important'})
 
             st.dataframe(styler, use_container_width=False, height=400, column_config=col_config)
             
@@ -1126,9 +1127,6 @@ with tab_costos:
             pivot_multi.columns = flat_cols
             
             # Reset index to make the category a column (better visual fit)
-            # IMPORTANTE: No hacer reset index aquí si queremos que la categoría sea fija.
-            # Pero el código original lo hacía para aplanar la estructura.
-            # Vamos a formatear y LUEGO setear index de nuevo.
             pivot_multi = pivot_multi.reset_index()
             
             cols_masa = [c for c in flat_cols if "($)" in c]
@@ -1164,14 +1162,14 @@ with tab_costos:
             styler_multi = pivot_to_show.style
             
             # AQUI ESTÁ EL CAMBIO IMPORTANTE:
-            # Usamos 'subset' explícitamente con las columnas para forzar la alineación
-            # De lo contrario Streamlit a veces lo ignora si cree que es texto simple.
-            styler_multi.set_properties(subset=pivot_to_show.columns, **{'text-align': 'right'})
+            # Usamos 'subset' convertido a lista y !important
+            cols_subset_multi = list(pivot_to_show.columns)
+            styler_multi.set_properties(subset=cols_subset_multi, **{'text-align': 'right !important'})
 
             # Aplicar color solo al subset de promedios, pero manteniendo la alineación derecha
             styler_multi.set_properties(
                 subset=[c for c in cols_promedio if c in pivot_to_show.columns], 
-                **{'background-color': '#FFE0B2', 'color': '#000000', 'text-align': 'right'}
+                **{'background-color': '#FFE0B2', 'color': '#000000', 'text-align': 'right !important'}
             )
 
             st.dataframe(
@@ -1484,12 +1482,12 @@ with tab_tabla:
             
             st.dataframe(
                 df_page_show.style.format(format_mapper_no_index, na_rep="")
-                .set_properties(subset=cols_align_no_index, **{'text-align': 'right'}), 
+                .set_properties(subset=cols_align_no_index, **{'text-align': 'right !important'}), 
                 use_container_width=False, 
                 hide_index=False # Mostrar índice para que se fije
             )
         else:
-            st.dataframe(df_page.style.format(format_mapper, na_rep="").set_properties(subset=columns_to_align_right, **{'text-align': 'right'}), use_container_width=False, hide_index=True)
+            st.dataframe(df_page.style.format(format_mapper, na_rep="").set_properties(subset=columns_to_align_right, **{'text-align': 'right !important'}), use_container_width=False, hide_index=True)
     else:
         st.info("No hay datos que coincidan con los filtros seleccionados.")
 
