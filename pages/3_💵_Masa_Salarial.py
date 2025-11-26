@@ -1316,7 +1316,7 @@ with tab_conceptos:
             
             pivot_table_sipaf = pd.pivot_table(df_melted_sipaf, values='Monto', index='Concepto', columns='Mes', aggfunc='sum', fill_value=0)
             meses_en_datos_sipaf = df_filtered[['Mes', 'Mes_Num']].drop_duplicates().sort_values('Mes_Num')['Mes'].tolist()
-            if meses_en_datos_sipaf and all(mes in pivot_table_sipaf.columns for mes in meses_en_datos_sipaf):
+            if all(mes in pivot_table_sipaf.columns for mes in meses_en_datos_sipaf):
                 pivot_table_sipaf = pivot_table_sipaf[meses_en_datos_sipaf]
             pivot_table_sipaf['Total general'] = pivot_table_sipaf.sum(axis=1)
             pivot_table_sipaf = pivot_table_sipaf.dropna(how='all')
