@@ -998,41 +998,30 @@ with tab_costos:
             p['Promedio Mensual'] = vals.replace(0, np.nan).mean(axis=1).fillna(0)
             p = p.sort_values(['Gerencia', 'Apellido y Nombres'])
             
-            # =============================================================================
-            # SOLUCIÓN DEFINITIVA PARA EVITAR KEYERROR POR DUPLICADOS DE ÍNDICE
-            # =============================================================================
-            
-            # 1. Formatear columnas numéricas a string ($ ...) directamente
-            cols_numericas = mp + ['Promedio Mensual']
-            for col in cols_numericas:
-                if col in p.columns:
-                    p[col] = p[col].apply(lambda x: f"${format_number_es(x)}" if pd.notnull(x) and x != 0 else ("-" if x == 0 else ""))
-
-            # 2. Definir columnas a mostrar
+            # 1. Definir columnas a mostrar
             cols_finales = cols_base + mp + ['Promedio Mensual']
             df_detailed_display = p[cols_finales].copy()
             
-            # 3. FIJAR COLUMNAS USANDO TODAS LAS COLUMNAS DE TEXTO COMO ÍNDICE
-            # Esto evita duplicados si un Legajo cambia de Gerencia o Categoría (lo cual generaría KeyErrors si solo usamos Legajo)
+            # 2. FIJAR COLUMNAS USANDO TODAS LAS COLUMNAS DE TEXTO COMO ÍNDICE
             index_cols_safe = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_cat]
-            
-            # Convertir a índice para fijar
             df_show = df_detailed_display.set_index(index_cols_safe)
             
-            # 4. Configurar anchos fijos (110px) solo para columnas de datos
-            # Las columnas de índice se configuran automáticamente
+            # 3. Identificar columnas numéricas para formatear
+            cols_numericas = mp + ['Promedio Mensual']
+            format_dict = {col: lambda x: f"${format_number_es(x)}" if pd.notnull(x) and x != 0 else ("-" if x == 0 else "") for col in cols_numericas if col in df_show.columns}
+
+            # 4. Configurar anchos fijos
             col_config = {
                 "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110),
             }
             for m in mp:
                 col_config[m] = st.column_config.Column(m, width=110)
 
-            # 5. Aplicar estilos CSS (Alineación y Color)
-            styler = df_show.style
+            # 5. Aplicar formato y estilos
+            styler = df_show.style.format(format_dict)
             
-            # ALINEACIÓN DERECHA EXPLÍCITA PARA TODAS LAS COLUMNAS DE DATOS
-            # Usar 'subset' convertido a lista para asegurar compatibilidad
-            cols_subset = list(df_show.columns)
+            # ALINEACIÓN DERECHA EXPLÍCITA
+            cols_subset = [c for c in cols_numericas if c in df_show.columns]
             styler.set_properties(subset=cols_subset, **{'text-align': 'right !important'})
             
             if 'Promedio Mensual' in df_show.columns:
@@ -1126,7 +1115,7 @@ with tab_costos:
             
             pivot_multi.columns = flat_cols
             
-            # Reset index to make the category a column (better visual fit)
+            # Reset index
             pivot_multi = pivot_multi.reset_index()
             
             cols_masa = [c for c in flat_cols if "($)" in c]
@@ -1135,38 +1124,34 @@ with tab_costos:
             # Identificar columnas a colorear
             cols_promedio = [c for c in pivot_multi.columns if "Prom." in c or "PROMEDIO" in c.upper() or "Anual" in c]
 
-            # Aplicar formato de moneda a columnas de Masa y Promedio directamente
-            for c in cols_masa:
-                if c in pivot_multi.columns:
-                    pivot_multi[c] = pivot_multi[c].apply(lambda x: f"${format_number_es(x)}" if pd.notnull(x) else "")
-            
-            # Aplicar formato entero a columnas de Dotación
-            for c in cols_dot:
-                if c in pivot_multi.columns:
-                    pivot_multi[c] = pivot_multi[c].apply(lambda x: f"{int(x)}" if pd.notnull(x) else "")
-
-            # Configuración de columnas para la tabla resumen
-            # La columna de categoría (col_cat) ahora será el índice para fijarse
+            # Configuración de columnas
             pivot_to_show = pivot_multi.set_index(col_cat)
 
             config_resumen = {}
             for c in pivot_to_show.columns:
                 if "Masa" in c:
-                    config_resumen[c] = st.column_config.Column(c, width=160) # Aumento de ancho para Masa Salarial
+                    config_resumen[c] = st.column_config.Column(c, width=160)
                 elif "Promedio" in c or "Prom." in c:
-                     config_resumen[c] = st.column_config.Column(c, width=120) # Ancho medio para Promedio
+                     config_resumen[c] = st.column_config.Column(c, width=120)
                 elif "Dot." in c or "Dotación" in c:
-                     config_resumen[c] = st.column_config.Column(c, width=90) # Ancho menor para Dotación
+                     config_resumen[c] = st.column_config.Column(c, width=90)
             
-            # Crear Styler simple (solo color, ya no format)
-            styler_multi = pivot_to_show.style
+            # Formateo visual via Styler (datos se mantienen numéricos)
+            format_dict_multi = {}
+            for c in cols_masa + [col for col in cols_promedio if col in pivot_to_show.columns]:
+                if c in pivot_to_show.columns:
+                    format_dict_multi[c] = lambda x: f"${format_number_es(x)}" if pd.notnull(x) else ""
             
-            # AQUI ESTÁ EL CAMBIO IMPORTANTE:
-            # Usamos 'subset' convertido a lista y !important
+            for c in cols_dot:
+                if c in pivot_to_show.columns:
+                    format_dict_multi[c] = lambda x: f"{int(x)}" if pd.notnull(x) else ""
+
+            styler_multi = pivot_to_show.style.format(format_dict_multi)
+            
+            # Alineación y Colores
             cols_subset_multi = list(pivot_to_show.columns)
             styler_multi.set_properties(subset=cols_subset_multi, **{'text-align': 'right !important'})
 
-            # Aplicar color solo al subset de promedios, pero manteniendo la alineación derecha
             styler_multi.set_properties(
                 subset=[c for c in cols_promedio if c in pivot_to_show.columns], 
                 **{'background-color': '#FFE0B2', 'color': '#000000', 'text-align': 'right !important'}
@@ -1175,7 +1160,7 @@ with tab_costos:
             st.dataframe(
                 styler_multi,
                 use_container_width=False,
-                hide_index=False, # Mostrar el índice (categoría) para que se fije
+                hide_index=False, 
                 column_config=config_resumen
             )
             
