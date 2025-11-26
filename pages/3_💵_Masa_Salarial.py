@@ -1123,6 +1123,9 @@ with tab_costos:
             pivot_multi.columns = flat_cols
             
             # Reset index to make the category a column (better visual fit)
+            # IMPORTANTE: No hacer reset index aquí si queremos que la categoría sea fija.
+            # Pero el código original lo hacía para aplanar la estructura.
+            # Vamos a formatear y LUEGO setear index de nuevo.
             pivot_multi = pivot_multi.reset_index()
             
             cols_masa = [c for c in flat_cols if "($)" in c]
@@ -1142,21 +1145,24 @@ with tab_costos:
                     pivot_multi[c] = pivot_multi[c].apply(lambda x: f"{int(x)}" if pd.notnull(x) else "")
 
             # Configuración de columnas para la tabla resumen
+            # La columna de categoría (col_cat) ahora será el índice para fijarse
+            pivot_to_show = pivot_multi.set_index(col_cat)
+
             config_resumen = {}
-            for c in pivot_multi.columns:
+            for c in pivot_to_show.columns:
                 # Si es columna numérica (masa o promedio), asignarle ancho fijo
                 if any(x in c for x in ['($)', 'Masa', 'Promedio']):
                      config_resumen[c] = st.column_config.Column(c, width=110)
             
             # Crear Styler simple (solo color, ya no format)
-            styler_multi = pivot_multi.style
-            styler_multi.set_properties(subset=cols_promedio, **{'background-color': '#FFE0B2', 'color': '#000000'})
+            styler_multi = pivot_to_show.style
+            styler_multi.set_properties(subset=[c for c in cols_promedio if c in pivot_to_show.columns], **{'background-color': '#FFE0B2', 'color': '#000000'})
             styler_multi.set_properties(**{'text-align': 'right'}) # Alineación general derecha
 
             st.dataframe(
                 styler_multi,
                 use_container_width=False,
-                hide_index=True,
+                hide_index=False, # Mostrar el índice (categoría) para que se fije
                 column_config=config_resumen
             )
             
@@ -1264,7 +1270,7 @@ with tab_conceptos:
             with col_table_concepto:
                 height_table = chart_height_concepto + 35 if vista_conceptos == "Vista Acumulada" else chart_height_mensual
                 
-                # Formato directo
+                # Formato directo en datos para evitar KeyError con set_index/styles
                 df_concepto_show = pivot_table.copy()
                 for col in df_concepto_show.columns:
                     if pd.api.types.is_numeric_dtype(df_concepto_show[col]):
