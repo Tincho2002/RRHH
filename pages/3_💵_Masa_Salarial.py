@@ -1001,15 +1001,20 @@ with tab_costos:
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
-            # MEJORA VISUAL: Ocultar índice, fijar columnas y alinear valores numéricos
+            # --- MODIFICACIÓN VISUAL SOLICITADA ---
+            # 1. Se cambió use_container_width=False para evitar que las columnas se aplasten.
+            # 2. Se coloreó la columna de Promedio con un color sobrio pero llamativo (#FFE0B2 - Crema/Naranja Suave).
+            # 3. Se fijó un ancho mínimo para columnas clave mediante column_config.
             st.dataframe(
-                df_detailed_display.style.format(fmt).set_properties(subset=mp + ['Promedio Mensual'], **{'text-align': 'right'}), 
-                use_container_width=True, 
+                df_detailed_display.style.format(fmt)
+                .set_properties(subset=mp + ['Promedio Mensual'], **{'text-align': 'right'})
+                .set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'}), 
+                use_container_width=False, 
                 height=400,
                 hide_index=True,
                 column_config={
-                    "Legajo": st.column_config.TextColumn("Legajo"),
-                    "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres"),
+                    "Legajo": st.column_config.TextColumn("Legajo", width="small", fixed=True),
+                    "Apellido y Nombres": st.column_config.TextColumn("Apellido y Nombres", width="large", fixed=True),
                 }
             )
             
@@ -1105,12 +1110,19 @@ with tab_costos:
             cols_masa = [c for c in flat_cols if "($)" in c]
             cols_dot = [c for c in flat_cols if "(#)" in c]
             
+            # --- MODIFICACIÓN VISUAL SOLICITADA ---
+            # Identificar columnas de Promedio para colorear
+            cols_promedio = [c for c in pivot_multi.columns if "Prom." in c or "PROMEDIO" in c.upper() or "Anual" in c]
+
             format_dict = {c: lambda x: f"${format_number_es(x)}" for c in cols_masa}
             format_dict.update({c: lambda x: f"{int(x)}" for c in cols_dot}) 
             
+            # 1. use_container_width=False para permitir scroll horizontal y corregir primera columna
+            # 2. Color de fondo para columnas de promedio
             st.dataframe(
-                pivot_multi.style.format(format_dict),
-                use_container_width=True,
+                pivot_multi.style.format(format_dict)
+                .set_properties(subset=cols_promedio, **{'background-color': '#FFE0B2', 'color': '#000000'}),
+                use_container_width=False,
                 hide_index=True
             )
             
@@ -1362,7 +1374,9 @@ with tab_tabla:
         # Columnas que queremos alinear a la derecha (incluyendo IDs aunque sean texto)
         columns_to_align_right = [col for col in currency_columns + integer_columns + ['Ceco', 'Nro. de Legajo'] if col in df_page.columns]
         
-        st.dataframe(df_page.style.format(format_mapper, na_rep="").set_properties(subset=columns_to_align_right, **{'text-align': 'right'}), use_container_width=True, hide_index=True)
+        # --- MODIFICACIÓN VISUAL SOLICITADA ---
+        # use_container_width=False para permitir que la tabla se desplace horizontalmente y no corte las columnas
+        st.dataframe(df_page.style.format(format_mapper, na_rep="").set_properties(subset=columns_to_align_right, **{'text-align': 'right'}), use_container_width=False, hide_index=True)
     else:
         st.info("No hay datos que coincidan con los filtros seleccionados.")
 
