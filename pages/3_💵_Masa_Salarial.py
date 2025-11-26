@@ -1001,35 +1001,37 @@ with tab_costos:
             fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
             df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
-            # --- MODIFICACIÓN VISUAL CORREGIDA (INDEX) ---
-            # 1. Convertimos a Índice las columnas que queremos fijar.
-            # 2. Filtramos 'subset' para que NO incluya las columnas del índice (evita KeyError).
+            # --- MODIFICACIÓN VISUAL FINAL ---
+            # 1. Definimos las columnas índice
+            index_cols = ['Legajo', 'Apellido y Nombres']
             
-            cols_to_fix = ['Legajo', 'Apellido y Nombres']
-            df_to_show = df_detailed_display.set_index(cols_to_fix)
+            # 2. Creamos el DataFrame de visualización con índice (esto fija las columnas)
+            df_show = df_detailed_display.set_index(index_cols)
             
-            # Columnas numéricas (excluyendo las que ahora son índice y la categoría)
-            # La categoría (ej: Relación) sigue siendo columna regular, la incluimos en config pero no en format de moneda si es texto
-            cols_data_numeric = [c for c in df_to_show.columns if c in mp + ['Promedio Mensual']]
-
-            config_columnas = {
-                col_cat: st.column_config.Column(col_cat, width=110), 
-                "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110), 
+            # 3. Identificamos columnas de datos para aplicar estilos (alineación, color)
+            # IMPORTANTE: Filtrar solo columnas presentes para evitar KeyError
+            data_cols = [c for c in mp + ['Promedio Mensual'] if c in df_show.columns]
+            
+            # 4. Configuramos columnas en Streamlit (Ancho fijo)
+            col_config = {
+                col_cat: st.column_config.Column(col_cat, width=110),
+                "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110),
             }
             for m in mp:
-                config_columnas[m] = st.column_config.Column(m, width=110)
+                col_config[m] = st.column_config.Column(m, width=110)
 
-            # Aplicar estilo sobre el DF con índice
-            styler = df_to_show.style.format(fmt)
-            styler.set_properties(subset=cols_data_numeric, **{'text-align': 'right'})
-            styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'})
+            # 5. Aplicamos Estilos con Pandas Styler
+            styler = df_show.style.format(fmt)
+            
+            # Alineación derecha a columnas de datos
+            if data_cols:
+                styler.set_properties(subset=data_cols, **{'text-align': 'right'})
+            
+            # Color a Promedio
+            if 'Promedio Mensual' in df_show.columns:
+                styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'})
 
-            st.dataframe(
-                styler,
-                use_container_width=False, 
-                height=400,
-                column_config=config_columnas
-            )
+            st.dataframe(styler, use_container_width=False, height=400, column_config=col_config)
             
             col_d1, col_d2 = st.columns(2)
             with col_d1: st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=False).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
@@ -1253,6 +1255,7 @@ with tab_conceptos:
                 config_concepto = {
                     c: st.column_config.Column(c, width=110) for c in cols_concepto
                 }
+                # Concepto ya es el índice, por lo que hide_index=False lo mostrará y lo fijará
                 
                 st.dataframe(
                     pivot_table.style.format(formatter=lambda x: f"${format_number_es(x)}")
