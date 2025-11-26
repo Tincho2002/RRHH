@@ -997,22 +997,32 @@ with tab_costos:
             vals = p[mp]
             p['Promedio Mensual'] = vals.replace(0, np.nan).mean(axis=1).fillna(0)
             p = p.sort_values(['Gerencia', 'Apellido y Nombres'])
-            fmt = {m: lambda x: f"${format_number_es(x)}" if x > 0 else "-" for m in mp}
-            fmt['Promedio Mensual'] = lambda x: f"${format_number_es(x)}"
-            df_detailed_display = p[cols_base + mp + ['Promedio Mensual']]
             
-            # --- MODIFICACIÓN VISUAL FINAL ---
-            # 1. Definimos las columnas índice
+            # -------------------------------------------------------------------------
+            # SOLUCIÓN ROBUSTA: PRE-FORMATO DE DATOS + STYLER SIMPLE
+            # -------------------------------------------------------------------------
+            
+            # 1. Convertir las columnas numéricas a texto formateado ($ ...) AQUÍ MISMO.
+            #    Esto evita usar `style.format()` después y elimina el riesgo de KeyError.
+            numeric_cols_to_format = mp + ['Promedio Mensual']
+            
+            for col in numeric_cols_to_format:
+                if col in p.columns:
+                    # Aplicar formato solo a valores numéricos, dejar guiones o vacíos como están si los hubiera
+                    p[col] = p[col].apply(lambda x: f"${format_number_es(x)}" if isinstance(x, (int, float)) else x)
+
+            # Seleccionar columnas finales para mostrar
+            cols_finales = cols_base + mp + ['Promedio Mensual']
+            df_detailed_display = p[cols_finales].copy()
+            
+            # 2. Configurar columnas que serán ÍNDICE (Fijas a la izquierda)
             index_cols = ['Legajo', 'Apellido y Nombres']
             
-            # 2. Creamos el DataFrame de visualización con índice (esto fija las columnas)
+            # 3. Crear DataFrame para mostrar con índice
             df_show = df_detailed_display.set_index(index_cols)
             
-            # 3. Identificamos columnas de datos para aplicar estilos (alineación, color)
-            # IMPORTANTE: Filtrar solo columnas presentes para evitar KeyError
-            data_cols = [c for c in mp + ['Promedio Mensual'] if c in df_show.columns]
-            
-            # 4. Configuramos columnas en Streamlit (Ancho fijo)
+            # 4. Configurar anchos con Streamlit Column Config
+            #    Usamos st.column_config.Column (genérico) para evitar alineación forzada a izquierda
             col_config = {
                 col_cat: st.column_config.Column(col_cat, width=110),
                 "Promedio Mensual": st.column_config.Column("Promedio Mensual", width=110),
@@ -1020,14 +1030,15 @@ with tab_costos:
             for m in mp:
                 col_config[m] = st.column_config.Column(m, width=110)
 
-            # 5. Aplicamos Estilos con Pandas Styler
-            styler = df_show.style.format(fmt)
+            # 5. Crear Styler SOLO para estilos CSS (Alineación y Color)
+            #    Ya NO usamos .format() aquí.
+            styler = df_show.style
             
-            # Alineación derecha a columnas de datos
-            if data_cols:
-                styler.set_properties(subset=data_cols, **{'text-align': 'right'})
+            # Aplicar alineación derecha a todas las columnas de datos (que ahora son strings)
+            # Usamos css property directa para asegurar que Streamlit lo respete
+            styler.set_properties(**{'text-align': 'right'})
             
-            # Color a Promedio
+            # Aplicar color de fondo a Promedio Mensual si existe
             if 'Promedio Mensual' in df_show.columns:
                 styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold'})
 
@@ -1124,12 +1135,6 @@ with tab_costos:
             
             cols_masa = [c for c in flat_cols if "($)" in c]
             cols_dot = [c for c in flat_cols if "(#)" in c]
-            
-            # Identificar columnas de Promedio para colorear
-            cols_promedio = [c for c in pivot_multi.columns if "Prom." in c or "PROMEDIO" in c.upper() or "Anual" in c]
-
-            format_dict = {c: lambda x: f"${format_number_es(x)}" for c in cols_masa}
-            format_dict.update({c: lambda x: f"{int(x)}" for c in cols_dot}) 
             
             # Configuración de columnas para la tabla resumen
             config_resumen = {}
@@ -1250,16 +1255,29 @@ with tab_conceptos:
             with col_table_concepto:
                 height_table = chart_height_concepto + 35 if vista_conceptos == "Vista Acumulada" else chart_height_mensual
                 
-                # Configurar columnas para tab 4 (Conceptos)
-                cols_concepto = pivot_table.columns.tolist()
+                # ---------------------------------------------------------
+                # MODIFICACIÓN PESTAÑA CONCEPTOS (MISMA LÓGICA DE PRE-FORMATO)
+                # ---------------------------------------------------------
+                
+                # 1. Formatear datos numéricos a string en el DataFrame original 'pivot_table'
+                #    Nota: pivot_table tiene 'Concepto' como índice.
+                
+                df_concepto_show = pivot_table.copy()
+                for col in df_concepto_show.columns:
+                    if pd.api.types.is_numeric_dtype(df_concepto_show[col]):
+                        df_concepto_show[col] = df_concepto_show[col].apply(lambda x: f"${format_number_es(x)}")
+
+                # 2. Configurar columnas (Index 'Concepto' se muestra automático, configuramos las de datos)
                 config_concepto = {
-                    c: st.column_config.Column(c, width=110) for c in cols_concepto
+                    c: st.column_config.Column(c, width=110) for c in df_concepto_show.columns
                 }
-                # Concepto ya es el índice, por lo que hide_index=False lo mostrará y lo fijará
+                
+                # 3. Crear Styler simple (solo alineación)
+                styler_conceptos = df_concepto_show.style
+                styler_conceptos.set_properties(**{'text-align': 'right'})
                 
                 st.dataframe(
-                    pivot_table.style.format(formatter=lambda x: f"${format_number_es(x)}")
-                    .set_properties(**{'text-align': 'right'}), 
+                    styler_conceptos, 
                     use_container_width=False, 
                     height=height_table,
                     column_config=config_concepto
@@ -1349,15 +1367,26 @@ with tab_conceptos:
             with col_table_sipaf:
                 height_table_sipaf = chart_height_sipaf + 35 if vista_conceptos == "Vista Acumulada" else chart_height_sipaf_mensual
                 
-                # Configurar columnas para SIPAF
-                cols_sipaf = pivot_table_sipaf.columns.tolist()
+                # ---------------------------------------------------------
+                # MODIFICACIÓN PESTAÑA SIPAF (MISMA LÓGICA DE PRE-FORMATO)
+                # ---------------------------------------------------------
+                
+                df_sipaf_show = pivot_table_sipaf.copy()
+                for col in df_sipaf_show.columns:
+                    if pd.api.types.is_numeric_dtype(df_sipaf_show[col]):
+                        df_sipaf_show[col] = df_sipaf_show[col].apply(lambda x: f"${format_number_es(x)}")
+
+                # Configurar columnas
                 config_sipaf = {
-                    c: st.column_config.Column(c, width=110) for c in cols_sipaf
+                    c: st.column_config.Column(c, width=110) for c in df_sipaf_show.columns
                 }
                 
+                # Crear Styler simple
+                styler_sipaf = df_sipaf_show.style
+                styler_sipaf.set_properties(**{'text-align': 'right'})
+                
                 st.dataframe(
-                    pivot_table_sipaf.style.format(formatter=lambda x: f"${format_number_es(x)}")
-                    .set_properties(**{'text-align': 'right'}), 
+                    styler_sipaf, 
                     use_container_width=False, 
                     height=height_table_sipaf,
                     column_config=config_sipaf
@@ -1426,7 +1455,12 @@ with tab_tabla:
         existing_fix_cols = [c for c in cols_fix_tabla if c in df_page.columns]
         
         if existing_fix_cols:
+            # Para la tabla de datos detallados, como tiene paginación y es muy grande, 
+            # es mejor NO convertir a String todo para no perder performance,
+            # pero SÍ usar set_index para fijar columnas.
+            # Aquí el style.format funciona bien porque no hay conflicto de subset complejo.
             df_page_show = df_page.set_index(existing_fix_cols)
+            
             # Ajustar formateo para no incluir índice
             format_mapper_no_index = {k: v for k, v in format_mapper.items() if k not in existing_fix_cols}
             cols_align_no_index = [c for c in columns_to_align_right if c not in existing_fix_cols]
