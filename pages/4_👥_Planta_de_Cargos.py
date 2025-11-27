@@ -595,16 +595,43 @@ if uploaded_file:
                 mask_egreso = (df_contexto_sidebar['Año Egreso'].isin(years_sel)) & (df_contexto_sidebar['Mes Egreso'].isin(months_sel))
                 df_contexto_sidebar = df_contexto_sidebar[mask_ingreso | mask_egreso]
 
-            # --- 3. GENERAR FILTROS DEL SIDEBAR USANDO EL CONTEXTO ---
+            # --- 3. GENERAR FILTROS DEL SIDEBAR (CASCADA CRUZADA INTELIGENTE) ---
+            # Para que los filtros se afecten entre sí (ej: si saco PASANTE en Relación, que desaparezca en Nivel),
+            # cada filtro debe calcular sus opciones basándose en las selecciones ACTIVAS de los OTROS filtros.
+            
+            # 3.1 Recuperar el estado actual de todos los filtros para calcular el contexto cruzado
+            current_state_values = {}
+            for k in sidebar_filters:
+                # Priorizamos el valor del widget si existe (interacción usuario), sino el guardado en selections
+                widget_key = f"evt_{k}"
+                if widget_key in st.session_state:
+                    current_state_values[k] = st.session_state[widget_key]
+                else:
+                    current_state_values[k] = selections.get(k, [])
+
+            # 3.2 Generar cada filtro aplicando las restricciones de sus "hermanos"
             for f_key in sidebar_filters:
-                # Usamos el dataframe filtrado para mostrar solo opciones relevantes
-                options = get_sorted_unique_options(df_contexto_sidebar, f_key)
+                # Creamos un contexto temporal para ESTE filtro
+                df_options_context = df_contexto_sidebar.copy()
+                
+                # Aplicamos los filtros de TODOS los demás, excepto el actual (para no bloquearse a sí mismo)
+                for other_key, selected_values in current_state_values.items():
+                    if other_key != f_key and selected_values:
+                        df_options_context = df_options_context[df_options_context[other_key].isin(selected_values)]
+                
+                # Ahora obtenemos las opciones válidas reducidas
+                options = get_sorted_unique_options(df_options_context, f_key)
                 
                 if f_key == 'Relación': 
                     options = [opt for opt in options if opt != 'No especificado']
                 
-                default = [s for s in selections.get(f_key, []) if s in options]
-                selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"evt_{f_key}")
+                # Validamos que la selección actual (default) siga existiendo en las nuevas opciones
+                # Esto evita errores si una opción seleccionada desaparece por culpa de otro filtro
+                current_default = current_state_values.get(f_key, [])
+                valid_default = [s for s in current_default if s in options]
+                
+                # Dibujamos el filtro
+                selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=valid_default, key=f"evt_{f_key}")
             
             if selections != selections_before: 
                 st.rerun()
