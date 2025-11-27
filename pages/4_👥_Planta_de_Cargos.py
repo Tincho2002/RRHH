@@ -481,15 +481,43 @@ if uploaded_file:
             
             selections = st.session_state[session_key]
             selections_before = selections.copy()
-            df_filtered_for_options = df_contexto.copy()
             
+            # --- CASCADA CRUZADA INTELIGENTE (Dotación) ---
+            
+            # 1. Recuperar estado actual de widgets
+            current_state_values = {}
+            for k in filter_keys:
+                widget_key = f"dot_{k}"
+                if widget_key in st.session_state:
+                    current_state_values[k] = st.session_state[widget_key]
+                else:
+                    current_state_values[k] = selections.get(k, [])
+
+            # 2. Generar filtros aplicando lógica cruzada
             for f_key in filter_keys:
-                options = get_sorted_unique_options(df_filtered_for_options, f_key)
-                if f_key == 'Relación': options = [opt for opt in options if opt != 'No especificado']
-                default = [s for s in selections.get(f_key, []) if s in options]
-                selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"dot_{f_key}")
-                if selections[f_key]:
-                    df_filtered_for_options = df_filtered_for_options[df_filtered_for_options[f_key].isin(selections[f_key])]
+                # Contexto base: toda la dotación activa en la fecha referencia
+                df_options_context = df_contexto.copy() 
+                
+                # Aplicar filtros de OTROS atributos
+                for other_key, selected_values in current_state_values.items():
+                    if other_key != f_key and selected_values:
+                        df_options_context = df_options_context[df_options_context[other_key].isin(selected_values)]
+                
+                options = get_sorted_unique_options(df_options_context, f_key)
+                
+                if f_key == 'Relación': 
+                    options = [opt for opt in options if opt != 'No especificado']
+                
+                current_default = current_state_values.get(f_key, [])
+                valid_default = [s for s in current_default if s in options]
+                
+                selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=valid_default, key=f"dot_{f_key}")
+
+            # 3. Calcular dataframe final con TODOS los filtros aplicados
+            df_filtered_for_options = df_contexto.copy()
+            for key, values in selections.items():
+                if values:
+                    df_filtered_for_options = df_filtered_for_options[df_filtered_for_options[key].isin(values)]
             
             if selections != selections_before: st.rerun()
             
