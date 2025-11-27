@@ -572,7 +572,7 @@ if uploaded_file:
             
             st.header("Dinámica de Personal (Ingresos y Egresos)")
             
-            # Filtros principales en contenedor más limpio
+            # --- 1. RENDERIZAR FILTROS DE AÑO Y MES PRIMERO (PARA OBTENER EL CONTEXTO) ---
             with st.container():
                 col_año, col_mes = st.columns(2)
                 options_año = sorted(list(set(get_sorted_unique_options(df_original, 'Año Ingreso')) | set(get_sorted_unique_options(df_original, 'Año Egreso'))), reverse=True)
@@ -584,16 +584,32 @@ if uploaded_file:
                 default_mes = [s for s in selections.get('Mes', []) if s in options_mes]
                 selections['Mes'] = col_mes.multiselect("Filtrar por Mes:", options_mes, default=default_mes)
             
+            # --- 2. CREAR CONTEXTO PARA EL SIDEBAR (CASCADA) ---
+            # Filtramos los datos que son relevantes para el Año y Mes seleccionados
+            df_contexto_sidebar = df_original.copy()
+            years_sel = selections.get('Año', [])
+            months_sel = selections.get('Mes', [])
+
+            if years_sel and months_sel:
+                mask_ingreso = (df_contexto_sidebar['Año Ingreso'].isin(years_sel)) & (df_contexto_sidebar['Mes Ingreso'].isin(months_sel))
+                mask_egreso = (df_contexto_sidebar['Año Egreso'].isin(years_sel)) & (df_contexto_sidebar['Mes Egreso'].isin(months_sel))
+                df_contexto_sidebar = df_contexto_sidebar[mask_ingreso | mask_egreso]
+
+            # --- 3. GENERAR FILTROS DEL SIDEBAR USANDO EL CONTEXTO ---
             for f_key in sidebar_filters:
-                options = get_sorted_unique_options(df_original, f_key)
+                # Usamos el dataframe filtrado para mostrar solo opciones relevantes
+                options = get_sorted_unique_options(df_contexto_sidebar, f_key)
+                
                 if f_key == 'Relación': 
                     options = [opt for opt in options if opt != 'No especificado']
+                
                 default = [s for s in selections.get(f_key, []) if s in options]
                 selections[f_key] = st.sidebar.multiselect(f"Filtro: {f_key}", options, default=default, key=f"evt_{f_key}")
             
             if selections != selections_before: 
                 st.rerun()
 
+            # --- 4. APLICAR TODOS LOS FILTROS AL DATAFRAME PRINCIPAL ---
             df_filtered = df_original.copy()
             for key, values in selections.items():
                 if values and key not in ['Año', 'Mes']: 
