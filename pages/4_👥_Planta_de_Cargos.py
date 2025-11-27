@@ -145,7 +145,7 @@ def load_data(uploaded_file):
             rel_lower = str(rel).strip().lower()
             if 'cct' in rel_lower: return 'CCT 885/07 (Convenio)'
             elif 'fuera' in rel_lower: return 'Fuera de Convenio (FC)'
-            elif 'pasant' in rel_lower: return 'Pasantes universitarios (Pasante)'
+            elif 'pasant' in rel_lower: return 'PASANTE'
             else: return 'No especificado'
 
         df['Relación'] = df['Relación'].apply(map_relacion)
@@ -182,7 +182,7 @@ def create_dotacion_breakdown(df, breakdown_column, title, selected_gerencias):
     stacking_column = 'Relación' if breakdown_column == 'Gerencia' else 'Gerencia'
     pivot_df = pd.pivot_table(df, index=breakdown_column, columns=stacking_column, aggfunc='size', fill_value=0)
     if stacking_column == 'Relación':
-        stack_cols = ['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'Pasantes universitarios (Pasante)']
+        stack_cols = ['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'PASANTE']
     else:
         stack_cols = [g for g in selected_gerencias if g in pivot_df.columns]
         if not stack_cols:
@@ -226,7 +226,7 @@ def create_event_category_breakdown(df, breakdown_column, title):
         st.warning(f"No hay datos de {title.lower().split('por')[0]} para mostrar con los filtros actuales.")
         return
     pivot_df = pd.pivot_table(df, index=breakdown_column, columns='Relación', aggfunc='size', fill_value=0)
-    rel_cols = ['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'Pasantes universitarios (Pasante)']
+    rel_cols = ['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'PASANTE']
     for col in rel_cols:
         if col not in pivot_df.columns: pivot_df[col] = 0
     pivot_df['Total'] = pivot_df[rel_cols].sum(axis=1)
@@ -407,7 +407,7 @@ def create_monthly_event_view(df, month_col, year_col, title, all_months_list):
 
     with col_table:
         st.markdown("##### Detalle Mensual")
-        rel_cols = ['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'Pasantes universitarios (Pasante)']
+        rel_cols = ['CCT 885/07 (Convenio)', 'Fuera de Convenio (FC)', 'PASANTE']
         table_data = pd.pivot_table(df_plot, index=[year_col, month_col], columns='Relación', aggfunc='size', fill_value=0)
         for col in rel_cols:
             if col not in table_data.columns: table_data[col] = 0
