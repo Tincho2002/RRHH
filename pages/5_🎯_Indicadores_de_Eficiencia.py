@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np # <--- AÑADIDO PARA MANEJAR inf
 import traceback # Para mostrar errores detallados
+import datetime
 
 # Configuración de la página para que ocupe todo el ancho
 st.set_page_config(layout="wide", page_title="Visualizador de Eficiencia")
@@ -600,8 +601,8 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
 # --- FUNCIÓN PARA TARJETAS KPI (MODIFICADA CON ESTILOS) ---
 def show_kpi_cards(df, var_list):
     """
-    Calcula y muestra las tarjetas KPI para 2024 vs 2025 usando HTML/CSS
-    con gradientes estéticos (Azules y Violetas) y tamaño compacto.
+    Calcula y muestra las tarjetas KPI para el año actual vs año anterior de forma DINÁMICA.
+    Usa HTML/CSS con gradientes estéticos (Azules y Violetas) y tamaño compacto.
     """
     # 1. Calcular totales
     if df.empty or 'Año' not in df.columns:
@@ -613,8 +614,21 @@ def show_kpi_cards(df, var_list):
         st.warning("Ninguna de las variables KPI especificadas existe en los datos.")
         return
 
-    df_2024 = df[df['Año'] == 2024][vars_existentes].sum()
-    df_2025 = df[df['Año'] == 2025][vars_existentes].sum()
+    # --- LÓGICA DINÁMICA DE AÑOS ---
+    available_years = sorted(df['Año'].unique())
+    
+    if len(available_years) < 2:
+        st.warning("No hay suficientes años de datos para mostrar la comparación (se requieren mínimo 2 años).")
+        return
+        
+    # Seleccionamos el último año (más reciente) y el penúltimo
+    year_curr = available_years[-1]
+    year_prev = available_years[-2]
+    
+    # Calcular sumas para esos años
+    df_curr = df[df['Año'] == year_curr][vars_existentes].sum()
+    df_prev = df[df['Año'] == year_prev][vars_existentes].sum()
+    # --- FIN LÓGICA DINÁMICA ---
 
     # 2. Definir layout (5 columnas)
     cols = st.columns(5)
@@ -647,14 +661,14 @@ def show_kpi_cards(df, var_list):
     # 3. Iterar y crear métricas
     col_index = 0
     for var in vars_existentes:
-        total_2024 = df_2024.get(var, 0)
-        total_2025 = df_2025.get(var, 0)
+        total_prev = df_prev.get(var, 0)
+        total_curr = df_curr.get(var, 0)
 
-        delta_abs = total_2025 - total_2024
+        delta_abs = total_curr - total_prev
 
-        if total_2024 > 0 and not pd.isna(total_2024):
-            delta_pct = (delta_abs / total_2024) * 100
-        elif (total_2024 == 0 or pd.isna(total_2024)) and total_2025 > 0:
+        if total_prev > 0 and not pd.isna(total_prev):
+            delta_pct = (delta_abs / total_prev) * 100
+        elif (total_prev == 0 or pd.isna(total_prev)) and total_curr > 0:
             delta_pct = 100.0
         else:
             delta_pct = 0.0
@@ -663,7 +677,7 @@ def show_kpi_cards(df, var_list):
         is_int = var.startswith('ds_') or var.startswith('hs_') or var == 'Dotación'
         formatter_val = format_number_int if is_int else format_number
 
-        val_str = formatter_val(total_2025)
+        val_str = formatter_val(total_curr)
         delta_abs_str = formatter_val(abs(delta_abs))
         delta_pct_fmt = format_percentage(delta_pct)
 
@@ -997,7 +1011,15 @@ tab1, tab2, tab3, tab4 = st.tabs(["$K (Costos)", "Cantidades (hs / ds)", "Relaci
 # ----------------- Pestaña de Costos -----------------
 with tab1:
     # --- SECCIÓN DE TARJETAS KPI (MODIFICADO) ---
-    st.subheader("Totales Anuales (2025 vs 2024)")
+    # Calcular años para título dinámico
+    years_present = sorted(df['Año'].unique())
+    if len(years_present) >= 2:
+        title_years = f"({years_present[-1]} vs {years_present[-2]})"
+    else:
+        title_years = "(Histórico)"
+
+    st.subheader(f"Totales Anuales {title_years}")
+    
     costo_vars_list = [
         '$K_50%', '$K_100%', '$K_Total_HE', '$K_TD', '$K_GTO', # Fila 1
         '$K_GTI', '$K_Guardias_2T', '$K_Guardias_3T', '$K_Total_Guardias' # Fila 2
@@ -1112,9 +1134,10 @@ with tab1:
         is_pct_anio_k = (tipo_var_anio == 'Porcentaje')
         df_var_anio_raw = df_pct_anio if is_pct_anio_k else df_val_anio
 
-        # --- MODIFICACIÓN: Excluir 2024 de Variaciones Interanuales ---
+        # --- MODIFICACIÓN: Excluir el año MÍNIMO en lugar de 2024 (dinámico) ---
         if not df_var_anio_raw.empty and 'Período' in df_var_anio_raw.columns:
-            df_var_anio = df_var_anio_raw[df_var_anio_raw['Período'].dt.year != 2024].copy()
+            min_year_in_data = df_var_anio_raw['Período'].dt.year.min()
+            df_var_anio = df_var_anio_raw[df_var_anio_raw['Período'].dt.year != min_year_in_data].copy()
         else:
             df_var_anio = df_var_anio_raw.copy()
         # --- FIN MODIFICACIÓN ---
@@ -1132,7 +1155,14 @@ with tab1:
 # ----------------- Pestaña de Cantidades -----------------
 with tab2:
     # --- SECCIÓN DE TARJETAS KPI (MODIFICADO) ---
-    st.subheader("Totales Anuales (2025 vs 2024)")
+    years_present = sorted(df['Año'].unique())
+    if len(years_present) >= 2:
+        title_years = f"({years_present[-1]} vs {years_present[-2]})"
+    else:
+        title_years = "(Histórico)"
+
+    st.subheader(f"Totales Anuales {title_years}")
+
     qty_vars_list = [
         'hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', 'ds_GTO', # Fila 1
         'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T', 'ds_Total_Guardias' # Fila 2
@@ -1248,9 +1278,10 @@ with tab2:
         is_pct_anio_qty = (tipo_var_anio_qty == 'Porcentaje')
         df_var_anio_qty_raw = df_pct_anio_qty if is_pct_anio_qty else df_val_anio_qty
 
-        # --- MODIFICACIÓN: Excluir 2024 de Variaciones Interanuales ---
+        # --- MODIFICACIÓN: Excluir año mínimo (dinámico) ---
         if not df_var_anio_qty_raw.empty and 'Período' in df_var_anio_qty_raw.columns:
-            df_var_anio_qty = df_var_anio_qty_raw[df_var_anio_qty_raw['Período'].dt.year != 2024].copy()
+            min_year_in_data = df_var_anio_qty_raw['Período'].dt.year.min()
+            df_var_anio_qty = df_var_anio_qty_raw[df_var_anio_qty_raw['Período'].dt.year != min_year_in_data].copy()
         else:
             df_var_anio_qty = df_var_anio_qty_raw.copy()
         # --- FIN MODIFICACIÓN ---
@@ -1378,7 +1409,8 @@ with tab3:
                     df_var_anio_k_ind_raw = df_pct_anio_k_ind if is_pct_anio_k_ind else df_val_anio_k_ind
 
                     if not df_var_anio_k_ind_raw.empty and 'Período' in df_var_anio_k_ind_raw.columns:
-                        df_var_anio_k_ind = df_var_anio_k_ind_raw[df_var_anio_k_ind_raw['Período'].dt.year != 2024].copy()
+                         min_year_in_data = df_var_anio_k_ind_raw['Período'].dt.year.min()
+                         df_var_anio_k_ind = df_var_anio_k_ind_raw[df_var_anio_k_ind_raw['Período'].dt.year != min_year_in_data].copy()
                     else:
                         df_var_anio_k_ind = df_var_anio_k_ind_raw.copy()
 
@@ -1496,7 +1528,8 @@ with tab3:
                     df_var_anio_q_ind_raw = df_pct_anio_q_ind if is_pct_anio_q_ind else df_val_anio_q_ind
 
                     if not df_var_anio_q_ind_raw.empty and 'Período' in df_var_anio_q_ind_raw.columns:
-                        df_var_anio_q_ind = df_var_anio_q_ind_raw[df_var_anio_q_ind_raw['Período'].dt.year != 2024].copy()
+                        min_year_in_data = df_var_anio_q_ind_raw['Período'].dt.year.min()
+                        df_var_anio_q_ind = df_var_anio_q_ind_raw[df_var_anio_q_ind_raw['Período'].dt.year != min_year_in_data].copy()
                     else:
                         df_var_anio_q_ind = df_var_anio_q_ind_raw.copy()
 
