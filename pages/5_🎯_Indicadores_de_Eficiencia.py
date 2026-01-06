@@ -1089,15 +1089,15 @@ with tab1:
         st.subheader("Variaciones Mensuales")
         tipo_var_mes = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k")
 
-        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        # --- CORRECCIÓN: Usar df_filtered_by_year para respetar el filtro de años ---
         df_for_var_mes_k = pd.DataFrame()
         if filter_mode == 'Período Específico':
-            # Filtrar df original (eficiencia)
-            df_for_var_mes_k = df[df['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df.columns else pd.DataFrame()
+            # Usar df_filtered_by_year por consistencia
+            df_for_var_mes_k = df_filtered_by_year[df_filtered_by_year['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_filtered_by_year.columns else pd.DataFrame()
         else:
-            # Usa 'df' (eficiencia)
-            df_for_var_mes_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
-        # --- FIN NUEVA LÓGICA ---
+            # Usar df_filtered_by_year
+            df_for_var_mes_k = apply_time_filter(df_filtered_by_year, filter_mode, filter_selection, all_options_dict)
+        # --- FIN CORRECCIÓN ---
 
         df_val_mes, df_pct_mes = calc_variation(df_for_var_mes_k, selected_k_vars,'mensual')
         is_pct_mes_k = (tipo_var_mes == 'Porcentaje')
@@ -1231,15 +1231,13 @@ with tab2:
         st.subheader("Variaciones Mensuales")
         tipo_var_mes_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_qty")
 
-        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        # --- CORRECCIÓN: Usar df_filtered_by_year ---
         df_for_var_mes_qty = pd.DataFrame()
         if filter_mode == 'Período Específico':
-            # Filtrar df original (eficiencia)
-            df_for_var_mes_qty = df[df['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df.columns else pd.DataFrame()
+            df_for_var_mes_qty = df_filtered_by_year[df_filtered_by_year['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_filtered_by_year.columns else pd.DataFrame()
         else:
-            # Usa 'df' (eficiencia)
-            df_for_var_mes_qty = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
-        # --- FIN NUEVA LÓGICA ---
+            df_for_var_mes_qty = apply_time_filter(df_filtered_by_year, filter_mode, filter_selection, all_options_dict)
+        # --- FIN CORRECCIÓN ---
 
         df_val_mes_qty, df_pct_mes_qty = calc_variation(df_for_var_mes_qty, selected_qty_vars,'mensual')
         is_pct_mes_qty = (tipo_var_mes_qty == 'Porcentaje')
@@ -1366,12 +1364,13 @@ with tab3:
                     st.subheader("Variaciones Mensuales (Relaciones Costo)") # <-- RENOMBRADO
                     tipo_var_mes_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k_rel") # <-- RENOMBRADO
                     
-                    # Usar df_indicadores (original) para calcular la variación
+                    # --- CORRECCIÓN: Usar df_ind_filtered_by_year ---
                     df_for_var_mes_k_ind = pd.DataFrame()
                     if filter_mode == 'Período Específico':
-                        df_for_var_mes_k_ind = df_indicadores[df_indicadores['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_indicadores.columns else pd.DataFrame()
+                         df_for_var_mes_k_ind = df_ind_filtered_by_year[df_ind_filtered_by_year['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_ind_filtered_by_year.columns else pd.DataFrame()
                     else:
-                        df_for_var_mes_k_ind = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
+                        df_for_var_mes_k_ind = apply_time_filter(df_ind_filtered_by_year, filter_mode, filter_selection, all_options_dict)
+                    # --- FIN CORRECCIÓN ---
 
                     df_val_mes_k_ind, df_pct_mes_k_ind = calc_variation(df_for_var_mes_k_ind, selected_k_ind_vars,'mensual')
                     is_pct_mes_k_ind = (tipo_var_mes_k_ind == 'Porcentaje')
@@ -1484,12 +1483,13 @@ with tab3:
                     st.subheader("Variaciones Mensuales (Relaciones Cantidad)") # <-- RENOMBRADO
                     tipo_var_mes_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_q_rel") # <-- RENOMBRADO
 
-                    # Usar df_indicadores (original) para calcular la variación
+                    # --- CORRECCIÓN: Usar df_ind_filtered_by_year ---
                     df_for_var_mes_q_ind = pd.DataFrame()
                     if filter_mode == 'Período Específico':
-                        df_for_var_mes_q_ind = df_indicadores[df_indicadores['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_indicadores.columns else pd.DataFrame()
+                        df_for_var_mes_q_ind = df_ind_filtered_by_year[df_ind_filtered_by_year['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_ind_filtered_by_year.columns else pd.DataFrame()
                     else:
-                        df_for_var_mes_q_ind = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
+                        df_for_var_mes_q_ind = apply_time_filter(df_ind_filtered_by_year, filter_mode, filter_selection, all_options_dict)
+                    # --- FIN CORRECCIÓN ---
 
                     df_val_mes_q_ind, df_pct_mes_q_ind = calc_variation(df_for_var_mes_q_ind, selected_q_ind_vars,'mensual')
                     is_pct_mes_q_ind = (tipo_var_mes_q_ind == 'Porcentaje')
