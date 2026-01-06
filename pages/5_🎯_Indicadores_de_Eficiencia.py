@@ -1,5 +1,5 @@
 # ===============================================================
-# Visualizador de Eficiencia - V Estética (Fix Superposición Vertical)
+# Visualizador de Eficiencia - V Estética (Estructura Original)
 # ===============================================================
 
 import streamlit as st
@@ -12,7 +12,7 @@ import traceback # Para mostrar errores detallados
 # Configuración de la página para que ocupe todo el ancho
 st.set_page_config(layout="wide", page_title="Visualizador de Eficiencia")
 
-# ----------------- Funciones -----------------
+# ----------------- Funciones de Procesamiento -----------------
 
 @st.cache_data
 def load_data(uploaded_file):
@@ -93,8 +93,6 @@ def load_data(uploaded_file):
             df_eficiencia['Bimestre'] = (df_eficiencia['Mes'] - 1) // 2 + 1
             df_eficiencia['Trimestre'] = (df_eficiencia['Mes'] - 1) // 3 + 1
             df_eficiencia['Semestre'] = (df_eficiencia['Mes'] - 1) // 6 + 1
-
-            # --- NOTA: La definición de k_cols, qty_cols, years y months_map se mueve al final ---
 
         except Exception as e_ef:
             st.error(f"Error general al procesar la hoja 'eficiencia': {e_ef}")
@@ -308,7 +306,7 @@ def plot_line(df_plot, columns, yaxis_title):
     fig.update_layout(title=yaxis_title, template='plotly_white', xaxis_title='Período', yaxis_title=yaxis_title)
     return fig
 
-# --- FUNCIÓN PARA GRÁFICO COMBINADO ---
+# --- FUNCIÓN PARA GRÁFICO COMBINADO (Multiselect) ---
 def plot_combined_chart(df_plot, primary_cols, secondary_cols, primary_title, secondary_title):
     """
     Genera un gráfico combinado con ejes multiselect.
@@ -329,13 +327,10 @@ def plot_combined_chart(df_plot, primary_cols, secondary_cols, primary_title, se
         'barmode': 'group' # Agrupar barras si hay varias
     }
 
-    # --- Eje Secundario (Barras) - PRIMERO ---
-    # Filtrar "Ninguna" si está presente junto con otras selecciones
+    # --- Eje Secundario (Barras) ---
     secondary_cols_filtered = [col for col in secondary_cols if col != "Ninguna"]
 
-    # Asegurarse que df_plot no esté vacío y tenga las columnas necesarias
     if secondary_cols_filtered and not df_plot.empty and 'Período_fmt' in df_plot.columns:
-        # --- Cálculo de rango manual para auto-escala ---
         all_sec_values = pd.Series(dtype=float)
         valid_secondary_cols = [] 
         for col in secondary_cols_filtered:
@@ -345,8 +340,7 @@ def plot_combined_chart(df_plot, primary_cols, secondary_cols, primary_title, se
 
         if valid_secondary_cols: 
             sec_values = all_sec_values
-            sec_min = 0
-            sec_max = 1
+            sec_min, sec_max = 0, 1
 
             if not sec_values.empty:
                 data_min = sec_values.min()
@@ -412,7 +406,10 @@ def plot_combined_chart(df_plot, primary_cols, secondary_cols, primary_title, se
 def calc_variation(df, columns, tipo='mensual'):
     """
     Calcula la variación mensual o interanual de las columnas seleccionadas.
+    MODIFICADO: La lógica interanual ahora usa un merge para manejar
+    datos no continuos (filtrados).
     """
+
     columns_to_process = [col for col in columns if col in df.columns]
     if not columns_to_process or df.empty or 'Período' not in df.columns:
         return pd.DataFrame(), pd.DataFrame()
@@ -420,15 +417,16 @@ def calc_variation(df, columns, tipo='mensual'):
     df_var = df[['Período', 'Período_fmt', 'Año', 'Mes'] + columns_to_process].copy().sort_values('Período')
 
     if tipo == 'interanual':
-        df_prev_data = df_var.copy()
-        df_prev_data['Año'] = df_prev_data['Año'] + 1 
+        # 1. Separar datos del año anterior
+        df_last_year_data = df_var.copy()
+        df_last_year_data['Año'] = df_last_year_data['Año'] + 1 # Adelantamos para el merge
 
         rename_cols = {col: f"{col}_prev" for col in columns_to_process}
-        df_prev_data.rename(columns=rename_cols, inplace=True)
+        df_last_year_data.rename(columns=rename_cols, inplace=True)
 
         df_merged = pd.merge(
             df_var.reset_index(), 
-            df_prev_data[['Año', 'Mes'] + list(rename_cols.values())],
+            df_last_year_data[['Año', 'Mes'] + list(rename_cols.values())],
             on=['Año', 'Mes'],
             how='left'
         ).set_index('index').sort_index() 
@@ -499,7 +497,7 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
             df_sorted = df_table.sort_values(by='_temp_sort_date', ascending=False).drop(columns=['_temp_sort_date'])
         except ValueError:
             df_sorted = df_table.sort_values(by='Período_fmt', ascending=False)
-    else: 
+    else: # Ordenar por la columna 'Período' datetime
         df_sorted = df_table.sort_values(by=sort_col, ascending=False)
 
     df_sorted = df_sorted.reset_index(drop=True)
@@ -510,7 +508,9 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
         cols = ['Período'] + [col for col in df_display.columns if col != 'Período']
         df_display = df_display[cols]
     else:
+        st.warning(f"Tabla '{nombre}' no se puede mostrar: falta columna de período formateada.")
         return
+
 
     if show_totals:
         totals_row = {col: df_display[col].sum() for col in df_display.select_dtypes(include='number').columns}
@@ -552,8 +552,11 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
 
 # --- FUNCIÓN KPI ---
 def show_kpi_cards(df, var_list):
+    """
+    Calcula y muestra las tarjetas KPI para 2024 vs 2025 usando HTML/CSS.
+    """
     if df.empty or 'Año' not in df.columns:
-        st.warning("No se pueden calcular KPIs.")
+        st.warning("No se pueden calcular KPIs (datos base vacíos o incompletos).")
         return
 
     vars_existentes = [v for v in var_list if v in df.columns]
@@ -620,6 +623,9 @@ def show_kpi_cards(df, var_list):
 
 # --- FUNCIÓN FILTRO TIEMPO ---
 def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_dict):
+    """
+    Aplíca el filtro de tiempo único basado en el modo seleccionado.
+    """
     if df_to_filter.empty or not all(c in df_to_filter.columns for c in ['Año', 'Mes', 'Bimestre', 'Trimestre', 'Semestre', 'Período_fmt']):
         return df_to_filter
 
@@ -641,10 +647,11 @@ def apply_time_filter(df_to_filter, filter_mode, filter_selection, all_options_d
             return df_to_filter[df_to_filter['Semestre'].isin(filter_selection)].copy()
     return df_to_filter.copy()
 
-# ----------------- App Start -----------------
+# ----------------- Inicio de la App -----------------
 
 st.title("Visualizador de Eficiencia")
 
+# CSS ESTÉTICO
 CSS_STYLE = """
 <style>
     .metric-card {
@@ -660,7 +667,7 @@ CSS_STYLE = """
     .card-azure { background: linear-gradient(135deg, #2193b0 0%, #6dd5fa 100%); }
     .card-violet { background: linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%); }
     .card-purple { background: linear-gradient(135deg, #834d9b 0%, #d04ed6 100%); }
-    .card-indigo { background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%); }
+    .card-indigo { background: linear-gradient(135deg, #182848 0%, #4b6cb7 100%); }
     div.stButton > button { width: 100%; border-radius: 8px; }
     [data-testid="column"] { padding: 0 0.75rem; }
 </style>
@@ -668,16 +675,20 @@ CSS_STYLE = """
 st.markdown(CSS_STYLE, unsafe_allow_html=True)
 
 uploaded_file = st.file_uploader("Cargue el archivo 'eficiencia.xlsx'", type="xlsx")
+
 if uploaded_file is None:
     st.info("Por favor, cargue un archivo Excel para comenzar.")
     st.stop()
 
+# --- CARGA DE DATOS ---
 df_eficiencia, df_indicadores, k_columns, qty_columns, all_years, month_map, k_indicador_cols, qty_indicador_cols = load_data(uploaded_file)
 df = df_eficiencia
 df_indicadores_empty = df_indicadores.empty
-if df.empty: st.stop()
 
-# Opciones de Filtro
+if df.empty:
+    st.stop()
+
+# Diccionarios de opciones
 all_opts = {
     'all_periodos_especificos': list(df.sort_values('Período')['Período_fmt'].unique()),
     'month_options': list(month_map.values()),
@@ -687,10 +698,11 @@ all_opts = {
     'months_map': month_map
 }
 
-# Sidebar
+# --- BARRA LATERAL ---
 st.sidebar.header("Filtros Generales")
+
 def reset_filters():
-    st.session_state.selected_years = all_years
+    st.session_state.selected_years = all_years if all_years else []
     st.session_state.filter_mode = 'Mes'
     st.session_state.sel_mes = all_opts['month_options']
     st.session_state.sel_bim = all_opts['all_bimestres']
@@ -700,9 +712,11 @@ def reset_filters():
 
 st.sidebar.button("🔄 Resetear Filtros", on_click=reset_filters, use_container_width=True)
 st.sidebar.markdown("---")
+
 if 'selected_years' not in st.session_state: reset_filters()
 
 selected_years = st.sidebar.multiselect("Años:", all_years, key='selected_years')
+
 st.sidebar.markdown("---")
 filter_mode = st.sidebar.radio("Filtrar por:", ['Mes', 'Bimestre', 'Trimestre', 'Semestre', 'Período Específico'], key='filter_mode', horizontal=True)
 
@@ -711,18 +725,24 @@ if filter_mode == 'Mes': filter_selection = st.sidebar.multiselect("Meses:", all
 elif filter_mode == 'Bimestre': filter_selection = st.sidebar.multiselect("Bimestres:", all_opts['all_bimestres'], key='sel_bim')
 elif filter_mode == 'Trimestre': filter_selection = st.sidebar.multiselect("Trimestres:", all_opts['all_trimestres'], key='sel_tri')
 elif filter_mode == 'Semestre': filter_selection = st.sidebar.multiselect("Semestres:", all_opts['all_semestres'], key='sel_sem')
-else: filter_selection = st.sidebar.multiselect("Períodos:", all_opts['all_periodos_especificos'], key='sel_per')
+elif filter_mode == 'Período Específico': filter_selection = st.sidebar.multiselect("Períodos:", all_opts['all_periodos_especificos'], key='sel_per')
 
-# Filtrado Main
-df_year = df[df['Año'].isin(selected_years)].copy() if selected_years else df.copy()
-dff = apply_time_filter(df_year, filter_mode, filter_selection, all_opts).sort_values('Período')
+# --- FILTRADO PARA EVOLUCIÓN ---
+if selected_years:
+    df_filt_year = df[df['Año'].isin(selected_years)].copy()
+else:
+    df_filt_year = df.copy()
+
+dff = apply_time_filter(df_filt_year, filter_mode, filter_selection, all_opts)
+if not dff.empty: dff = dff.sort_values('Período')
 
 dff_indicadores = pd.DataFrame()
 if not df_indicadores_empty:
-    df_ind_year = df_indicadores[df_indicadores['Año'].isin(selected_years)].copy() if selected_years else df_indicadores.copy()
-    dff_indicadores = apply_time_filter(df_ind_year, filter_mode, filter_selection, all_opts).sort_values('Período')
+    if all(col in df_indicadores.columns for col in ['Año', 'Mes', 'Bimestre', 'Trimestre', 'Semestre', 'Período_fmt']):
+        df_ind_base = df_indicadores[df_indicadores['Año'].isin(selected_years)].copy() if selected_years else df_indicadores.copy()
+        dff_indicadores = apply_time_filter(df_ind_base, filter_mode, filter_selection, all_opts).sort_values('Período')
 
-# Pestañas
+# --- Pestañas ---
 tab1, tab2, tab3, tab4 = st.tabs(["$K (Costos)", "Cantidades (hs / ds)", "Relaciones", "Indicadores"])
 
 # ===============================================================
@@ -730,101 +750,103 @@ tab1, tab2, tab3, tab4 = st.tabs(["$K (Costos)", "Cantidades (hs / ds)", "Relaci
 # ===============================================================
 with tab1:
     st.subheader("Totales Anuales (2025 vs 2024)")
-    costo_vars = ['$K_50%', '$K_100%', '$K_Total_HE', '$K_TD', '$K_GTO', '$K_GTI', '$K_Guardias_2T', '$K_Guardias_3T', '$K_Total_Guardias']
-    show_kpi_cards(df, costo_vars)
+    costo_vars_list = ['$K_50%', '$K_100%', '$K_Total_HE', '$K_TD', '$K_GTO', '$K_GTI', '$K_Guardias_2T', '$K_Guardias_3T', '$K_Total_Guardias']
+    show_kpi_cards(df, costo_vars_list)
     st.markdown("---")
 
     st.subheader("Análisis de Costos ($K)")
-    c1_k, c2_k = st.columns(2)
-    with c1_k:
-        pk_vars = st.multiselect("Línea:", k_cols, default=[k_cols[0]] if k_cols else [], key="pk")
-    with c2_k:
-        sk_vars = st.multiselect("Barras:", ["Ninguna"] + k_cols, default=["Ninguna"], key="sk")
-    
-    sel_k = list(dict.fromkeys(pk_vars + [c for c in sk_vars if c != "Ninguna"]))
-    sk_plot = [c for c in sk_vars if c != "Ninguna"] if len(sk_vars) > 1 else sk_vars
+    col1k, col2k = st.columns(2)
+    with col1k:
+        primary_k_vars = st.multiselect("Eje Principal (Línea):", k_columns, default=[k_columns[0]] if k_columns else [], key="pk")
+    with col2k:
+        options_k_secondary = ["Ninguna"] + k_columns
+        secondary_k_vars = st.multiselect("Eje Secundario (Columnas):", options_k_secondary, default=["Ninguna"], key="sk")
 
-    if not dff.empty and sel_k:
+    selected_k_vars = list(dict.fromkeys(primary_k_vars + [c for c in secondary_k_vars if c != "Ninguna"]))
+    sec_k_plot = [c for c in secondary_k_vars if c != "Ninguna"] if len(secondary_k_vars) > 1 else secondary_k_vars
+
+    if not dff.empty and selected_k_vars:
         st.subheader("Evolución de Costos")
-        fig_k = plot_combined_chart(dff, pk_vars, sk_plot, "$K (L)", "$K (B)")
+        fig_k = plot_combined_chart(dff, primary_k_vars, sec_k_plot, "$K (Línea)", "$K (Columnas)")
         st.plotly_chart(fig_k, use_container_width=True, key="evol_k")
         
-        cols_tk = ['Período', 'Período_fmt'] + [c for c in sel_k if c in dff.columns]
+        cols_tk = ['Período', 'Período_fmt'] + [c for c in selected_k_vars if c in dff.columns]
         show_table(dff[cols_tk].copy(), "Costos_Datos", show_totals=True)
         st.markdown("---")
 
         st.subheader("Variaciones Mensuales")
-        tm_k = st.selectbox("Formato:", ["Valores","Porcentaje"], key="mk")
+        tipo_m_k = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mk")
+        # CALCULO SOBRE EL HISTÓRICO PARA TENER EL MES ANTERIOR
         df_cm_k = apply_time_filter(df, filter_mode, filter_selection, all_opts)
-        val_mk, pct_mk = calc_variation(df_cm_k, sel_k, 'mensual')
-        res_mk_raw = pct_mk if tm_k == 'Porcentaje' else val_mk
-        
-        # Filtro final visual
+        val_mk, pct_mk = calc_variation(df_cm_k, selected_k_vars, 'mensual')
+        res_mk_raw = pct_mk if tipo_m_k == 'Porcentaje' else val_mk
+        # FILTRO FINAL
         res_mk = res_mk_raw[res_mk_raw['Período'].dt.year.isin(selected_years)].copy() if selected_years else res_mk_raw.copy()
         
-        st.plotly_chart(plot_bar(res_mk, sel_k, "Variación Mensual"), use_container_width=True, key="var_mes_k")
-        show_table(res_mk, "Costos_Var_Mensual", is_percentage=(tm_k=='Porcentaje'))
+        st.plotly_chart(plot_bar(res_mk, selected_k_vars, "Variación Mensual"), use_container_width=True, key="var_mes_k")
+        show_table(res_mk, "Costos_Var_Mensual", is_percentage=(tipo_m_k=='Porcentaje'))
         st.markdown("---")
 
         st.subheader("Variaciones Interanuales")
-        ta_k = st.selectbox("Formato:", ["Valores","Porcentaje"], key="ak")
+        tipo_a_k = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="ak")
         df_ca_k = apply_time_filter(df, filter_mode, filter_selection, all_opts)
-        val_ak, pct_ak = calc_variation(df_ca_k, sel_k, 'interanual')
-        res_ak_raw = pct_ak if ta_k == 'Porcentaje' else val_ak
+        val_ak, pct_ak = calc_variation(df_ca_k, selected_k_vars, 'interanual')
+        res_ak_raw = pct_ak if tipo_a_k == 'Porcentaje' else val_ak
 
-        # Filtro final visual (Corrección 2024 habilitado)
+        # --- CORRECCIÓN FINAL: NO EXCLUIR 2024 Y FILTRAR POR SELECCIÓN ---
         res_ak = res_ak_raw[res_ak_raw['Período'].dt.year.isin(selected_years)].copy() if selected_years else res_ak_raw.copy()
 
-        st.plotly_chart(plot_bar(res_ak, sel_k, "Variación Interanual"), use_container_width=True, key="var_anio_k")
-        show_table(res_ak, "Costos_Var_Interanual", is_percentage=(ta_k=='Porcentaje'))
+        st.plotly_chart(plot_bar(res_ak, selected_k_vars, "Variación Interanual"), use_container_width=True, key="var_anio_k")
+        show_table(res_ak, "Costos_Var_Interanual", is_percentage=(tipo_a_k=='Porcentaje'))
 
 # ===============================================================
 # PESTAÑA CANTIDADES
 # ===============================================================
 with tab2:
     st.subheader("Totales Anuales (2025 vs 2024)")
-    show_kpi_cards(df, ['hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', 'ds_GTO', 'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T', 'ds_Total_Guardias'])
+    qty_vars_list_tab2 = ['hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', 'ds_GTO', 'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T', 'ds_Total_Guardias']
+    show_kpi_cards(df, qty_vars_list_tab2)
     st.markdown("---")
 
     st.subheader("Análisis de Cantidades (hs / ds)")
-    c1_q, c2_q = st.columns(2)
-    with c1_q:
-        pq_vars = st.multiselect("Línea:", qty_columns, default=[qty_columns[0]] if qty_columns else [], key="pq")
-    with c2_q:
-        sq_vars = st.multiselect("Barras:", ["Ninguna"] + qty_columns, default=["Ninguna"], key="sq")
+    c1q, c2q = st.columns(2)
+    with c1q:
+        primary_q_vars = st.multiselect("Eje Principal (Línea):", qty_columns, default=[qty_columns[0]] if qty_columns else [], key="primary_q")
+    with c2q:
+        secondary_q_vars = st.multiselect("Eje Secundario (Columnas):", ["Ninguna"] + qty_columns, default=["Ninguna"], key="secondary_q")
 
-    sel_q = list(dict.fromkeys(pq_vars + [c for c in sq_vars if c != "Ninguna"]))
-    sq_plot = [c for c in sq_vars if c != "Ninguna"] if len(sq_vars) > 1 else sq_vars
+    selected_q_vars = list(dict.fromkeys(primary_q_vars + [c for c in secondary_q_vars if c != "Ninguna"]))
+    sec_q_plot = [c for c in secondary_q_vars if c != "Ninguna"] if len(secondary_q_vars) > 1 else secondary_q_vars
 
-    if not dff.empty and sel_q:
+    if not dff.empty and selected_q_vars:
         st.subheader("Evolución de Cantidades")
-        fig_q = plot_combined_chart(dff, pq_vars, sq_plot, "Cant (L)", "Cant (B)")
+        fig_q = plot_combined_chart(dff, primary_q_vars, sec_q_plot, "Cantidades (Línea)", "Cantidades (Columnas)")
         st.plotly_chart(fig_q, use_container_width=True, key="evol_qty")
         
-        cols_tq = ['Período', 'Período_fmt'] + [c for c in sel_q if c in dff.columns]
-        show_table(dff[cols_tq].copy(), "Cant_Datos", show_totals=True)
+        cols_tq = ['Período', 'Período_fmt'] + [c for c in selected_q_vars if c in dff.columns]
+        show_table(dff[cols_tq].copy(), "Cantidades_Datos", show_totals=True)
         st.markdown("---")
 
         st.subheader("Variaciones Mensuales")
-        tm_q = st.selectbox("Formato:", ["Valores","Porcentaje"], key="mq")
+        tipo_m_q = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_qty")
         df_cm_q = apply_time_filter(df, filter_mode, filter_selection, all_opts)
-        val_mq, pct_mq = calc_variation(df_cm_q, sel_q, 'mensual')
-        res_mq_raw = pct_mq if tm_q == 'Porcentaje' else val_mq
+        val_mq, pct_mq = calc_variation(df_cm_q, selected_q_vars, 'mensual')
+        res_mq_raw = pct_mq if tipo_m_q == 'Porcentaje' else val_mq
         res_mq = res_mq_raw[res_mq_raw['Período'].dt.year.isin(selected_years)].copy() if selected_years else res_mq_raw.copy()
 
-        st.plotly_chart(plot_bar(res_mq, sel_q, "Variación Mensual"), use_container_width=True, key="var_mes_qty")
-        show_table(res_mq, "Cant_Var_Mensual", is_percentage=(tm_q=='Porcentaje'))
+        st.plotly_chart(plot_bar(res_mq, selected_q_vars, "Variación Mensual"), use_container_width=True, key="var_mes_qty")
+        show_table(res_mq, "Cantidades_Var_Mensual", is_percentage=(tipo_m_q=='Porcentaje'))
         st.markdown("---")
 
         st.subheader("Variaciones Interanuales")
-        ta_q = st.selectbox("Formato:", ["Valores","Porcentaje"], key="aq")
+        tipo_a_q = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_qty")
         df_ca_q = apply_time_filter(df, filter_mode, filter_selection, all_opts)
-        val_aq, pct_aq = calc_variation(df_ca_q, sel_q, 'interanual')
-        res_aq_raw = pct_aq if ta_q == 'Porcentaje' else val_aq
+        val_aq, pct_aq = calc_variation(df_ca_q, selected_q_vars, 'interanual')
+        res_aq_raw = pct_aq if tipo_a_q == 'Porcentaje' else val_aq
         res_aq = res_aq_raw[res_aq_raw['Período'].dt.year.isin(selected_years)].copy() if selected_years else res_aq_raw.copy()
 
-        st.plotly_chart(plot_bar(res_aq, sel_q, "Variación Interanual"), use_container_width=True, key="var_anio_qty")
-        show_table(res_aq, "Cant_Var_Interanual", is_percentage=(ta_q=='Porcentaje'))
+        st.plotly_chart(plot_bar(res_aq, selected_q_vars, "Variación Interanual"), use_container_width=True, key="var_anio_qty")
+        show_table(res_aq, "Cantidades_Var_Interanual", is_percentage=(tipo_a_q=='Porcentaje'))
 
 # ===============================================================
 # PESTAÑA RELACIONES
@@ -834,44 +856,44 @@ with tab3:
     if not df_indicadores_empty and not dff_indicadores.empty:
         if k_indicador_cols:
             st.subheader("Relaciones de Costos ($K)")
-            c1_r, c2_r = st.columns(2)
-            with c1_r:
+            col1r, col2r = st.columns(2)
+            with col1r:
                 p_r = st.multiselect("Línea:", k_indicador_cols, default=[k_indicador_cols[0]] if k_indicador_cols else [], key="pr")
-            with c2_r:
+            with col2r:
                 s_r = st.multiselect("Barras:", ["Ninguna"] + k_indicador_cols, default=["Ninguna"], key="sr")
             
             sel_r = list(dict.fromkeys(p_r + [c for c in s_r if c != "Ninguna"]))
             fig_r = plot_combined_chart(dff_indicadores, p_r, [c for c in s_r if c != "Ninguna"] if len(s_r) > 1 else s_r, "$K (L)", "$K (B)")
             st.plotly_chart(fig_r, use_container_width=True, key="evol_r")
 
-            show_table(dff_indicadores[['Período','Período_fmt'] + [c for c in sel_r if c in dff_indicadores.columns]], "Rel_Costos", True)
+            show_table(dff_indicadores[['Período','Período_fmt'] + [c for c in sel_r if c in dff_indicadores.columns]], "Rel_Costos_Datos", True)
 
             st.subheader("Variaciones Interanuales (Relaciones)")
-            ta_r = st.selectbox("Formato:", ["Valores","Porcentaje"], key="ar")
+            tipo_ar = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="ar")
             df_cr = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_opts)
             v_r, p_r_ = calc_variation(df_cr, sel_r, 'interanual')
-            res_r_raw = p_r_ if ta_r == 'Porcentaje' else v_r
+            res_r_raw = p_r_ if tipo_ar == 'Porcentaje' else v_r
             res_r = res_r_raw[res_r_raw['Período'].dt.year.isin(selected_years)].copy() if selected_years else res_r_raw.copy()
             
             st.plotly_chart(plot_bar(res_r, sel_r, "Var Interanual"), use_container_width=True)
-            show_table(res_r, "Rel_Var_Inter", is_percentage=(ta_r=='Porcentaje'))
+            show_table(res_r, "Rel_Var_Interanual", is_percentage=(tipo_ar=='Porcentaje'))
 
 # ===============================================================
-# PESTAÑA INDICADORES
+# PESTAÑA INDICADORES (RATIOS)
 # ===============================================================
 with tab4:
     st.subheader("Cálculo de Indicadores (Hoja: masa_salarial)")
     if not df_indicadores_empty and not dff_indicadores.empty:
-        ops = sorted(list(set(k_indicador_cols + qty_indicador_cols)))
-        possible = [f"{n} / {d}" for n in ops for d in ops if n != d]
+        opts_ratio = sorted(list(set(k_indicador_cols + qty_indicador_cols)))
+        possible = [f"{num} / {den}" for num in opts_ratio for den in opts_ratio if num != den]
         possible.sort()
         sel_ratios = st.multiselect("Seleccione ratios:", possible, key="ind_ratios")
         if sel_ratios:
             df_ratio = dff_indicadores[['Período', 'Período_fmt']].copy().sort_values('Período')
-            for rs in sel_ratios:
+            for r_str in sel_ratios:
                 try:
-                    num, den = rs.split(' / ')
-                    df_ratio[rs] = dff_indicadores[num].astype(float) / dff_indicadores[den].astype(float)
-                except: df_ratio[rs] = np.nan
+                    num, den = r_str.split(' / ')
+                    df_ratio[r_str] = dff_indicadores[num].astype(float) / dff_indicadores[den].astype(float)
+                except: df_ratio[r_str] = np.nan
             df_ratio.replace([np.inf, -np.inf], np.nan, inplace=True)
             show_table(df_ratio, "Ratios_Resultados")
