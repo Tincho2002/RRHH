@@ -94,8 +94,6 @@ def load_data(uploaded_file):
             df_eficiencia['Trimestre'] = (df_eficiencia['Mes'] - 1) // 3 + 1
             df_eficiencia['Semestre'] = (df_eficiencia['Mes'] - 1) // 6 + 1
 
-            # --- NOTA: La definición de k_cols, qty_cols, years y months_map se mueve al final ---
-
         except Exception as e_ef:
             st.error(f"Error general al procesar la hoja 'eficiencia': {e_ef}")
             return pd.DataFrame(), pd.DataFrame(), [], [], [], {}, [], []
@@ -338,7 +336,6 @@ def plot_combined_chart(df_plot, primary_cols, secondary_cols, primary_title, se
                 else:
                     padding = data_range * 0.1 # 10% de padding
 
-                # Aplicar padding
                 sec_min = data_min - padding
                 sec_max = data_max + padding
 
@@ -374,10 +371,7 @@ def plot_combined_chart(df_plot, primary_cols, secondary_cols, primary_title, se
 
     # --- Eje Primario (Línea) - SEGUNDO ---
     if primary_cols and not df_plot.empty and 'Período_fmt' in df_plot.columns:
-        valid_primary_cols = []
-        for col in primary_cols:
-            if col in df_plot.columns: # Asegurarse que la columna existe
-                valid_primary_cols.append(col)
+        valid_primary_cols = [col for col in primary_cols if col in df_plot.columns]
 
         if valid_primary_cols: # Solo dibujar si hay columnas primarias válidas
             for col in valid_primary_cols:
@@ -627,8 +621,8 @@ def show_kpi_cards(df, var_list):
         '$K_Total_HE': 'Costo Total HE',
         '$K_GTO': 'Costo GTO',
         '$K_GTI': 'Costo GTI',
-        '$K_Guardias_2T', 'Costo Guardias 2T',
-        '$K_Guardias_3T', 'Costo Guardias 3T',
+        '$K_Guardias_2T': 'Costo Guardias 2T',
+        '$K_Guardias_3T': 'Costo Guardias 3T',
         '$K_TD': 'Costo TD',
         '$K_Total_Guardias': 'Costo Total Guardias',
         'hs_50%': 'Horas HE 50%',
@@ -1008,6 +1002,7 @@ if df.empty:
     st.stop()
 
 # --- Definir listas de opciones "default" (todos seleccionados) ---
+# Estas listas se basan en 'df' (eficiencia)
 month_options = list(months_map.values()) if months_map else []
 all_options_dict = {
     'all_periodos_especificos': list(df.sort_values('Período')['Período_fmt'].unique()) if 'Período' in df.columns else [], 
@@ -1146,8 +1141,8 @@ with tab2:
         st.subheader("Variaciones Interanuales")
         tiq_sel = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="tiq")
         df_for_viq = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
-        df_viq_v, df_viq_p = calc_variation(df_for_viq, selected_q_vars, 'interanual')
-        res_viq = df_viq_p if tiq_sel == 'Porcentaje' else df_viq_v
+        df_vi_v, df_vi_p = calc_variation(df_for_viq, selected_q_vars, 'interanual')
+        res_viq = df_vi_p if tiq_sel == 'Porcentaje' else df_vi_v
         if selected_years:
             res_viq = res_viq[res_viq['Año'].isin(selected_years)].dropna(subset=selected_q_vars, how='all')
         else:
@@ -1212,8 +1207,10 @@ with tab3:
 with tab4:
     st.subheader("Cálculo de Indicadores (Hoja: masa_salarial)")
     if not df_indicadores_empty:
+        # 1. Tarjetas anuales con acumulado dinámico
         show_annual_indicator_cards(df_indicadores)
         
+        # 2. Selectores de indicadores predefinidos
         PREDEF = {
             'HExtras_$K / Msalarial_$K (%)': ('HExtras_$K', 'Msalarial_$K', 'percent'), 
             'Guardias_$K / Msalarial_$K (%)': ('Guardias_$K', 'Msalarial_$K', 'percent'), 
@@ -1223,22 +1220,48 @@ with tab4:
             'HE_hs / Dotación (hs/pers)': ('HE_hs', 'Dotación', 'number'), 
             'Guardias_ds / Dotación (ds/pers)': ('Guardias_ds', 'Dotación', 'number')
         }
+        
+        # Filtrar indicadores válidos según columnas presentes
         valid_p = [k for k,v in PREDEF.items() if v[0] in df_indicadores.columns and v[1] in df_indicadores.columns]
-        sel_pre = st.multiselect("Indicadores Clave Predefinidos:", valid_p, key="sp")
+        
+        st.subheader("Indicadores Predefinidos")
+        sel_pre = st.multiselect("Indicadores Clave:", valid_p, key="sp")
+        
         st.markdown("---")
+        
+        # 3. Selector de combinaciones personalizadas
+        st.subheader("Indicadores Personalizados (Combinaciones)")
         options_l = sorted(list(set(k_indicador_cols + qty_indicador_cols)))
         possible = sorted([f"{n} / {d}" for n in options_l for d in options_l if n != d])
-        sel_cust = st.multiselect("Indicadores Personalizados:", possible, key="sc")
+        sel_cust = st.multiselect("Seleccione Numerador / Denominador:", possible, key="sc")
+        
+        # 4. Cálculo y visualización de tabla mensual
         if sel_pre or sel_cust:
+            # Usamos dff_indicadores (los datos filtrados visualmente)
             res_calc = dff_indicadores[['Período', 'Período_fmt']].copy()
             fmts_dict = {}
+            
+            # Procesar predefinidos
             for k in sel_pre:
                 n_c, d_c, f_t = PREDEF[k]
-                res_calc[k] = dff_indicadores[n_c].astype(float) / dff_indicadores[d_c].astype(float)
-                fmts_dict[k] = f_t
+                try:
+                    res_calc[k] = dff_indicadores[n_c].astype(float) / dff_indicadores[d_c].astype(float)
+                    fmts_dict[k] = f_t
+                except:
+                    res_calc[k] = np.nan
+            
+            # Procesar personalizados
             for k in sel_cust:
-                n_c, d_c = k.split(' / ')
-                res_calc[k] = dff_indicadores[n_c].astype(float) / dff_indicadores[d_c].astype(float)
-                fmts_dict[k] = 'number'
+                try:
+                    n_c, d_c = k.split(' / ')
+                    res_calc[k] = dff_indicadores[n_c].astype(float) / dff_indicadores[d_c].astype(float)
+                    fmts_dict[k] = 'number'
+                except:
+                    res_calc[k] = np.nan
+            
             res_calc.replace([np.inf, -np.inf], np.nan, inplace=True)
+            
+            st.subheader("Resultados Mensuales")
             show_table(res_calc, "Indicadores_Calculados", column_formats=fmts_dict)
+        else:
+            st.info("Seleccione al menos un indicador de las listas superiores para visualizar la tabla mensual.")
