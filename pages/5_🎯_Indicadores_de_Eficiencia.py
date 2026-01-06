@@ -1,5 +1,5 @@
 # ===============================================================
-# Visualizador de Eficiencia - V Estética (Original Corregido)
+# Visualizador de Eficiencia - V Estética (Fix Superposición Vertical)
 # ===============================================================
 
 import streamlit as st
@@ -93,8 +93,6 @@ def load_data(uploaded_file):
             df_eficiencia['Bimestre'] = (df_eficiencia['Mes'] - 1) // 2 + 1
             df_eficiencia['Trimestre'] = (df_eficiencia['Mes'] - 1) // 3 + 1
             df_eficiencia['Semestre'] = (df_eficiencia['Mes'] - 1) // 6 + 1
-
-            # --- NOTA: La definición de k_cols, qty_cols, years y months_map se mueve al final ---
 
         except Exception as e_ef:
             st.error(f"Error general al procesar la hoja 'eficiencia': {e_ef}")
@@ -538,7 +536,7 @@ def show_table(df_table, nombre, show_totals=False, is_percentage=False):
             # Si falla la conversión, ordenar alfabéticamente como fallback
             df_sorted = df_table.sort_values(by='Período_fmt', ascending=False)
     else: # Ordenar por la columna 'Período' datetime
-        df_sorted = df_table.sort_values(by='Período', ascending=False)
+        df_sorted = df_table.sort_values(by=sort_col, ascending=False)
 
     df_sorted = df_sorted.reset_index(drop=True)
 
@@ -1046,15 +1044,18 @@ with tab1:
         st.subheader("Evolución de Costos")
 
         # --- MODIFICACIÓN: Llamar a la nueva función de gráfico ---
+        # Usa 'dff' (eficiencia filtrado)
         fig = plot_combined_chart(
             dff,
-            primary_k_vars, 
-            secondary_k_vars_plot, 
+            primary_k_vars, # Pasar lista
+            secondary_k_vars_plot, # Pasar lista filtrada
             f"$K (Línea)",
             f"$K (Columnas)"
         )
-        st.plotly_chart(fig, use_container_width=True, key="evol_k")
+        # --- FIN MODIFICACIÓN ---
 
+        st.plotly_chart(fig, use_container_width=True, key="evol_k")
+        # Asegurarse que las columnas existan antes de seleccionar
         cols_for_table_k = ['Período', 'Período_fmt'] + [c for c in selected_k_vars if c in dff.columns]
         table_k = dff[cols_for_table_k].copy()
         show_table(table_k, "Costos_Datos", show_totals=True)
@@ -1063,18 +1064,19 @@ with tab1:
         st.subheader("Variaciones Mensuales")
         tipo_var_mes = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k")
 
-        # Filtrado para cálculo mensual
-        df_for_var_mes_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
-
-        df_val_mes, df_pct_mes = calc_variation(df_for_var_mes_k, selected_k_vars,'mensual')
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        # Usamos apply_time_filter sobre df (todo el histórico) para tener referencia de los meses anteriores
+        df_for_var_mes_k_full = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+        
+        df_val_mes, df_pct_mes = calc_variation(df_for_var_mes_k_full, selected_k_vars,'mensual')
         is_pct_mes_k = (tipo_var_mes == 'Porcentaje')
         df_var_mes_raw = df_pct_mes if is_pct_mes_k else df_val_mes
-
-        # --- CORRECCIÓN: Filtrar por los años seleccionados DESPUÉS del cálculo ---
-        if not df_var_mes_raw.empty and 'Período' in df_var_mes_raw.columns:
-            df_var_mes = df_var_mes_raw[df_var_mes_raw['Período'].dt.year.isin(selected_years)].copy() if selected_years else df_var_mes_raw.copy()
+        
+        # --- FILTRO DE AÑO DESPUÉS DEL CÁLCULO PARA VISUALIZACIÓN ---
+        if selected_years and not df_var_mes_raw.empty:
+             df_var_mes = df_var_mes_raw[df_var_mes_raw['Período'].dt.year.isin(selected_years)].copy()
         else:
-            df_var_mes = df_var_mes_raw.copy()
+             df_var_mes = df_var_mes_raw.copy()
 
         fig_var_mes = plot_bar(df_var_mes, selected_k_vars, "Variación Mensual ($K)" if tipo_var_mes=='Valores' else "Variación Mensual (%)")
         st.plotly_chart(fig_var_mes, use_container_width=True, key="var_mes_k")
@@ -1084,53 +1086,93 @@ with tab1:
         st.subheader("Variaciones Interanuales")
         tipo_var_anio = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k")
 
-        # Filtrado para cálculo interanual
-        df_for_var_anio_k = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        # Usamos apply_time_filter sobre df (todo el histórico) para tener referencia de los años anteriores
+        df_for_var_anio_k_full = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
 
-        df_val_anio, df_pct_anio = calc_variation(df_for_var_anio_k, selected_k_vars,'interanual')
+        df_val_anio, df_pct_anio = calc_variation(df_for_var_anio_k_full, selected_k_vars,'interanual')
         is_pct_anio_k = (tipo_var_anio == 'Porcentaje')
         df_var_anio_raw = df_pct_anio if is_pct_anio_k else df_val_anio
 
-        # --- CORRECCIÓN: Filtrar por los años seleccionados DESPUÉS del cálculo y NO excluir 2024 ---
-        if not df_var_anio_raw.empty and 'Período' in df_var_anio_raw.columns:
-            df_var_anio = df_var_anio_raw[df_var_anio_raw['Período'].dt.year.isin(selected_years)].copy() if selected_years else df_var_anio_raw.copy()
+        # --- CORRECCIÓN FINAL: NO EXCLUIR 2024 Y FILTRAR POR AÑOS SELECCIONADOS DESPUÉS ---
+        if selected_years and not df_var_anio_raw.empty:
+            df_var_anio = df_var_anio_raw[df_var_anio_raw['Período'].dt.year.isin(selected_years)].copy()
         else:
             df_var_anio = df_var_anio_raw.copy()
+        # --- FIN CORRECCIÓN ---
 
         fig_var_anio = plot_bar(df_var_anio, selected_k_vars, "Variación Interanual ($K)" if tipo_var_anio=='Valores' else "Variación Interanual (%)")
         st.plotly_chart(fig_var_anio, use_container_width=True, key="var_anio_k")
-        show_table(df_var_anio, "Costos_Var_Interanual", is_percentage=is_pct_anio_k)
 
+        show_table(df_var_anio, "Costos_Var_Interanual", is_percentage=is_pct_anio_k)
     elif not selected_k_vars:
         st.info("Seleccione al menos una variable de Costos ($K) para visualizar.")
 
+
 # ----------------- Pestaña de Cantidades -----------------
 with tab2:
+    # --- SECCIÓN DE TARJETAS KPI (MODIFICADO) ---
     st.subheader("Totales Anuales (2025 vs 2024)")
-    qty_vars_list = ['hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', 'ds_GTO', 'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T', 'ds_Total_Guardias']
+    qty_vars_list = [
+        'hs_50%', 'hs_100%', 'hs_Total_HE', 'ds_TD', 'ds_GTO', # Fila 1
+        'ds_GTI', 'ds_Guardias_2T', 'ds_Guardias_3T', 'ds_Total_Guardias' # Fila 2
+    ]
+    # Usamos 'df' (el original de eficiencia) para calcular totales
     show_kpi_cards(df, qty_vars_list)
     st.markdown("---")
+    # --- FIN SECCIÓN TARJETAS ---
 
     st.subheader("Análisis de Cantidades (hs / ds)")
+
+    # --- MODIFICACIÓN: Dos multiselect en columnas ---
     col1_q, col2_q = st.columns(2)
     with col1_q:
-        primary_qty_vars = st.multiselect("Eje Principal (Línea):", qty_columns, default=[qty_columns[0]] if qty_columns else [], key="primary_qty")
+        primary_qty_vars = st.multiselect(
+            "Eje Principal (Línea):",
+            qty_columns, # <-- MODIFICADO: Ahora incluye 'Dotación'
+            default=[qty_columns[0]] if qty_columns else [],
+            key="primary_qty"
+        )
     with col2_q:
-        options_q_secondary = ["Ninguna"] + qty_columns
-        secondary_qty_vars = st.multiselect("Eje Secundario (Columnas):", options_q_secondary, default=["Ninguna"], key="secondary_qty")
+        options_q_secondary = ["Ninguna"] + qty_columns # <-- MODIFICADO: Ahora incluye 'Dotación'
+        secondary_qty_vars = st.multiselect(
+            "Eje Secundario (Columnas):",
+            options_q_secondary,
+            default=["Ninguna"],
+            key="secondary_qty"
+        )
 
-    selected_qty_vars = list(primary_qty_vars)
+    # Construir la lista 'selected_qty_vars' para las tablas y variaciones
+    selected_qty_vars = list(primary_qty_vars) # Empezar con las primarias
     secondary_qty_vars_filtered = [col for col in secondary_qty_vars if col != "Ninguna"]
-    for col in secondary_qty_vars_filtered:
-        if col not in selected_qty_vars: selected_qty_vars.append(col)
-    
-    secondary_qty_vars_plot = secondary_qty_vars_filtered if "Ninguna" in secondary_qty_vars and len(secondary_qty_vars) > 1 else secondary_qty_vars
 
-    if not dff.empty and selected_qty_vars:
+    if secondary_qty_vars_filtered:
+        for col in secondary_qty_vars_filtered:
+            if col not in selected_qty_vars: # Añadir solo si no está duplicada
+                selected_qty_vars.append(col)
+
+    # Definir qué pasar al gráfico (si "Ninguna" está sola, pasarla)
+    secondary_qty_vars_plot = secondary_qty_vars
+    if "Ninguna" in secondary_qty_vars and len(secondary_qty_vars) > 1:
+        secondary_qty_vars_plot = secondary_qty_vars_filtered # Quitar "Ninguna" si hay otras
+    # --- FIN MODIFICACIÓN ---
+
+    if not dff.empty and selected_qty_vars: # Asegurar que dff no esté vacío
         st.subheader("Evolución de Cantidades")
-        fig = plot_combined_chart(dff, primary_qty_vars, secondary_qty_vars_plot, "Cantidades (Línea)", "Cantidades (Columnas)")
-        st.plotly_chart(fig, use_container_width=True, key="evol_qty")
 
+        # --- MODIFICACIÓN: Llamar a la nueva función de gráfico ---
+        # Usa 'dff' (eficiencia filtrado)
+        fig = plot_combined_chart(
+            dff,
+            primary_qty_vars, # Pasar lista
+            secondary_qty_vars_plot, # Pasar lista filtrada
+            f"Cantidades (Línea)",
+            f"Cantidades (Columnas)"
+        )
+        # --- FIN MODIFICACIÓN ---
+
+        st.plotly_chart(fig, use_container_width=True, key="evol_qty")
+        # Asegurarse que las columnas existan antes de seleccionar
         cols_for_table_q = ['Período', 'Período_fmt'] + [c for c in selected_qty_vars if c in dff.columns]
         table_qty = dff[cols_for_table_q].copy()
         show_table(table_qty, "Cantidades_Datos", show_totals=True)
@@ -1138,95 +1180,346 @@ with tab2:
 
         st.subheader("Variaciones Mensuales")
         tipo_var_mes_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_qty")
-        df_for_var_mes_qty = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
-        df_val_mes_qty, df_pct_mes_qty = calc_variation(df_for_var_mes_qty, selected_qty_vars,'mensual')
+
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        df_for_var_mes_qty_full = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+
+        df_val_mes_qty, df_pct_mes_qty = calc_variation(df_for_var_mes_qty_full, selected_qty_vars,'mensual')
         is_pct_mes_qty = (tipo_var_mes_qty == 'Porcentaje')
         df_var_mes_qty_raw = df_pct_mes_qty if is_pct_mes_qty else df_val_mes_qty
         
-        if not df_var_mes_qty_raw.empty and 'Período' in df_var_mes_qty_raw.columns:
-            df_var_mes_qty = df_var_mes_qty_raw[df_var_mes_qty_raw['Período'].dt.year.isin(selected_years)].copy() if selected_years else df_var_mes_qty_raw.copy()
+        # --- FILTRO DE AÑO DESPUÉS DEL CÁLCULO ---
+        if selected_years and not df_var_mes_qty_raw.empty:
+             df_var_mes_qty = df_var_mes_qty_raw[df_var_mes_qty_raw['Período'].dt.year.isin(selected_years)].copy()
         else:
-            df_var_mes_qty = df_var_mes_qty_raw.copy()
+             df_var_mes_qty = df_var_mes_qty_raw.copy()
 
-        fig_var_mes_qty = plot_bar(df_var_mes_qty, selected_qty_vars, "Variación Mensual (Cant)" if tipo_var_mes_qty=='Valores' else "Variación Mensual (%)")
+        fig_var_mes_qty = plot_bar(df_var_mes_qty, selected_qty_vars, "Variación Mensual (Cantidad)" if tipo_var_mes_qty=='Valores' else "Variación Mensual (%)")
         st.plotly_chart(fig_var_mes_qty, use_container_width=True, key="var_mes_qty")
         show_table(df_var_mes_qty, "Cantidades_Var_Mensual", is_percentage=is_pct_mes_qty)
         st.markdown("---")
 
         st.subheader("Variaciones Interanuales")
         tipo_var_anio_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_qty")
-        df_for_var_anio_qty = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
-        df_val_anio_qty, df_pct_anio_qty = calc_variation(df_for_var_anio_qty, selected_qty_vars,'interanual')
+
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
+        df_for_var_anio_qty_full = apply_time_filter(df, filter_mode, filter_selection, all_options_dict)
+
+        df_val_anio_qty, df_pct_anio_qty = calc_variation(df_for_var_anio_qty_full, selected_qty_vars,'interanual')
         is_pct_anio_qty = (tipo_var_anio_qty == 'Porcentaje')
         df_var_anio_qty_raw = df_pct_anio_qty if is_pct_anio_qty else df_val_anio_qty
 
-        # --- CORRECCIÓN: Filtrar por los años seleccionados DESPUÉS del cálculo y NO excluir 2024 ---
-        if not df_var_anio_qty_raw.empty and 'Período' in df_var_anio_qty_raw.columns:
-            df_var_anio_qty = df_var_anio_qty_raw[df_var_anio_qty_raw['Período'].dt.year.isin(selected_years)].copy() if selected_years else df_var_anio_qty_raw.copy()
+        # --- CORRECCIÓN: NO EXCLUIR 2024 Y FILTRAR POR AÑOS SELECCIONADOS DESPUÉS ---
+        if selected_years and not df_var_anio_qty_raw.empty:
+            df_var_anio_qty = df_var_anio_qty_raw[df_var_anio_qty_raw['Período'].dt.year.isin(selected_years)].copy()
         else:
             df_var_anio_qty = df_var_anio_qty_raw.copy()
+        # --- FIN CORRECCIÓN ---
 
-        fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cant)" if tipo_var_anio_qty=='Valores' else "Variación Interanual (%)")
+        fig_var_anio_qty = plot_bar(df_var_anio_qty, selected_qty_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_qty=='Valores' else "Variación Interanual (%)")
         st.plotly_chart(fig_var_anio_qty, use_container_width=True, key="var_anio_qty")
         show_table(df_var_anio_qty, "Cantidades_Var_Interanual", is_percentage=is_pct_anio_qty)
     elif not selected_qty_vars:
-        st.info("Seleccione al menos una variable de Cantidad para visualizar.")
+        st.info("Seleccione al menos una variable de Cantidad (hs / ds) para visualizar.")
 
-# ----------------- PESTAÑA DE RELACIONES -----------------
+
+# ----------------- PESTAÑA DE RELACIONES (ANTES INDICADORES) -----------------
 with tab3:
-    st.subheader("Análisis de Relaciones (Hoja: masa_salarial)")
+    st.subheader("Análisis de Relaciones (Hoja: masa_salarial)") # <-- RENOMBRADO
 
-    if not df_indicadores_empty and not dff_indicadores.empty:
-        if k_indicador_cols:
-            st.subheader("Relaciones de Costos ($K)")
+    # Verificar si los datos de indicadores se cargaron y si hay columnas para mostrar
+    if df_indicadores_empty:
+        # El error ya se muestra en load_data si falla la carga
+        pass # No mostrar nada más aquí
+    elif dff_indicadores.empty and (not df_indicadores_empty):
+        st.info("Los datos de 'Relaciones' existen pero no coinciden con los filtros seleccionados (Año, Mes, etc.).") # <-- RENOMBRADO
+    elif not k_indicador_cols and not qty_indicador_cols:
+        st.warning("No se encontraron las columnas esperadas ('Msalarial_$K', 'HE_hs', etc.) en la hoja 'masa_salarial'.")
+    else: # Si hay datos y columnas
+        # --- Gráfico 1: Indicadores de Costos ($K) ---
+        if k_indicador_cols: # Solo mostrar si hay columnas de costo
+            st.subheader("Relaciones de Costos ($K)") # <-- RENOMBRADO
+
             col1_k_ind, col2_k_ind = st.columns(2)
             with col1_k_ind:
-                primary_k_ind_vars = st.multiselect("Línea:", k_indicador_cols, default=[k_indicador_cols[0]] if k_indicador_cols else [], key="primary_k_rel")
+                primary_k_ind_vars = st.multiselect(
+                    "Eje Principal ($K - Línea):",
+                    k_indicador_cols, # <-- MODIFICADO: Ahora incluye 'Dotación'
+                    default=[k_indicador_cols[0]] if k_indicador_cols else [],
+                    key="primary_k_rel" # <-- RENOMBRADO
+                )
             with col2_k_ind:
-                options_k_ind_secondary = ["Ninguna"] + k_indicador_cols
-                secondary_k_ind_vars = st.multiselect("Barras:", options_k_ind_secondary, default=["Ninguna"], key="secondary_k_rel")
+                options_k_ind_secondary = ["Ninguna"] + k_indicador_cols # <-- MODIFICADO: Ahora incluye 'Dotación'
+                secondary_k_ind_vars = st.multiselect(
+                    "Eje Secundario ($K - Columnas):",
+                    options_k_ind_secondary,
+                    default=["Ninguna"],
+                    key="secondary_k_rel" # <-- RENOMBRADO
+                )
             
-            selected_k_ind_vars = list(dict.fromkeys(primary_k_ind_vars + [c for c in secondary_k_ind_vars if c != "Ninguna"]))
-            sec_plot = [c for c in secondary_k_ind_vars if c != "Ninguna"] if "Ninguna" in secondary_k_ind_vars and len(secondary_k_ind_vars) > 1 else secondary_k_ind_vars
+            # --- AÑADIDO: Construir lista combinada para tablas (Goal 3) ---
+            selected_k_ind_vars = list(primary_k_ind_vars)
+            secondary_k_ind_vars_filtered = [col for col in secondary_k_ind_vars if col != "Ninguna"]
+            if secondary_k_ind_vars_filtered:
+                for col in secondary_k_ind_vars_filtered:
+                    if col not in selected_k_ind_vars:
+                        selected_k_ind_vars.append(col)
+            # --- FIN AÑADIDO ---
 
-            fig_k_ind = plot_combined_chart(dff_indicadores, primary_k_ind_vars, sec_plot, "$K (L)", "$K (B)")
-            st.plotly_chart(fig_k_ind, use_container_width=True, key="evol_k_ind")
+            # Lógica para filtrar "Ninguna" (para el gráfico)
+            secondary_k_ind_vars_plot = secondary_k_ind_vars
+            if "Ninguna" in secondary_k_ind_vars and len(secondary_k_ind_vars) > 1:
+                secondary_k_ind_vars_plot = [col for col in secondary_k_ind_vars if col != "Ninguna"]
 
-            show_table(dff_ind[['Período','Período_fmt'] + [c for c in selected_k_ind_vars if c in dff_ind.columns]], "Rel_Costos_Datos", True)
+            # --- MODIFICADO: Usar dff_indicadores ---
+            if not dff_indicadores.empty:
+                fig_k_ind = plot_combined_chart(
+                    dff_indicadores,
+                    primary_k_ind_vars,
+                    secondary_k_ind_vars_plot,
+                    "$K (Línea)",
+                    "$K (Columnas)"
+                )
+                st.plotly_chart(fig_k_ind, use_container_width=True, key="evol_k_ind")
 
-            st.subheader("Variaciones Interanuales (Relaciones)")
-            tipo_ak_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k_ind")
-            df_for_var_ind = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
-            val_ind, pct_ind = calc_variation(df_for_var_ind, selected_k_ind_vars, 'interanual')
-            raw_ind = pct_ind if tipo_ak_ind == 'Porcentaje' else val_ind
-            
-            # --- CORRECCIÓN: Filtrar por los años seleccionados DESPUÉS del cálculo ---
-            if not raw_ind.empty and 'Período' in raw_ind.columns:
-                df_var_ind = raw_ind[raw_ind['Período'].dt.year.isin(selected_years)].copy() if selected_years else raw_ind.copy()
-            else:
-                df_var_ind = raw_ind.copy()
+                # --- AÑADIDO: Tabla de datos para Evolución de Costos (Goal 3 y 4) ---
+                if selected_k_ind_vars: # Solo mostrar si hay algo seleccionado
+                    cols_for_table_k_ind = ['Período', 'Período_fmt'] + [c for c in selected_k_ind_vars if c in dff_indicadores.columns]
+                    table_k_ind = dff_indicadores[cols_for_table_k_ind].copy()
+                    show_table(table_k_ind, "Relaciones_Costos_Datos", show_totals=True) # <-- RENOMBRADO
+                # --- FIN AÑADIDO ---
                 
-            st.plotly_chart(plot_bar(df_var_ind, selected_k_ind_vars, "Var Interanual"), use_container_width=True)
-            show_table(df_var_ind, "Rel_Var_Inter", is_percentage=(tipo_ak_ind=='Porcentaje'))
+                # --- AÑADIDO: Variaciones Mensuales (Goal 1, 2, 3, 4) ---
+                if selected_k_ind_vars: # Solo si hay variables
+                    st.subheader("Variaciones Mensuales (Relaciones Costo)") # <-- RENOMBRADO
+                    tipo_var_mes_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k_rel") # <-- RENOMBRADO
+                    
+                    # Usar df_indicadores (original) para calcular la variación
+                    df_for_var_mes_k_ind_full = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
 
-# ----------------- PESTAÑA INDICADORES (RATIOS) -----------------
+                    df_val_mes_k_ind, df_pct_mes_k_ind = calc_variation(df_for_var_mes_k_ind_full, selected_k_ind_vars,'mensual')
+                    is_pct_mes_k_ind = (tipo_var_mes_k_ind == 'Porcentaje')
+                    df_var_mes_k_ind_raw = df_pct_mes_k_ind if is_pct_mes_k_ind else df_val_mes_k_ind
+                    
+                    if selected_years and not df_var_mes_k_ind_raw.empty:
+                         df_var_mes_k_ind = df_var_mes_k_ind_raw[df_var_mes_k_ind_raw['Período'].dt.year.isin(selected_years)].copy()
+                    else:
+                         df_var_mes_k_ind = df_var_mes_k_ind_raw.copy()
+
+                    fig_var_mes_k_ind = plot_bar(df_var_mes_k_ind, selected_k_ind_vars, "Variación Mensual ($K)" if tipo_var_mes_k_ind=='Valores' else "Variación Mensual (%)")
+                    st.plotly_chart(fig_var_mes_k_ind, use_container_width=True, key="var_mes_k_rel") # <-- RENOMBRADO
+                    # Goal 3 & 4: Añadir tabla con totales
+                    show_table(df_var_mes_k_ind, "Relaciones_Costos_Var_Mensual", is_percentage=is_pct_mes_k_ind, show_totals=True) # <-- RENOMBRADO
+                # --- FIN AÑADIDO ---
+
+                # --- AÑADIDO: Variaciones Interanuales (Goal 1, 2, 3, 4) ---
+                if selected_k_ind_vars: # Solo si hay variables
+                    st.subheader("Variaciones Interanuales (Relaciones Costo)") # <-- RENOMBRADO
+                    tipo_var_anio_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_k_rel") # <-- RENOMBRADO
+
+                    # Usar df_indicadores (original) para calcular la variación
+                    df_for_var_anio_k_ind_full = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
+
+                    df_val_anio_k_ind, df_pct_anio_k_ind = calc_variation(df_for_var_anio_k_ind_full, selected_k_ind_vars,'interanual')
+                    is_pct_anio_k_ind = (tipo_var_anio_k_ind == 'Porcentaje')
+                    df_var_anio_k_ind_raw = df_pct_anio_k_ind if is_pct_anio_k_ind else df_val_anio_k_ind
+
+                    # --- FILTRO FINAL DESPUÉS DEL CÁLCULO ---
+                    if selected_years and not df_var_anio_k_ind_raw.empty:
+                        df_var_anio_k_ind = df_var_anio_k_ind_raw[df_var_anio_k_ind_raw['Período'].dt.year.isin(selected_years)].copy()
+                    else:
+                        df_var_anio_k_ind = df_var_anio_k_ind_raw.copy()
+
+                    fig_var_anio_k_ind = plot_bar(df_var_anio_k_ind, selected_k_ind_vars, "Variación Interanual ($K)" if tipo_var_anio_k_ind=='Valores' else "Variación Interanual (%)")
+                    st.plotly_chart(fig_var_anio_k_ind, use_container_width=True, key="var_anio_k_rel") # <-- RENOMBRADO
+                    # Goal 3 & 4: Añadir tabla con totales
+                    show_table(df_var_anio_k_ind, "Relaciones_Costos_Var_Interanual", is_percentage=is_pct_anio_k_ind, show_totals=True) # <-- RENOMBRADO
+                # --- FIN AÑADIDO ---
+
+            else:
+                st.info("No hay datos de Relaciones de Costo para los filtros seleccionados.") # <-- RENOMBRADO
+
+
+            st.markdown("---")
+
+        # --- Gráfico 2: Indicadores de Cantidad (hs / ds / dotación) ---
+        if qty_indicador_cols: # Solo mostrar si hay columnas de cantidad
+            st.subheader("Relaciones de Cantidad (hs / ds / dotación)") # <-- RENOMBRADO
+
+            col1_q_ind, col2_q_ind = st.columns(2)
+            with col1_q_ind:
+                primary_q_ind_vars = st.multiselect(
+                    "Eje Principal (Cant. - Línea):",
+                    qty_indicador_cols, # <-- Ya incluía 'Dotación'
+                    default=[qty_indicador_cols[0]] if qty_indicador_cols else [],
+                    key="primary_q_rel" # <-- RENOMBRADO
+                )
+            with col2_q_ind:
+                options_q_ind_secondary = ["Ninguna"] + qty_indicador_cols # <-- Ya incluía 'Dotación'
+                secondary_q_ind_vars = st.multiselect(
+                    "Eje Secundario (Cant. - Columnas):",
+                    options_q_ind_secondary,
+                    default=["Ninguna"],
+                    key="secondary_q_rel" # <-- RENOMBRADO
+                )
+
+            # --- AÑADIDO: Construir lista combinada para tablas (Goal 3) ---
+            selected_q_ind_vars = list(primary_q_ind_vars)
+            secondary_q_ind_vars_filtered = [col for col in secondary_q_ind_vars if col != "Ninguna"]
+            if secondary_q_ind_vars_filtered:
+                for col in secondary_q_ind_vars_filtered:
+                    if col not in selected_q_ind_vars:
+                        selected_q_ind_vars.append(col)
+            # --- FIN AÑADIDO ---
+
+            # Lógica para filtrar "Ninguna" (para el gráfico)
+            secondary_q_ind_vars_plot = secondary_q_ind_vars
+            if "Ninguna" in secondary_q_ind_vars and len(secondary_q_ind_vars) > 1:
+                secondary_q_ind_vars_plot = [col for col in secondary_q_ind_vars if col != "Ninguna"]
+
+            # --- MODIFICADO: Usar dff_indicadores ---
+            if not dff_indicadores.empty:
+                fig_q_ind = plot_combined_chart(
+                    dff_indicadores,
+                    primary_q_ind_vars,
+                    secondary_q_ind_vars_plot,
+                    "Cantidades (Línea)",
+                    "Cantidades (Columnas)"
+                )
+                st.plotly_chart(fig_q_ind, use_container_width=True, key="evol_q_ind")
+                
+                # --- AÑADIDO: Tabla de datos para Evolución de Cantidad (Goal 3 y 4) ---
+                if selected_q_ind_vars: # Solo mostrar si hay algo seleccionado
+                    cols_for_table_q_ind = ['Período', 'Período_fmt'] + [c for c in selected_q_ind_vars if c in dff_indicadores.columns]
+                    table_q_ind = dff_indicadores[cols_for_table_q_ind].copy()
+                    show_table(table_q_ind, "Relaciones_Cantidades_Datos", show_totals=True) # <-- RENOMBRADO
+                # --- FIN AÑADIDO ---
+                
+                # --- AÑADIDO: Variaciones Mensuales (Goal 1, 2, 3, 4) ---
+                if selected_q_ind_vars: # Solo si hay variables
+                    st.subheader("Variaciones Mensuales (Relaciones Cantidad)") # <-- RENOMBRADO
+                    tipo_var_mes_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_q_rel") # <-- RENOMBRADO
+
+                    # Usar df_indicadores (original) para calcular la variación
+                    df_for_var_mes_q_ind_full = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
+
+                    df_val_mes_q_ind, df_pct_mes_q_ind = calc_variation(df_for_var_mes_q_ind_full, selected_q_ind_vars,'mensual')
+                    is_pct_mes_q_ind = (tipo_var_mes_q_ind == 'Porcentaje')
+                    df_var_mes_q_ind_raw = df_pct_mes_q_ind if is_pct_mes_q_ind else df_val_mes_q_ind
+                    
+                    if selected_years and not df_var_mes_q_ind_raw.empty:
+                         df_var_mes_q_ind = df_var_mes_q_ind_raw[df_var_mes_q_ind_raw['Período'].dt.year.isin(selected_years)].copy()
+                    else:
+                         df_var_mes_q_ind = df_var_mes_q_ind_raw.copy()
+
+                    fig_var_mes_q_ind = plot_bar(df_var_mes_q_ind, selected_q_ind_vars, "Variación Mensual (Cantidad)" if tipo_var_mes_q_ind=='Valores' else "Variación Mensual (%)")
+                    st.plotly_chart(fig_var_mes_q_ind, use_container_width=True, key="var_mes_q_rel") # <-- RENOMBRADO
+                    # Goal 3 & 4: Añadir tabla con totales
+                    show_table(df_var_mes_q_ind, "Relaciones_Cantidades_Var_Mensual", is_percentage=is_pct_mes_q_ind, show_totals=True) # <-- RENOMBRADO
+                    st.markdown("---") # Separador
+                # --- FIN AÑADIDO ---
+
+                # --- AÑADIDO: Variaciones Interanuales (Goal 1, 2, 3, 4) ---
+                if selected_q_ind_vars: # Solo si hay variables
+                    st.subheader("Variaciones Interanuales (Relaciones Cantidad)") # <-- RENOMBRADO
+                    tipo_var_anio_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="inter_q_rel") # <-- RENOMBRADO
+
+                    # Usar df_indicadores (original) para calcular la variación
+                    df_for_var_anio_q_ind_full = apply_time_filter(df_indicadores, filter_mode, filter_selection, all_options_dict)
+
+                    df_val_anio_q_ind, df_pct_anio_q_ind = calc_variation(df_for_var_anio_q_ind_full, selected_q_ind_vars,'interanual')
+                    is_pct_anio_q_ind = (tipo_var_anio_q_ind == 'Porcentaje')
+                    df_var_anio_q_ind_raw = df_pct_anio_q_ind if is_pct_anio_q_ind else df_val_anio_q_ind
+
+                    # --- FILTRO FINAL DESPUÉS DEL CÁLCULO ---
+                    if selected_years and not df_var_anio_q_ind_raw.empty:
+                        df_var_anio_q_ind = df_var_anio_q_ind_raw[df_var_anio_q_ind_raw['Período'].dt.year.isin(selected_years)].copy()
+                    else:
+                        df_var_anio_q_ind = df_var_anio_q_ind_raw.copy()
+
+                    fig_var_anio_q_ind = plot_bar(df_var_anio_q_ind, selected_q_ind_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_q_ind=='Valores' else "Variación Interanual (%)")
+                    st.plotly_chart(fig_var_anio_q_ind, use_container_width=True, key="var_anio_q_rel") # <-- RENOMBRADO
+                    # Goal 3 & 4: Añadir tabla con totales
+                    show_table(df_var_anio_q_ind, "Relaciones_Cantidades_Var_Interanual", is_percentage=is_pct_anio_q_ind, show_totals=True) # <-- RENOMBRADO
+                # --- FIN AÑADIDO ---
+
+            else:
+                st.info("No hay datos de Relaciones de Cantidad para los filtros seleccionados.") # <-- RENOMBRADO
+
+# --- INICIO: NUEVA PESTAÑA 4 - INDICADORES (RATIOS) ---
 with tab4:
     st.subheader("Cálculo de Indicadores (Hoja: masa_salarial)")
-    if not df_indicadores_empty and not dff_indicadores.empty:
-        opts_list = sorted(list(set(k_indicador_cols + qty_indicador_cols)))
-        possible = []
-        for num in opts_list:
-            for den in opts_list:
-                if num != den: possible.append(f"{num} / {den}")
-        possible.sort()
 
-        selected_ratios = st.multiselect("Seleccione ratios a calcular:", possible, key="ind_ratios")
-        if selected_ratios:
-            df_calc = dff_indicadores[['Período', 'Período_fmt']].copy().sort_values('Período')
-            for ratio_str in selected_ratios:
-                try:
-                    num_col, den_col = ratio_str.split(' / ')
-                    df_calc[ratio_str] = dff_indicadores[num_col].astype(float) / dff_indicadores[den_col].astype(float)
-                except: df_calc[ratio_str] = np.nan
-            df_calc.replace([np.inf, -np.inf], np.nan, inplace=True)
-            show_table(df_calc, "Ratios_Calculados")
+    # Verificar si los datos de indicadores se cargaron
+    if df_indicadores_empty:
+        st.warning("No se pueden calcular indicadores porque la hoja 'masa_salarial' no se cargó correctamente.")
+    elif dff_indicadores.empty and (not df_indicadores_empty):
+        st.info("Los datos de 'masa_salarial' existen pero no coinciden con los filtros seleccionados (Año, Mes, etc.).")
+    else:
+        # Definir la lista de opciones para los selectores
+        # Usamos un set para evitar duplicados (como 'Dotación') y luego ordenamos
+        options_list = sorted(list(set(k_indicador_cols + qty_indicador_cols)))
+
+        if not options_list:
+            st.warning("No se encontraron columnas de indicadores ('Msalarial_$K', 'HE_hs', 'Dotación', etc.) para calcular ratios.")
+        else:
+            
+            # --- NUEVA LÓGICA: Multi-select de combinaciones ---
+            possible_indicators = []
+            # Crear todas las combinaciones posibles
+            for num in options_list:
+                for den in options_list:
+                    # Evitar divisiones por sí mismo (ratio=1)
+                    if num != den:
+                        possible_indicators.append(f"{num} / {den}")
+            
+            # Ordenar la lista alfabéticamente
+            possible_indicators.sort()
+
+            selected_indicators = st.multiselect(
+                "Seleccione los indicadores (Numerador / Denominador) a calcular:",
+                possible_indicators,
+                default=[], # Empezar con nada seleccionado
+                key="ind_multi_select"
+            )
+
+            if selected_indicators:
+                # Preparar el dataframe para la tabla
+                # Usamos dff_indicadores (los datos filtrados)
+                df_indicador_calc = dff_indicadores[['Período', 'Período_fmt']].copy().sort_values('Período')
+                
+                # Iterar sobre las selecciones (que son strings 'Num / Den')
+                for indicator_str in selected_indicators:
+                    try:
+                        # Parsear el string para obtener los nombres de las columnas
+                        num_col, den_col = indicator_str.split(' / ')
+                        
+                        # Asegurarse que las columnas existen (por si acaso)
+                        if num_col in dff_indicadores.columns and den_col in dff_indicadores.columns:
+                            # Calcular el indicador
+                            calc_col = dff_indicadores[num_col].astype(float) / dff_indicadores[den_col].astype(float)
+                            # Guardar en la tabla con el nombre 'Num / Den' (que es el indicator_str)
+                            df_indicador_calc[indicator_str] = calc_col
+                        else:
+                            df_indicador_calc[indicator_str] = np.nan
+                    
+                    except Exception as e:
+                        st.error(f"Error al calcular '{indicator_str}': {e}")
+                        df_indicador_calc[indicator_str] = np.nan
+                
+                # Reemplazar todos los infinitos (resultado de div por 0) con NaN
+                df_indicador_calc.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+                st.subheader("Resultados de Indicadores")
+                
+                # Usar show_table para la tabla final
+                # Los nombres de columna ya son 'Num / Den'
+                show_table(
+                    df_indicador_calc,
+                    "Indicadores_Calculados",
+                    show_totals=False # Sumar ratios no tiene sentido
+                )
+            
+            else:
+                st.info("Por favor seleccione uno o más indicadores de la lista para calcular.")
+# --- FIN: NUEVA PESTAÑA 4 ---
