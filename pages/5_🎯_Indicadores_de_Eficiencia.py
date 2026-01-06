@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np # <--- AÑADIDO PARA MANEJAR inf
 import traceback # Para mostrar errores detallados
-import datetime
+import datetime # Para manejo de fechas
 
 # Configuración de la página para que ocupe todo el ancho
 st.set_page_config(layout="wide", page_title="Visualizador de Eficiencia")
@@ -1089,15 +1089,18 @@ with tab1:
         st.subheader("Variaciones Mensuales")
         tipo_var_mes = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k")
 
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
         # --- CORRECCIÓN: Usar df_filtered_by_year para respetar el filtro de años ---
         df_for_var_mes_k = pd.DataFrame()
         if filter_mode == 'Período Específico':
+            # Filtrar df original (eficiencia)
             # Usar df_filtered_by_year por consistencia
             df_for_var_mes_k = df_filtered_by_year[df_filtered_by_year['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_filtered_by_year.columns else pd.DataFrame()
         else:
+            # Usa 'df' (eficiencia)
             # Usar df_filtered_by_year
             df_for_var_mes_k = apply_time_filter(df_filtered_by_year, filter_mode, filter_selection, all_options_dict)
-        # --- FIN CORRECCIÓN ---
+        # --- FIN NUEVA LÓGICA ---
 
         df_val_mes, df_pct_mes = calc_variation(df_for_var_mes_k, selected_k_vars,'mensual')
         is_pct_mes_k = (tipo_var_mes == 'Porcentaje')
@@ -1134,10 +1137,19 @@ with tab1:
         is_pct_anio_k = (tipo_var_anio == 'Porcentaje')
         df_var_anio_raw = df_pct_anio if is_pct_anio_k else df_val_anio
 
-        # --- MODIFICACIÓN: Excluir el año MÍNIMO en lugar de 2024 (dinámico) ---
+        # --- MODIFICACIÓN: FILTRAR RESULTADOS POR AÑO SELECCIONADO (SI APLICA) ---
         if not df_var_anio_raw.empty and 'Período' in df_var_anio_raw.columns:
-            min_year_in_data = df_var_anio_raw['Período'].dt.year.min()
-            df_var_anio = df_var_anio_raw[df_var_anio_raw['Período'].dt.year != min_year_in_data].copy()
+            # Asegurarse que tenemos la columna Año para filtrar
+            if 'Año' not in df_var_anio_raw.columns:
+                 df_var_anio_raw['Año'] = df_var_anio_raw['Período'].dt.year
+            
+            # Si el usuario seleccionó años específicos, mostrar SOLO esos años en el resultado
+            if selected_years:
+                 df_var_anio = df_var_anio_raw[df_var_anio_raw['Año'].isin(selected_years)].copy()
+            else:
+                 # Si no hay selección (todos los años), excluir solo el año base (mínimo)
+                 min_year_in_data = df_var_anio_raw['Año'].min()
+                 df_var_anio = df_var_anio_raw[df_var_anio_raw['Año'] != min_year_in_data].copy()
         else:
             df_var_anio = df_var_anio_raw.copy()
         # --- FIN MODIFICACIÓN ---
@@ -1231,13 +1243,16 @@ with tab2:
         st.subheader("Variaciones Mensuales")
         tipo_var_mes_qty = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_qty")
 
+        # --- NUEVA LÓGICA DE FILTRO PARA VARIACIÓN ---
         # --- CORRECCIÓN: Usar df_filtered_by_year ---
         df_for_var_mes_qty = pd.DataFrame()
         if filter_mode == 'Período Específico':
+            # Filtrar df original (eficiencia)
             df_for_var_mes_qty = df_filtered_by_year[df_filtered_by_year['Período_fmt'].isin(filter_selection)].copy() if 'Período_fmt' in df_filtered_by_year.columns else pd.DataFrame()
         else:
+            # Usa 'df' (eficiencia)
             df_for_var_mes_qty = apply_time_filter(df_filtered_by_year, filter_mode, filter_selection, all_options_dict)
-        # --- FIN CORRECCIÓN ---
+        # --- FIN NUEVA LÓGICA ---
 
         df_val_mes_qty, df_pct_mes_qty = calc_variation(df_for_var_mes_qty, selected_qty_vars,'mensual')
         is_pct_mes_qty = (tipo_var_mes_qty == 'Porcentaje')
@@ -1276,10 +1291,16 @@ with tab2:
         is_pct_anio_qty = (tipo_var_anio_qty == 'Porcentaje')
         df_var_anio_qty_raw = df_pct_anio_qty if is_pct_anio_qty else df_val_anio_qty
 
-        # --- MODIFICACIÓN: Excluir año mínimo (dinámico) ---
+        # --- MODIFICACIÓN: FILTRAR RESULTADOS POR AÑO SELECCIONADO (SI APLICA) ---
         if not df_var_anio_qty_raw.empty and 'Período' in df_var_anio_qty_raw.columns:
-            min_year_in_data = df_var_anio_qty_raw['Período'].dt.year.min()
-            df_var_anio_qty = df_var_anio_qty_raw[df_var_anio_qty_raw['Período'].dt.year != min_year_in_data].copy()
+            if 'Año' not in df_var_anio_qty_raw.columns:
+                 df_var_anio_qty_raw['Año'] = df_var_anio_qty_raw['Período'].dt.year
+            
+            if selected_years:
+                 df_var_anio_qty = df_var_anio_qty_raw[df_var_anio_qty_raw['Año'].isin(selected_years)].copy()
+            else:
+                 min_year_in_data = df_var_anio_qty_raw['Año'].min()
+                 df_var_anio_qty = df_var_anio_qty_raw[df_var_anio_qty_raw['Año'] != min_year_in_data].copy()
         else:
             df_var_anio_qty = df_var_anio_qty_raw.copy()
         # --- FIN MODIFICACIÓN ---
@@ -1364,6 +1385,7 @@ with tab3:
                     st.subheader("Variaciones Mensuales (Relaciones Costo)") # <-- RENOMBRADO
                     tipo_var_mes_k_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_k_rel") # <-- RENOMBRADO
                     
+                    # Usar df_indicadores (original) para calcular la variación
                     # --- CORRECCIÓN: Usar df_ind_filtered_by_year ---
                     df_for_var_mes_k_ind = pd.DataFrame()
                     if filter_mode == 'Período Específico':
@@ -1407,11 +1429,19 @@ with tab3:
                     is_pct_anio_k_ind = (tipo_var_anio_k_ind == 'Porcentaje')
                     df_var_anio_k_ind_raw = df_pct_anio_k_ind if is_pct_anio_k_ind else df_val_anio_k_ind
 
+                    # --- MODIFICACIÓN: FILTRAR RESULTADOS POR AÑO SELECCIONADO (SI APLICA) ---
                     if not df_var_anio_k_ind_raw.empty and 'Período' in df_var_anio_k_ind_raw.columns:
-                         min_year_in_data = df_var_anio_k_ind_raw['Período'].dt.year.min()
-                         df_var_anio_k_ind = df_var_anio_k_ind_raw[df_var_anio_k_ind_raw['Período'].dt.year != min_year_in_data].copy()
+                        if 'Año' not in df_var_anio_k_ind_raw.columns:
+                             df_var_anio_k_ind_raw['Año'] = df_var_anio_k_ind_raw['Período'].dt.year
+                        
+                        if selected_years:
+                             df_var_anio_k_ind = df_var_anio_k_ind_raw[df_var_anio_k_ind_raw['Año'].isin(selected_years)].copy()
+                        else:
+                             min_year_in_data = df_var_anio_k_ind_raw['Año'].min()
+                             df_var_anio_k_ind = df_var_anio_k_ind_raw[df_var_anio_k_ind_raw['Año'] != min_year_in_data].copy()
                     else:
                         df_var_anio_k_ind = df_var_anio_k_ind_raw.copy()
+                    # --- FIN MODIFICACIÓN ---
 
                     fig_var_anio_k_ind = plot_bar(df_var_anio_k_ind, selected_k_ind_vars, "Variación Interanual ($K)" if tipo_var_anio_k_ind=='Valores' else "Variación Interanual (%)")
                     st.plotly_chart(fig_var_anio_k_ind, use_container_width=True, key="var_anio_k_rel") # <-- RENOMBRADO
@@ -1483,6 +1513,7 @@ with tab3:
                     st.subheader("Variaciones Mensuales (Relaciones Cantidad)") # <-- RENOMBRADO
                     tipo_var_mes_q_ind = st.selectbox("Mostrar como:", ["Valores","Porcentaje"], key="mes_q_rel") # <-- RENOMBRADO
 
+                    # Usar df_indicadores (original) para calcular la variación
                     # --- CORRECCIÓN: Usar df_ind_filtered_by_year ---
                     df_for_var_mes_q_ind = pd.DataFrame()
                     if filter_mode == 'Período Específico':
@@ -1527,11 +1558,19 @@ with tab3:
                     is_pct_anio_q_ind = (tipo_var_anio_q_ind == 'Porcentaje')
                     df_var_anio_q_ind_raw = df_pct_anio_q_ind if is_pct_anio_q_ind else df_val_anio_q_ind
 
+                    # --- MODIFICACIÓN: FILTRAR RESULTADOS POR AÑO SELECCIONADO (SI APLICA) ---
                     if not df_var_anio_q_ind_raw.empty and 'Período' in df_var_anio_q_ind_raw.columns:
-                        min_year_in_data = df_var_anio_q_ind_raw['Período'].dt.year.min()
-                        df_var_anio_q_ind = df_var_anio_q_ind_raw[df_var_anio_q_ind_raw['Período'].dt.year != min_year_in_data].copy()
+                        if 'Año' not in df_var_anio_q_ind_raw.columns:
+                             df_var_anio_q_ind_raw['Año'] = df_var_anio_q_ind_raw['Período'].dt.year
+                        
+                        if selected_years:
+                             df_var_anio_q_ind = df_var_anio_q_ind_raw[df_var_anio_q_ind_raw['Año'].isin(selected_years)].copy()
+                        else:
+                             min_year_in_data = df_var_anio_q_ind_raw['Año'].min()
+                             df_var_anio_q_ind = df_var_anio_q_ind_raw[df_var_anio_q_ind_raw['Año'] != min_year_in_data].copy()
                     else:
                         df_var_anio_q_ind = df_var_anio_q_ind_raw.copy()
+                    # --- FIN MODIFICACIÓN ---
 
                     fig_var_anio_q_ind = plot_bar(df_var_anio_q_ind, selected_q_ind_vars, "Variación Interanual (Cantidad)" if tipo_var_anio_q_ind=='Valores' else "Variación Interanual (%)")
                     st.plotly_chart(fig_var_anio_q_ind, use_container_width=True, key="var_anio_q_rel") # <-- RENOMBRADO
