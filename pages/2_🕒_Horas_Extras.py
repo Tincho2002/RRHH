@@ -69,7 +69,9 @@ custom_format_locale = {
 alt.renderers.set_embed_options(formatLocale=custom_format_locale)
 
 def format_number_es(num, decimals=2):
+    # Corrección: Manejo robusto de NaN e Infinito
     if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
+    if np.isinf(num): return "-" 
     s = f"{num:,.{decimals}f}"
     return s.replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
@@ -227,6 +229,7 @@ def load_and_clean_data(uploaded_file):
         df_excel['Legajo'] = df_excel['Legajo'].apply(clean_legajo_value)
     else: df_excel['Legajo'] = 'no disponible'
     if 'Período' in df_excel.columns:
+        # Corrección: Forzar coerción para evitar errores con fechas mal formateadas
         df_excel['Período'] = pd.to_datetime(df_excel['Período'], errors='coerce')
         df_excel['Mes'] = df_excel['Período'].dt.strftime('%Y-%m')
         df_excel.dropna(subset=['Período'], inplace=True)
@@ -701,7 +704,8 @@ if uploaded_file is not None:
                             st.altair_chart(alt.layer(bars_cantidades, line_cantidades, text_cantidades).resolve_scale(y='shared').properties(title=alt.TitleParams('Cantidades Mensuales', anchor='middle')).interactive(), use_container_width=True)
                         else: st.info("No hay datos de cantidades para mostrar para la selección actual.")
                     st.subheader('Tabla de Tendencias Mensuales')
-                    st.dataframe(monthly_trends_agg_with_total.style.format(create_format_dict(monthly_trends_agg_with_total)), use_container_width=True)
+                    # Corrección: reset_index para evitar problemas de estilos
+                    st.dataframe(monthly_trends_agg_with_total.reset_index(drop=True).style.format(create_format_dict(monthly_trends_agg_with_total)), use_container_width=True)
                     generate_download_buttons(monthly_trends_agg_with_total, 'tendencias_mensuales', 'tab1_trends')
                 else: st.warning("No hay datos de tendencias para mostrar con los filtros actuales.")
         with st.container(border=True):
@@ -735,7 +739,8 @@ if uploaded_file is not None:
                     df_variaciones = monthly_trends_for_var[['Mes', 'Total_Costos', 'Variacion_Costos_Abs', 'Variacion_Costos_Pct', 'Total_Cantidades', 'Variacion_Cantidades_Abs', 'Variacion_Cantidades_Pct']]
                     formatters_var = create_format_dict(df_variaciones)
                     formatters_var.update({'Variacion_Costos_Pct': lambda x: f"{format_number_es(x, 2)}%", 'Variacion_Cantidades_Pct': lambda x: f"{format_number_es(x, 2)}%"})
-                    st.dataframe(df_variaciones.style.format(formatters_var), use_container_width=True)
+                    # Corrección: reset_index para evitar problemas de estilos
+                    st.dataframe(df_variaciones.reset_index(drop=True).style.format(formatters_var), use_container_width=True)
                     generate_download_buttons(df_variaciones, 'variaciones_mensuales', 'tab1_var')
                 else: st.info("No hay suficientes datos (se necesita más de un mes) para calcular las variaciones.")
     
@@ -998,7 +1003,8 @@ if uploaded_file is not None:
                         table_data_comp.sort_values(by='Costo Total', ascending=False, inplace=True)
                         total_row_comp = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_comp['Costo Total'].sum()], 'Cantidad Total': [table_data_comp['Cantidad Total'].sum()]})
                         df_final_table_comp = pd.concat([table_data_comp, total_row_comp], ignore_index=True)
-                        st.dataframe(df_final_table_comp.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
+                        # Corrección: reset_index para evitar problemas de estilos
+                        st.dataframe(df_final_table_comp.reset_index(drop=True).style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
                 st.markdown("---")
                 st.subheader(f"Mapa Interactivo Individual para el Período: {month_name_map}")
                 if not df_mapa_data.empty:
@@ -1014,7 +1020,8 @@ if uploaded_file is not None:
                         table_data_single.sort_values(by='Costo Total', ascending=False, inplace=True)
                         total_row_single = pd.DataFrame({'Distrito': ['**TOTAL GENERAL**'], 'Costo Total': [table_data_single['Costo Total'].sum()], 'Cantidad Total': [table_data_single['Cantidad Total'].sum()]})
                         df_final_table_single = pd.concat([table_data_single, total_row_single], ignore_index=True)
-                        st.dataframe(df_final_table_single.style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
+                        # Corrección: reset_index para evitar problemas de estilos
+                        st.dataframe(df_final_table_single.reset_index(drop=True).style.format({'Costo Total': format_currency_es, 'Cantidad Total': lambda x: format_number_es(x, 2)}), use_container_width=True, height=600, hide_index=True)
 
     with tab_desglose_org:
         st.header('Desglose Organizacional Detallado')
@@ -1051,7 +1058,8 @@ if uploaded_file is not None:
                             total_labels = alt.Chart(df_grouped_chart).transform_aggregate(total='sum(Total_Cantidades)', groupby=[primary_col]).mark_text(align='left', baseline='middle', dx=3).encode(x='total:Q', y=y_axis, text=alt.Text('total:Q', format=',.2f'))
                             st.altair_chart(alt.layer(bars, total_labels).properties(title='Cantidades').interactive(), use_container_width=True)
                         st.subheader('Tabla de Distribución')
-                        st.dataframe(df_grouped_with_total.style.format(create_format_dict(df_grouped_with_total)), use_container_width=True)
+                        # Corrección: reset_index para evitar problemas de estilos
+                        st.dataframe(df_grouped_with_total.reset_index(drop=True).style.format(create_format_dict(df_grouped_with_total)), use_container_width=True)
                         generate_download_buttons(df_grouped_with_total, f'dist_{selected_dimension_key.replace(" y ", "_").lower()}', f'tab2_{selected_dimension_key}')
     with tab_empleados:
         with st.container(border=True):
@@ -1094,11 +1102,13 @@ if uploaded_file is not None:
                     
                     # Mostrar Tablas Filtradas
                     st.subheader('Tabla de Top Empleados por Costo')
-                    st.dataframe(df_display_cost.style.format(create_format_dict(df_display_cost)), use_container_width=True)
+                    # Corrección: reset_index para evitar problemas de estilos
+                    st.dataframe(df_display_cost.reset_index(drop=True).style.format(create_format_dict(df_display_cost)), use_container_width=True)
                     generate_download_buttons(df_display_cost, f'top_{top_n_employees}_costo', 'tab3_costo')
                     
                     st.subheader('Tabla de Top Empleados por Cantidad')
-                    st.dataframe(df_display_quant.style.format(create_format_dict(df_display_quant)), use_container_width=True)
+                    # Corrección: reset_index para evitar problemas de estilos
+                    st.dataframe(df_display_quant.reset_index(drop=True).style.format(create_format_dict(df_display_quant)), use_container_width=True)
                     generate_download_buttons(df_display_quant, f'top_{top_n_employees}_cantidad', 'tab3_cant')
     with tab_valor_hora:
         with st.container(border=True):
@@ -1113,7 +1123,8 @@ if uploaded_file is not None:
                         avg_cost_data.append({"Tipo de Hora Extra": cost_col.replace("Horas extras al", "HE").replace("Importe ", ""), "Costo Total": total_cost, "Cantidad Total (hs)": total_quant, "Costo Promedio por Hora": avg_cost})
                 if avg_cost_data:
                     df_avg_costs = pd.DataFrame(avg_cost_data)
-                    st.dataframe(df_avg_costs.style.format({"Costo Total": format_currency_es, "Cantidad Total (hs)": lambda x: format_number_es(x, 2), "Costo Promedio por Hora": format_currency_es}), use_container_width=True)
+                    # Corrección: reset_index para evitar problemas de estilos
+                    st.dataframe(df_avg_costs.reset_index(drop=True).style.format({"Costo Total": format_currency_es, "Cantidad Total (hs)": lambda x: format_number_es(x, 2), "Costo Promedio por Hora": format_currency_es}), use_container_width=True)
                 else: st.info("No se encontraron datos para calcular los costos promedio por tipo de hora.")
             st.markdown("---")
             st.header('Valores Promedio por Hora por Dimensión')
@@ -1121,13 +1132,15 @@ if uploaded_file is not None:
                 grouping_dimension = st.selectbox('Selecciona la dimensión de desglose:', ['Gerencia', 'Legajo', 'Función', 'CECO', 'Ubicación', 'Nivel', 'Sexo'], key='valor_hora_grouping')
                 df_valor_hora = calculate_average_hourly_rate(df, st.session_state.he_selections, grouping_dimension)
                 if not df_valor_hora.empty:
-                    st.dataframe(df_valor_hora.style.format(create_format_dict(df_valor_hora)), use_container_width=True)
+                    # Corrección: reset_index para evitar problemas de estilos
+                    st.dataframe(df_valor_hora.reset_index(drop=True).style.format(create_format_dict(df_valor_hora)), use_container_width=True)
                     generate_download_buttons(df_valor_hora, f'valores_promedio_hora_por_{grouping_dimension}', 'tab_valor_hora')
                 else: st.warning("No hay datos de valor por hora con los filtros actuales o las columnas no existen.")
     with tab_datos_brutos:
         with st.container(border=True):
             st.header('Tabla de Datos Brutos Filtrados')
-            st.dataframe(filtered_df.style.format(create_format_dict(filtered_df)), use_container_width=True)
+            # Corrección: reset_index para evitar problemas de estilos que causan el StreamlitAPIException
+            st.dataframe(filtered_df.reset_index(drop=True).style.format(create_format_dict(filtered_df)), use_container_width=True)
             generate_download_buttons(filtered_df, 'datos_brutos_filtrados', 'tab4_brutos')
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
