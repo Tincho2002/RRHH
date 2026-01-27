@@ -1165,7 +1165,7 @@ if uploaded_file is not None:
                 # Si falla el Styler (ej: por tipos de datos raros o conflictos internos), 
                 # convertimos a string formateado y mostramos eso.
                 # Esto evita el "StreamlitAPIException" y muestra algo legible.
-                st.warning("⚠️ Nota: Se detectó un problema con el formato visual avanzado. Se muestra la tabla en modo de compatibilidad.")
+                # st.warning("⚠️ Nota: Se detectó un problema con el formato visual avanzado. Se muestra la tabla en modo de compatibilidad.")
                 
                 # Crear copia para no afectar descargas
                 df_fallback = df_display.copy()
