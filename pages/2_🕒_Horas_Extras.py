@@ -80,6 +80,7 @@ def format_currency_es(num):
     return f"${format_number_es(num, 2)}"
 
 def create_format_dict(df):
+    # Seleccionamos solo columnas numéricas para evitar errores con columnas object/string
     numeric_cols = df.select_dtypes(include=np.number).columns
     formatters = {}
     for col in numeric_cols:
@@ -219,6 +220,13 @@ def load_and_clean_data(uploaded_file):
             st.error(f"ERROR CRÍTICO: No se pudo leer el archivo Excel. Mensaje: {e_no_sheet}")
             return pd.DataFrame()
     if df_excel.empty: return pd.DataFrame()
+    
+    # --- LIMPIEZA ADICIONAL PARA PREVENIR ERRORES ---
+    # Eliminar columnas vacías o 'Unnamed' que suelen romper el Styler
+    df_excel = df_excel.loc[:, ~df_excel.columns.astype(str).str.startswith('Unnamed:')]
+    # Eliminar columnas duplicadas si existen
+    df_excel = df_excel.loc[:, ~df_excel.columns.duplicated()]
+
     if 'Legajo' in df_excel.columns:
         df_excel['Legajo'] = df_excel['Legajo'].astype(str).str.strip()
         def clean_legajo_value(val):
@@ -825,7 +833,7 @@ if uploaded_file is not None:
                 if pd.notna(latest_month_map):
                     month_dt_map = datetime.strptime(latest_month_map, '%Y-%m')
                     meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
-                    month_name_map = f"{meses_espanol.get(month_dt_map.month, '')} {month_dt_map.year}"
+                    month_name_map = f"{meses_espanol.get(month_dt_map.month, '')} {month_dt.year}"
 
                 # 8. Calcular deltas y colores
                 delta_costo_str, delta_cantidad_str, delta_ubicaciones_str = "", "", ""
@@ -1139,8 +1147,37 @@ if uploaded_file is not None:
     with tab_datos_brutos:
         with st.container(border=True):
             st.header('Tabla de Datos Brutos Filtrados')
-            # Corrección: reset_index para evitar problemas de estilos que causan el StreamlitAPIException
-            st.dataframe(filtered_df.reset_index(drop=True).style.format(create_format_dict(filtered_df)), use_container_width=True)
+            
+            # --- Corrección Robusta: Eliminar duplicados y manejar errores de Styler ---
+            # 1. Eliminar columnas duplicadas si existen (esto causa el StreamlitAPIException a menudo)
+            filtered_df = filtered_df.loc[:, ~filtered_df.columns.duplicated()]
+            
+            # 2. Resetear índice
+            df_display = filtered_df.reset_index(drop=True)
+            
+            try:
+                # Intentar mostrar con estilos (formato bonito)
+                st.dataframe(
+                    df_display.style.format(create_format_dict(df_display)), 
+                    use_container_width=True
+                )
+            except Exception as e:
+                # Si falla el Styler (ej: por tipos de datos raros o conflictos internos), 
+                # convertimos a string formateado y mostramos eso.
+                # Esto evita el "StreamlitAPIException" y muestra algo legible.
+                st.warning("⚠️ Nota: Se detectó un problema con el formato visual avanzado. Se muestra la tabla en modo de compatibilidad.")
+                
+                # Crear copia para no afectar descargas
+                df_fallback = df_display.copy()
+                formatters = create_format_dict(df_fallback)
+                
+                # Aplicar formato directamente a los datos (convirtiéndolos a string)
+                for col, func in formatters.items():
+                    if col in df_fallback.columns:
+                        df_fallback[col] = df_fallback[col].apply(func)
+                
+                st.dataframe(df_fallback, use_container_width=True)
+
             generate_download_buttons(filtered_df, 'datos_brutos_filtrados', 'tab4_brutos')
 else:
     st.info("Por favor, cargue un archivo Excel para comenzar el análisis.")
