@@ -142,6 +142,14 @@ def get_sorted_unique_options(dataframe, column_name):
         if column_name == 'Mes':
             all_months_order = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
             return sorted(unique_values, key=lambda m: all_months_order.index(m) if m in all_months_order else -1)
+        
+        elif column_name == 'Año':
+            # Ordenar años descendente (el más reciente primero)
+            try:
+                return sorted(unique_values, reverse=True)
+            except:
+                return sorted(unique_values)
+
         return sorted(unique_values)
     return []
 
@@ -163,11 +171,13 @@ def load_data(uploaded_file):
         return pd.DataFrame()
         
     df.columns = [str(col).strip() for col in df.columns]
+    
+    # --- LIMPIEZA PREVENTIVA ---
     # Eliminar columnas duplicadas si las hubiera para evitar errores
     df = df.loc[:, ~df.columns.duplicated()]
+    # Eliminar columnas Unnamed
+    df = df.loc[:, ~df.columns.astype(str).str.startswith('Unnamed:')]
 
-    if 'Unnamed: 0' in df.columns:
-        df = df.drop(columns=['Unnamed: 0'])
     if 'Período' not in df.columns:
         st.error("Error Crítico: La columna 'Período' no se encuentra.")
         return pd.DataFrame()
@@ -199,9 +209,13 @@ def load_data(uploaded_file):
     df.drop(columns=['Período_Temp'], inplace=True)
     df.dropna(subset=['Período'], inplace=True)
     
+    # --- EXTRACCIÓN DE FECHAS (MES Y AÑO) ---
     df['Mes_Num'] = df['Período'].dt.month.astype(int)
     meses_es = {1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
     df['Mes'] = df['Mes_Num'].map(meses_es)
+    
+    # NUEVO: Crear columna Año
+    df['Año'] = df['Período'].dt.year.astype(int).astype(str)
     
     df.rename(columns={'Clasificación Ministerio de Hacienda': 'Clasificacion_Ministerio', 'Nro. de Legajo': 'Legajo'}, inplace=True)
     
@@ -209,7 +223,6 @@ def load_data(uploaded_file):
         df['Total Mensual'] = pd.to_numeric(df['Total Mensual'], errors='coerce').fillna(0)
 
     # --- CORRECCIÓN CRÍTICA DE LEGAJOS (USANDO VECTORIZACIÓN) ---
-    # Esto evita el error "ValueError: All arrays must be of the same length"
     if 'Legajo' in df.columns:
         # 1. Intentar convertir a numérico
         s_numeric = pd.to_numeric(df['Legajo'], errors='coerce')
@@ -252,7 +265,8 @@ def load_data(uploaded_file):
     df.reset_index(drop=True, inplace=True)
     return df
 
-st.title('💵 Dashboard de Masa Salarial 2025')
+# MODIFICADO: Título genérico (sin año fijo)
+st.title('💵 Dashboard de Masa Salarial')
 st.markdown("Análisis interactivo de los costos de la mano de obra de la compañía.")
 
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Masa Salarial", type=["xlsx"]) 
@@ -284,7 +298,8 @@ search_query = st.sidebar.text_input("🔍 Buscar por Legajo (Omite otros filtro
 if search_query:
     st.sidebar.info(f"Filtros desactivados. Mostrando solo legajo: {search_query}")
 
-filter_cols = ['Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Mes', 'Ceco', 'Legajo']
+# MODIFICADO: Agregado 'Año' al inicio de los filtros
+filter_cols = ['Año', 'Mes', 'Gerencia', 'Nivel', 'Clasificacion_Ministerio', 'Relación', 'Ceco', 'Legajo']
 
 if 'ms_selections' not in st.session_state:
     initial_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
@@ -336,15 +351,16 @@ if sorted_selected_months:
         previous_month_name = sorted_selected_months[-2]
 else:
     if not df_filtered.empty:
-        all_months_nums_sorted_in_df = sorted(df['Mes_Num'].unique())
-        latest_month_num_fallback = df_filtered.sort_values('Mes_Num', ascending=False)['Mes_Num'].iloc[0]
-        latest_month_name = df[df['Mes_Num'] == latest_month_num_fallback]['Mes'].iloc[0]
+        # Lógica mejorada para encontrar el último mes considerando AÑO
+        # Ordenamos por fecha real (Período) para estar seguros
+        df_sorted_dates = df_filtered.sort_values('Período', ascending=False)
+        latest_period = df_sorted_dates['Período'].iloc[0]
+        latest_month_name = df_sorted_dates['Mes'].iloc[0]
         
-        if latest_month_num_fallback in all_months_nums_sorted_in_df:
-            latest_index_fallback = all_months_nums_sorted_in_df.index(latest_month_num_fallback)
-            if latest_index_fallback > 0:
-                previous_month_num_fallback = all_months_nums_sorted_in_df[latest_index_fallback - 1]
-                previous_month_name = df[df['Mes_Num'] == previous_month_num_fallback]['Mes'].iloc[0]
+        # Buscar mes anterior en los datos disponibles
+        df_prev = df_filtered[df_filtered['Período'] < latest_period].sort_values('Período', ascending=False)
+        if not df_prev.empty:
+            previous_month_name = df_prev['Mes'].iloc[0]
 
 selections_without_month = st.session_state.ms_selections.copy()
 selections_without_month.pop('Mes', [])
@@ -354,6 +370,9 @@ df_current = pd.DataFrame()
 df_previous = pd.DataFrame()
 
 if latest_month_name:
+    # Ajuste: Filtrar usando Período si es posible para precisión de año, pero aquí usamos Mes string
+    # Si hay múltiples años seleccionados, esto podría sumar Enero 25 + Enero 26.
+    # Por eso es IMPORTANTE usar el filtro de Año.
     df_current = df_metrics_base[df_metrics_base['Mes'] == latest_month_name]
 if previous_month_name:
     df_previous = df_metrics_base[df_metrics_base['Mes'] == previous_month_name]
@@ -552,8 +571,17 @@ tab_evolucion, tab_distribucion, tab_costos, tab_conceptos, tab_tabla = st.tabs(
 with tab_evolucion:
     st.subheader("Evolución Mensual de la Masa Salarial")
     col_chart1, col_table1 = st.columns([2, 1])
-    masa_mensual = df_filtered.groupby('Mes').agg({'Total Mensual': 'sum', 'Mes_Num': 'first'}).reset_index().sort_values('Mes_Num')
+    # Agrupamos por Año-Mes para que el gráfico sea cronológico si hay varios años
+    # Pero para simplificar en el gráfico, usaremos 'Mes' y asumimos filtro de año activo o agregación
+    masa_mensual = df_filtered.groupby(['Mes', 'Mes_Num', 'Año']).agg({'Total Mensual': 'sum'}).reset_index().sort_values(['Año', 'Mes_Num'])
     
+    # Creamos etiqueta Mes-Año para el gráfico si hay más de un año seleccionado
+    unique_years = df_filtered['Año'].unique()
+    if len(unique_years) > 1:
+        masa_mensual['Periodo_Label'] = masa_mensual['Mes'] + "-" + masa_mensual['Año']
+    else:
+        masa_mensual['Periodo_Label'] = masa_mensual['Mes']
+
     y_domain = [0, 1]
     if not masa_mensual.empty:
         min_val = masa_mensual['Total Mensual'].min()
@@ -565,7 +593,9 @@ with tab_evolucion:
 
     chart_height1 = (len(masa_mensual) + 1) * 35 + 3
     with col_chart1:
-        meses_ordenados = df.sort_values('Mes_Num')['Mes'].unique().tolist()
+        # Orden personalizado para el eje X
+        sort_order = masa_mensual['Periodo_Label'].tolist()
+        
         base_chart1 = alt.Chart(masa_mensual).transform_window(
             total_sum='sum(Total Mensual)'
         ).transform_calculate(
@@ -573,19 +603,19 @@ with tab_evolucion:
             label_text="format(datum['Total Mensual'] / 1000000000, ',.2f') + 'G (' + format(datum.percentage, '.1%') + ')'"
         )
         line = base_chart1.mark_line(point=True, strokeWidth=3).encode(
-            x=alt.X('Mes:N', sort=meses_ordenados, title='Mes'), 
+            x=alt.X('Periodo_Label:N', sort=sort_order, title='Período'), 
             y=alt.Y('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s'), scale=y_scale), 
-            tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Total Mensual:Q', format='$,.2f')]
+            tooltip=[alt.Tooltip('Periodo_Label:N', title='Período'), alt.Tooltip('Total Mensual:Q', format='$,.2f')]
         )
         text = base_chart1.mark_text(align='center', baseline='bottom', dy=-10).encode(
-            x=alt.X('Mes:N', sort=meses_ordenados), y=alt.Y('Total Mensual:Q', scale=y_scale), text='label_text:N'
+            x=alt.X('Periodo_Label:N', sort=sort_order), y=alt.Y('Total Mensual:Q', scale=y_scale), text='label_text:N'
         )
         line_chart = (line + text).properties(height=chart_height1, padding={'top': 35, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
         st.altair_chart(line_chart, use_container_width=True)
     with col_table1:
-        masa_mensual_display = masa_mensual[['Mes', 'Total Mensual']].copy()
+        masa_mensual_display = masa_mensual[['Periodo_Label', 'Total Mensual']].rename(columns={'Periodo_Label': 'Mes/Año'}).copy()
         if not masa_mensual_display.empty:
-            total_row = pd.DataFrame([{'Mes': 'Total', 'Total Mensual': masa_mensual_display['Total Mensual'].sum()}])
+            total_row = pd.DataFrame([{'Mes/Año': 'Total', 'Total Mensual': masa_mensual_display['Total Mensual'].sum()}])
             masa_mensual_display = pd.concat([masa_mensual_display, total_row], ignore_index=True)
         st.dataframe(masa_mensual_display.style.format({"Total Mensual": lambda x: f"${format_number_es(x)}"}).set_properties(subset=["Total Mensual"], **{'text-align': 'right'}), hide_index=True, use_container_width=True, height=chart_height1)
     
@@ -601,51 +631,65 @@ with tab_evolucion:
     summary_df_filtered = pd.pivot_table(
         df_filtered,
         values='Total Mensual',
-        index=['Mes_Num', 'Mes'],
+        index=['Año', 'Mes_Num', 'Mes'], # Incluir año en el index
         columns='Clasificacion_Ministerio',
         aggfunc='sum',
         fill_value=0
-    ).sort_index(level='Mes_Num').reset_index(level='Mes_Num', drop=True)
+    ).sort_index(level=['Año', 'Mes_Num']) # Ordenar por Año y MesNum
 
-    summary_df_display = summary_df_filtered.reset_index().copy()
+    # Aplanar para visualización
+    summary_df_display = summary_df_filtered.reset_index().drop(columns=['Mes_Num'])
     
     if not summary_df_display.empty:
         col_chart_anual, col_table_anual = st.columns([2, 1])
 
         with col_table_anual:
             numeric_cols = summary_df_display.select_dtypes(include=np.number).columns
+            # Excluir 'Año' si se detectó como numérico
+            numeric_cols = [c for c in numeric_cols if c != 'Año']
+            
             if 'Total general' not in summary_df_display.columns and len(numeric_cols) > 0:
                 summary_df_display['Total general'] = summary_df_display[numeric_cols].sum(axis=1)
 
-            total_row = summary_df_display.select_dtypes(include=np.number).sum().rename('Total')
-            summary_df_display = pd.concat([summary_df_display, total_row.to_frame().T], ignore_index=True)
-            if 'Mes' in summary_df_display.columns:
-                summary_df_display.iloc[-1, summary_df_display.columns.get_loc('Mes')] = 'Total'
+            total_row = summary_df_display[numeric_cols].sum().rename('Total')
+            # Reconstruir dataframe con fila total
+            summary_df_display_final = pd.concat([summary_df_display, total_row.to_frame().T], ignore_index=True)
+            
+            # Llenar labels en fila total
+            if 'Mes' in summary_df_display_final.columns:
+                summary_df_display_final.iloc[-1, summary_df_display_final.columns.get_loc('Mes')] = 'Total'
+            if 'Año' in summary_df_display_final.columns:
+                summary_df_display_final.iloc[-1, summary_df_display_final.columns.get_loc('Año')] = ''
 
-            summary_currency_cols = [col for col in summary_df_display.columns if col != 'Mes' and pd.api.types.is_numeric_dtype(summary_df_display[col])]
+            summary_currency_cols = [col for col in summary_df_display_final.columns if col not in ['Mes', 'Año'] and pd.api.types.is_numeric_dtype(summary_df_display_final[col])]
             summary_format_mapper = {col: lambda x: f"${format_number_es(x)}" for col in summary_currency_cols}
             table_height_anual = 350 + 40
-            st.dataframe(summary_df_display.style.format(summary_format_mapper, na_rep="").set_properties(subset=summary_currency_cols, **{'text-align': 'right'}), use_container_width=True, hide_index=True, height=table_height_anual)
+            st.dataframe(summary_df_display_final.style.format(summary_format_mapper, na_rep="").set_properties(subset=summary_currency_cols, **{'text-align': 'right'}), use_container_width=True, hide_index=True, height=table_height_anual)
         
         with col_chart_anual:
-            summary_chart_data = summary_df_filtered.reset_index().melt(id_vars='Mes', var_name='Clasificacion', value_name='Masa Salarial')
-            mes_sort_order = summary_chart_data['Mes'].dropna().unique().tolist()
+            summary_chart_data = summary_df_filtered.reset_index()
+            # Crear etiqueta compuesta para el eje X
+            summary_chart_data['Eje_X'] = summary_chart_data['Mes'] + " " + summary_chart_data['Año'].astype(str)
+            summary_chart_data = summary_chart_data.melt(id_vars=['Eje_X', 'Mes_Num', 'Año'], var_name='Clasificacion', value_name='Masa Salarial')
+            
+            # Ordenar por Año y MesNum
+            sort_order_anual = summary_chart_data.sort_values(['Año', 'Mes_Num'])['Eje_X'].unique().tolist()
 
             bar_chart = alt.Chart(summary_chart_data).mark_bar().encode(
-                x=alt.X('Mes:N', sort=mes_sort_order, title='Mes'),
+                x=alt.X('Eje_X:N', sort=sort_order_anual, title='Mes/Año'),
                 y=alt.Y('sum(Masa Salarial):Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
                 color=alt.Color('Clasificacion:N', title='Clasificación'),
-                tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Clasificacion:N'), alt.Tooltip('sum(Masa Salarial):Q', format='$,.2f', title='Masa Salarial')]
+                tooltip=[alt.Tooltip('Eje_X:N', title='Período'), alt.Tooltip('Clasificacion:N'), alt.Tooltip('sum(Masa Salarial):Q', format='$,.2f', title='Masa Salarial')]
             )
             text_labels = alt.Chart(summary_chart_data).transform_aggregate(
                 total_masa_salarial='sum(Masa Salarial)',
-                groupby=['Mes']
+                groupby=['Eje_X']
             ).mark_text(
                 dy=-8,
                 align='center',
                 color='black'
             ).encode(
-                x=alt.X('Mes:N', sort=mes_sort_order),
+                x=alt.X('Eje_X:N', sort=sort_order_anual),
                 y=alt.Y('total_masa_salarial:Q'),
                 text=alt.Text('total_masa_salarial:Q', format='$,.2s')
             )
@@ -759,11 +803,13 @@ with tab_distribucion:
             st.download_button(label="📥 Descargar Excel (Clasif.)", data=to_excel(table_display_data), file_name='distribucion_clasificacion.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
 
     else:
-        meses_ordenados_viz = df.sort_values('Mes_Num')['Mes'].unique().tolist()
+        # Preparamos etiqueta compuesta para visualización mensual
+        df_filtered['Eje_X'] = df_filtered['Mes'] + " " + df_filtered['Año'].astype(str)
+        orden_eje_x = df_filtered.sort_values(['Año', 'Mes_Num'])['Eje_X'].unique().tolist()
 
         st.subheader("Evolución Mensual por Gerencia")
         
-        gerencia_mensual_data = df_filtered.groupby(['Gerencia', 'Mes', 'Mes_Num'])['Total Mensual'].sum().reset_index()
+        gerencia_mensual_data = df_filtered.groupby(['Gerencia', 'Eje_X'])['Total Mensual'].sum().reset_index()
         gerencia_totales = gerencia_mensual_data.groupby('Gerencia')['Total Mensual'].sum().reset_index()
         
         col_chart_m_ger, col_table_m_ger = st.columns([3, 1])
@@ -772,11 +818,10 @@ with tab_distribucion:
             chart_ger_stacked = alt.Chart(gerencia_mensual_data).mark_bar().encode(
                 y=alt.Y('Gerencia:N', sort='-x', title=None, axis=alt.Axis(labelLimit=150)),
                 x=alt.X('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
-                color=alt.Color('Mes:N', sort=meses_ordenados_viz, title='Mes'),
-                order=alt.Order('Mes_Num', sort='ascending'), 
+                color=alt.Color('Eje_X:N', sort=orden_eje_x, title='Período'),
                 tooltip=[
                     alt.Tooltip('Gerencia:N'),
-                    alt.Tooltip('Mes:N'),
+                    alt.Tooltip('Eje_X:N', title='Período'),
                     alt.Tooltip('Total Mensual:Q', format='$,.2f')
                 ]
             )
@@ -798,9 +843,9 @@ with tab_distribucion:
 
         with col_table_m_ger:
             pivot_ger_mensual = pd.pivot_table(
-                gerencia_mensual_data, values='Total Mensual', index='Gerencia', columns='Mes', aggfunc='sum', fill_value=0
+                gerencia_mensual_data, values='Total Mensual', index='Gerencia', columns='Eje_X', aggfunc='sum', fill_value=0
             )
-            cols_presentes = [m for m in meses_ordenados_viz if m in pivot_ger_mensual.columns]
+            cols_presentes = [m for m in orden_eje_x if m in pivot_ger_mensual.columns]
             pivot_ger_mensual = pivot_ger_mensual[cols_presentes]
             pivot_ger_mensual['Total'] = pivot_ger_mensual.sum(axis=1)
             pivot_ger_mensual = pivot_ger_mensual.sort_values('Total', ascending=False)
@@ -815,19 +860,18 @@ with tab_distribucion:
         st.markdown("---")
         st.subheader("Evolución Mensual por Clasificación")
         
-        clasif_mensual_data = df_filtered.groupby(['Clasificacion_Ministerio', 'Mes', 'Mes_Num'])['Total Mensual'].sum().reset_index()
-        clasif_totales = clasif_mensual_data.groupby('Clasificacion_Ministerio')['Total Mensual'].sum().reset_index()
+        clasif_mensual_data = df_filtered.groupby(['Clasificacion_Ministerio', 'Eje_X'])['Total Mensual'].sum().reset_index()
         
         col_chart_m_clas, col_table_m_clas = st.columns([3, 1])
 
         with col_chart_m_clas:
             chart_clas_stacked = alt.Chart(clasif_mensual_data).mark_bar().encode(
-                x=alt.X('Mes:N', sort=meses_ordenados_viz, title='Mes'),
+                x=alt.X('Eje_X:N', sort=orden_eje_x, title='Período'),
                 y=alt.Y('Total Mensual:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
                 color=alt.Color('Clasificacion_Ministerio:N', title='Clasificación'),
-                tooltip=[alt.Tooltip('Mes:N'), alt.Tooltip('Clasificacion_Ministerio:N'), alt.Tooltip('Total Mensual:Q', format='$,.2f')]
+                tooltip=[alt.Tooltip('Eje_X:N', title='Período'), alt.Tooltip('Clasificacion_Ministerio:N'), alt.Tooltip('Total Mensual:Q', format='$,.2f')]
             )
-            totales_por_mes = clasif_mensual_data.groupby(['Mes'])['Total Mensual'].sum().reset_index()
+            totales_por_mes = clasif_mensual_data.groupby(['Eje_X'])['Total Mensual'].sum().reset_index()
             
             text_totals_clas = alt.Chart(totales_por_mes).mark_text(
                 align='center',
@@ -835,7 +879,7 @@ with tab_distribucion:
                 dy=-5,
                 color='black'
             ).encode(
-                x=alt.X('Mes:N', sort=meses_ordenados_viz),
+                x=alt.X('Eje_X:N', sort=orden_eje_x),
                 y=alt.Y('Total Mensual:Q'),
                 text=alt.Text('Total Mensual:Q', format='$,.2s')
             )
@@ -848,9 +892,9 @@ with tab_distribucion:
 
         with col_table_m_clas:
             pivot_clas_mensual = pd.pivot_table(
-                clasif_mensual_data, values='Total Mensual', index='Clasificacion_Ministerio', columns='Mes', aggfunc='sum', fill_value=0
+                clasif_mensual_data, values='Total Mensual', index='Clasificacion_Ministerio', columns='Eje_X', aggfunc='sum', fill_value=0
             )
-            cols_presentes_clas = [m for m in meses_ordenados_viz if m in pivot_clas_mensual.columns]
+            cols_presentes_clas = [m for m in orden_eje_x if m in pivot_clas_mensual.columns]
             pivot_clas_mensual = pivot_clas_mensual[cols_presentes_clas]
             pivot_clas_mensual['Total'] = pivot_clas_mensual.sum(axis=1)
             pivot_clas_mensual = pivot_clas_mensual.sort_values('Total', ascending=False)
@@ -888,13 +932,15 @@ with tab_costos:
     
     st.markdown("---")
     
-    meses_ordenados_costos = df.sort_values('Mes_Num')['Mes'].unique().tolist()
+    # Preparar eje X compuesto
+    df_filtered['Eje_X'] = df_filtered['Mes'] + " " + df_filtered['Año'].astype(str)
+    meses_ordenados_costos = df_filtered.sort_values(['Año', 'Mes_Num'])['Eje_X'].unique().tolist()
     
-    unique_months_present = df_filtered['Mes'].unique()
-    is_single_month = len(unique_months_present) == 1
+    # Detectar si hay un solo mes visible
+    is_single_month = len(meses_ordenados_costos) == 1
     
     if is_single_month:
-        st.info(f"Visualización de mes único detectada: {unique_months_present[0]}. Los gráficos se muestran como distribución (Torta).")
+        st.info(f"Visualización de mes único detectada: {meses_ordenados_costos[0]}. Los gráficos se muestran como distribución (Torta).")
 
     if not sels:
         st.info("Por favor, seleccione al menos una dimensión para visualizar.")
@@ -903,7 +949,7 @@ with tab_costos:
         col_cat = opts[l] 
         st.markdown(f"#### Análisis: {l}")
         
-        g = df_filtered.groupby([col_cat, 'Mes', 'Mes_Num']).agg(
+        g = df_filtered.groupby([col_cat, 'Eje_X']).agg(
             M=('Total Mensual', 'sum'), 
             D=('Dotación', 'sum')
         ).reset_index()
@@ -916,7 +962,7 @@ with tab_costos:
                 theta=alt.Theta(field="M", type="quantitative", stack=True),
                 color=alt.Color(field=col_cat, type="nominal", title=col_cat),
                 tooltip=[
-                    alt.Tooltip('Mes:N', title='Mes'),
+                    alt.Tooltip('Eje_X:N', title='Período'),
                     alt.Tooltip(f'{col_cat}:N'),
                     alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Total)'),
                     alt.Tooltip('D:Q', title='Dotación'),
@@ -934,7 +980,7 @@ with tab_costos:
             if l == "Relación":
                 # --- GRÁFICO DE DOBLE EJE (DUAL AXIS) ---
                 base_rel = alt.Chart(g).encode(
-                    x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes')
+                    x=alt.X('Eje_X:N', sort=meses_ordenados_costos, title='Período')
                 )
                 
                 # Capa 1: Barras Convenio (Eje Y Principal - Izquierda)
@@ -944,7 +990,7 @@ with tab_costos:
                     y=alt.Y('CP:Q', title='Costo Promedio ($) - Convenio', axis=alt.Axis(format='$,.0f', titleColor='#1f77b4')),
                     color=alt.value('#1f77b4'),
                     tooltip=[
-                        alt.Tooltip('Mes:N', title='Mes'), 
+                        alt.Tooltip('Eje_X:N', title='Período'), 
                         alt.Tooltip('Relación:N'), 
                         alt.Tooltip('M:Q', format='$,.2f', title='Masa'), 
                         alt.Tooltip('D:Q', title='Dotación'), 
@@ -959,7 +1005,7 @@ with tab_costos:
                     y=alt.Y('CP:Q', title='Costo Promedio ($) - Fuera Convenio', axis=alt.Axis(format='$,.0f', titleColor='#ff7f0e')),
                     color=alt.value('#ff7f0e'), 
                     tooltip=[
-                        alt.Tooltip('Mes:N', title='Mes'), 
+                        alt.Tooltip('Eje_X:N', title='Período'), 
                         alt.Tooltip('Relación:N'), 
                         alt.Tooltip('M:Q', format='$,.2f', title='Masa'), 
                         alt.Tooltip('D:Q', title='Dotación'), 
@@ -975,11 +1021,11 @@ with tab_costos:
                 st.altair_chart(final_chart_costos, use_container_width=True)
             else:
                 final_chart_costos = alt.Chart(g).mark_line(point=True).encode(
-                    x=alt.X('Mes:N', sort=meses_ordenados_costos, title='Mes'), 
+                    x=alt.X('Eje_X:N', sort=meses_ordenados_costos, title='Período'), 
                     y=alt.Y('CP:Q', title='Costo Promedio ($)', axis=alt.Axis(format='$,.0f')), 
                     color=alt.Color(f'{col_cat}:N', title=col_cat),
                     tooltip=[
-                        alt.Tooltip('Mes:N', title='Mes'), 
+                        alt.Tooltip('Eje_X:N', title='Período'), 
                         alt.Tooltip(f'{col_cat}:N'), 
                         alt.Tooltip('M:Q', format='$,.2f', title='Masa Salarial (Num)'), 
                         alt.Tooltip('D:Q', title='Dotación (Den)'),
@@ -991,8 +1037,9 @@ with tab_costos:
         if det:
             st.write(f"**Detalle por Mes y Legajo - {l}**")
             cols_base = ['Legajo', 'Apellido y Nombres', 'Gerencia', col_cat]
-            df_b = df_filtered[cols_base + ['Mes', 'Mes_Num', 'Total Mensual']].copy()
-            p = pd.pivot_table(df_b, values='Total Mensual', index=cols_base, columns='Mes', aggfunc='sum', fill_value=0).reset_index()
+            # Usar Eje_X como columna de columnas para la pivot
+            df_b = df_filtered[cols_base + ['Eje_X', 'Total Mensual']].copy()
+            p = pd.pivot_table(df_b, values='Total Mensual', index=cols_base, columns='Eje_X', aggfunc='sum', fill_value=0).reset_index()
             mp = [m for m in meses_ordenados_costos if m in p.columns]
             vals = p[mp]
             p['Promedio Mensual'] = vals.replace(0, np.nan).mean(axis=1).fillna(0)
@@ -1017,17 +1064,19 @@ with tab_costos:
             for m in mp:
                 col_config[m] = st.column_config.Column(m, width=110)
 
-            # 5. Aplicar formato y estilos
-            styler = df_show.style.format(format_dict)
-            
-            # ALINEACIÓN DERECHA EXPLÍCITA
-            cols_subset = [c for c in cols_numericas if c in df_show.columns]
-            styler.set_properties(subset=cols_subset, **{'text-align': 'right !important'})
-            
-            if 'Promedio Mensual' in df_show.columns:
-                styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold', 'text-align': 'right !important'})
+            # 5. Aplicar formato y estilos con TRY/EXCEPT para robustez
+            try:
+                styler = df_show.style.format(format_dict)
+                # ALINEACIÓN DERECHA EXPLÍCITA
+                cols_subset = [c for c in cols_numericas if c in df_show.columns]
+                styler.set_properties(subset=cols_subset, **{'text-align': 'right !important'})
+                
+                if 'Promedio Mensual' in df_show.columns:
+                    styler.set_properties(subset=['Promedio Mensual'], **{'background-color': '#FFE0B2', 'color': '#000000', 'font-weight': 'bold', 'text-align': 'right !important'})
 
-            st.dataframe(styler, use_container_width=False, height=400, column_config=col_config)
+                st.dataframe(styler, use_container_width=False, height=400, column_config=col_config)
+            except Exception:
+                st.dataframe(df_show, use_container_width=False, height=400)
             
             col_d1, col_d2 = st.columns(2)
             with col_d1: st.download_button(f"📥 Descargar Detalle CSV ({l})", data=df_detailed_display.to_csv(index=False).encode('utf-8'), file_name=f'detalle_costos_{l}.csv', mime='text/csv', use_container_width=True)
@@ -1040,7 +1089,7 @@ with tab_costos:
                 df_filtered,
                 values=['Total Mensual', 'Dotación'],
                 index=col_cat,
-                columns='Mes',
+                columns='Eje_X', # Usar mes/año
                 aggfunc={'Total Mensual': 'sum', 'Dotación': 'sum'},
                 fill_value=0
             )
@@ -1062,7 +1111,7 @@ with tab_costos:
             pivot_multi = pivot_multi.reindex(columns=new_columns)
             
             masa_anual = df_filtered.groupby(col_cat)['Total Mensual'].sum()
-            dot_acum_anual = df_filtered.groupby([col_cat, 'Mes'])['Dotación'].sum().groupby(col_cat).sum()
+            dot_acum_anual = df_filtered.groupby([col_cat, 'Eje_X'])['Dotación'].sum().groupby(col_cat).sum()
             costo_prom_anual = masa_anual.div(dot_acum_anual.replace(0, np.nan)).fillna(0)
             
             prom_cols_tuples = [('Promedio', m) for m in available_months]
@@ -1136,33 +1185,36 @@ with tab_costos:
                 elif "Dot." in c or "Dotación" in c:
                      config_resumen[c] = st.column_config.Column(c, width=90)
             
-            # Formateo visual via Styler (datos se mantienen numéricos)
-            format_dict_multi = {}
-            for c in cols_masa + [col for col in cols_promedio if col in pivot_to_show.columns]:
-                if c in pivot_to_show.columns:
-                    format_dict_multi[c] = lambda x: f"${format_number_es(x)}" if pd.notnull(x) else ""
-            
-            for c in cols_dot:
-                if c in pivot_to_show.columns:
-                    format_dict_multi[c] = lambda x: f"{int(x)}" if pd.notnull(x) else ""
+            # Formateo visual via Styler
+            try:
+                format_dict_multi = {}
+                for c in cols_masa + [col for col in cols_promedio if col in pivot_to_show.columns]:
+                    if c in pivot_to_show.columns:
+                        format_dict_multi[c] = lambda x: f"${format_number_es(x)}" if pd.notnull(x) else ""
+                
+                for c in cols_dot:
+                    if c in pivot_to_show.columns:
+                        format_dict_multi[c] = lambda x: f"{int(x)}" if pd.notnull(x) else ""
 
-            styler_multi = pivot_to_show.style.format(format_dict_multi)
-            
-            # Alineación y Colores
-            cols_subset_multi = list(pivot_to_show.columns)
-            styler_multi.set_properties(subset=cols_subset_multi, **{'text-align': 'right !important'})
+                styler_multi = pivot_to_show.style.format(format_dict_multi)
+                
+                # Alineación y Colores
+                cols_subset_multi = list(pivot_to_show.columns)
+                styler_multi.set_properties(subset=cols_subset_multi, **{'text-align': 'right !important'})
 
-            styler_multi.set_properties(
-                subset=[c for c in cols_promedio if c in pivot_to_show.columns], 
-                **{'background-color': '#FFE0B2', 'color': '#000000', 'text-align': 'right !important'}
-            )
+                styler_multi.set_properties(
+                    subset=[c for c in cols_promedio if c in pivot_to_show.columns], 
+                    **{'background-color': '#FFE0B2', 'color': '#000000', 'text-align': 'right !important'}
+                )
 
-            st.dataframe(
-                styler_multi,
-                use_container_width=False,
-                hide_index=False, 
-                column_config=config_resumen
-            )
+                st.dataframe(
+                    styler_multi,
+                    use_container_width=False,
+                    hide_index=False, 
+                    column_config=config_resumen
+                )
+            except Exception:
+                st.dataframe(pivot_to_show, use_container_width=False)
             
             col_d1, col_d2 = st.columns(2)
             with col_d1:
@@ -1201,14 +1253,18 @@ with tab_conceptos:
         'Contribuciones Patronales 1.1.6', 'Complementos 1.1.7', 'Asignaciones Familiares 1.4'
     ]
     
-    meses_ordenados_viz_conc = df.sort_values('Mes_Num')['Mes'].unique().tolist()
+    # Preparar eje X compuesto
+    df_filtered['Eje_X'] = df_filtered['Mes'] + " " + df_filtered['Año'].astype(str)
+    meses_ordenados_viz_conc = df_filtered.sort_values(['Año', 'Mes_Num'])['Eje_X'].unique().tolist()
 
     if mode == "Masa por Concepto":
         if concept_cols_present:
-            df_melted = df_filtered.melt(id_vars=['Mes', 'Mes_Num'], value_vars=concept_cols_present, var_name='Concepto', value_name='Monto')
+            df_melted = df_filtered.melt(id_vars=['Eje_X', 'Mes', 'Mes_Num', 'Año'], value_vars=concept_cols_present, var_name='Concepto', value_name='Monto')
             
-            pivot_table = pd.pivot_table(df_melted, values='Monto', index='Concepto', columns='Mes', aggfunc='sum', fill_value=0)
-            meses_en_datos = df_filtered[['Mes', 'Mes_Num']].drop_duplicates().sort_values('Mes_Num')['Mes'].tolist()
+            pivot_table = pd.pivot_table(df_melted, values='Monto', index='Concepto', columns='Eje_X', aggfunc='sum', fill_value=0)
+            
+            meses_en_datos = meses_ordenados_viz_conc
+            
             if all(mes in pivot_table.columns for mes in meses_en_datos):
                 pivot_table = pivot_table[meses_en_datos]
             pivot_table['Total general'] = pivot_table.sum(axis=1)
@@ -1233,7 +1289,7 @@ with tab_conceptos:
                     st.altair_chart(bar_chart_concepto, use_container_width=True)
                 else:
                     chart_data_mensual = df_melted[df_melted['Concepto'] != 'Total Mensual']
-                    chart_data_mensual = chart_data_mensual.groupby(['Concepto', 'Mes', 'Mes_Num'])['Monto'].sum().reset_index()
+                    chart_data_mensual = chart_data_mensual.groupby(['Concepto', 'Eje_X', 'Mes_Num', 'Año'])['Monto'].sum().reset_index()
                     
                     totals_concept = chart_data_mensual.groupby('Concepto')['Monto'].sum().reset_index()
 
@@ -1243,9 +1299,9 @@ with tab_conceptos:
                     bar_chart_mensual = alt.Chart(chart_data_mensual).mark_bar().encode(
                         y=alt.Y('Concepto:N', sort=total_por_concepto, title=None, axis=alt.Axis(labelLimit=200)),
                         x=alt.X('Monto:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
-                        color=alt.Color('Mes:N', sort=meses_ordenados_viz_conc, title='Mes'),
-                        order=alt.Order('Mes_Num', sort='ascending'),
-                        tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Mes:N'), alt.Tooltip('Monto:Q', format='$,.2f')]
+                        color=alt.Color('Eje_X:N', sort=meses_ordenados_viz_conc, title='Período'),
+                        order=alt.Order(['Año', 'Mes_Num'], sort='ascending'),
+                        tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Eje_X:N', title='Período'), alt.Tooltip('Monto:Q', format='$,.2f')]
                     )
 
                     text_totals_mensual = alt.Chart(totals_concept).mark_text(
@@ -1278,15 +1334,12 @@ with tab_conceptos:
                     c: st.column_config.Column(c, width=110) for c in df_concepto_show.columns
                 }
                 
-                styler_conceptos = df_concepto_show.style
-                styler_conceptos.set_properties(**{'text-align': 'right'})
-                
-                st.dataframe(
-                    styler_conceptos, 
-                    use_container_width=False, 
-                    height=height_table,
-                    column_config=config_concepto
-                )
+                try:
+                    styler_conceptos = df_concepto_show.style
+                    styler_conceptos.set_properties(**{'text-align': 'right'})
+                    st.dataframe(styler_conceptos, use_container_width=False, height=height_table, column_config=config_concepto)
+                except Exception:
+                    st.dataframe(df_concepto_show, use_container_width=False, height=height_table)
 
             st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
             col_dl_7, col_dl_8 = st.columns(2)
@@ -1307,10 +1360,12 @@ with tab_conceptos:
         sipaf_cols_present = list(dict.fromkeys(sipaf_cols_present))
 
         if sipaf_cols_present:
-            df_melted_sipaf = df_filtered.melt(id_vars=['Mes', 'Mes_Num'], value_vars=sipaf_cols_present, var_name='Concepto', value_name='Monto')
+            df_melted_sipaf = df_filtered.melt(id_vars=['Eje_X', 'Mes', 'Mes_Num', 'Año'], value_vars=sipaf_cols_present, var_name='Concepto', value_name='Monto')
             
-            pivot_table_sipaf = pd.pivot_table(df_melted_sipaf, values='Monto', index='Concepto', columns='Mes', aggfunc='sum', fill_value=0)
-            meses_en_datos_sipaf = df_filtered[['Mes', 'Mes_Num']].drop_duplicates().sort_values('Mes_Num')['Mes'].tolist()
+            pivot_table_sipaf = pd.pivot_table(df_melted_sipaf, values='Monto', index='Concepto', columns='Eje_X', aggfunc='sum', fill_value=0)
+            
+            meses_en_datos_sipaf = meses_ordenados_viz_conc
+            
             if all(mes in pivot_table_sipaf.columns for mes in meses_en_datos_sipaf):
                 pivot_table_sipaf = pivot_table_sipaf[meses_en_datos_sipaf]
             pivot_table_sipaf['Total general'] = pivot_table_sipaf.sum(axis=1)
@@ -1337,7 +1392,7 @@ with tab_conceptos:
                     bar_chart_sipaf = (base_chart_sipaf + text_labels_sipaf).properties(height=chart_height_sipaf, padding={'top': 25, 'left': 5, 'right': 5, 'bottom': 5}).configure(background='transparent').configure_view(fill='transparent')
                     st.altair_chart(bar_chart_sipaf, use_container_width=True)
                 else:
-                    chart_data_sipaf_mensual = df_melted_sipaf.groupby(['Concepto', 'Mes', 'Mes_Num'])['Monto'].sum().reset_index()
+                    chart_data_sipaf_mensual = df_melted_sipaf.groupby(['Concepto', 'Eje_X', 'Mes_Num', 'Año'])['Monto'].sum().reset_index()
 
                     totals_sipaf = chart_data_sipaf_mensual.groupby('Concepto')['Monto'].sum().reset_index()
 
@@ -1347,9 +1402,9 @@ with tab_conceptos:
                     bar_chart_sipaf_mensual = alt.Chart(chart_data_sipaf_mensual).mark_bar().encode(
                         y=alt.Y('Concepto:N', sort=total_por_concepto_sipaf, title=None, axis=alt.Axis(labelLimit=200)),
                         x=alt.X('Monto:Q', title='Masa Salarial ($)', axis=alt.Axis(format='$,.0s')),
-                        color=alt.Color('Mes:N', sort=meses_ordenados_viz_conc, title='Mes'),
-                        order=alt.Order('Mes_Num', sort='ascending'),
-                        tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Mes:N'), alt.Tooltip('Monto:Q', format='$,.2f')]
+                        color=alt.Color('Eje_X:N', sort=meses_ordenados_viz_conc, title='Período'),
+                        order=alt.Order(['Año', 'Mes_Num'], sort='ascending'),
+                        tooltip=[alt.Tooltip('Concepto:N'), alt.Tooltip('Eje_X:N', title='Período'), alt.Tooltip('Monto:Q', format='$,.2f')]
                     )
 
                     text_totals_sipaf = alt.Chart(totals_sipaf).mark_text(
@@ -1382,15 +1437,12 @@ with tab_conceptos:
                     c: st.column_config.Column(c, width=110) for c in df_sipaf_show.columns
                 }
                 
-                styler_sipaf = df_sipaf_show.style
-                styler_sipaf.set_properties(**{'text-align': 'right'})
-                
-                st.dataframe(
-                    styler_sipaf, 
-                    use_container_width=False, 
-                    height=height_table_sipaf,
-                    column_config=config_sipaf
-                )
+                try:
+                    styler_sipaf = df_sipaf_show.style
+                    styler_sipaf.set_properties(**{'text-align': 'right'})
+                    st.dataframe(styler_sipaf, use_container_width=False, height=height_table_sipaf, column_config=config_sipaf)
+                except Exception:
+                    st.dataframe(df_sipaf_show, use_container_width=False, height=height_table_sipaf)
 
             st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
             col_dl_9, col_dl_10 = st.columns(2)
@@ -1435,10 +1487,11 @@ with tab_tabla:
         page_col.write(f"Página **{st.session_state.page_number + 1}** de **{num_pages}**")
         start_idx = st.session_state.page_number * PAGE_SIZE
         end_idx = min(start_idx + PAGE_SIZE, total_rows)
-        df_page = df_display.iloc[start_idx:end_idx]
+        
+        # Copia para visualización
+        df_page = df_display.iloc[start_idx:end_idx].copy()
 
         currency_columns = ['Total Sujeto a Retención', 'Vacaciones', 'Alquiler', 'Horas Extras', 'Nómina General con Aportes', 'Cs. Sociales s/Remunerativos', 'Cargas Sociales Ant.', 'IC Pagado', 'Vacaciones Pagadas', 'Cargas Sociales s/Vac. Pagadas', 'Retribución Cargo 1.1.1.', 'Antigüedad 1.1.3.', 'Retribuciones Extraordinarias 1.3.1.', 'Contribuciones Patronales', 'Gratificación por Antigüedad', 'Gratificación por Jubilación', 'Total No Remunerativo', 'SAC Horas Extras', 'Cargas Sociales SAC Hextras', 'SAC Pagado', 'Cargas Sociales s/SAC Pagado', 'Cargas Sociales Antigüedad', 'Nómina General sin Aportes', 'Gratificación Única y Extraordinaria', 'Gastos de Representación', 'Contribuciones Patronales 1.3.3.', 'S.A.C. 1.3.2.', 'S.A.C. 1.1.4.', 'Contribuciones Patronales 1.1.6.', 'Complementos 1.1.7.', 'Asignaciones Familiares 1.4.', 'Total Mensual']
-        # Quité Ceco y Legajo de integer_columns para que no se formatee con separador de miles
         integer_columns = ['Dotación'] 
         
         currency_formatter = lambda x: f"${format_number_es(x)}"
@@ -1454,25 +1507,44 @@ with tab_tabla:
         cols_fix_tabla = ['Período', 'Legajo', 'Apellido y Nombres']
         existing_fix_cols = [c for c in cols_fix_tabla if c in df_page.columns]
         
-        if existing_fix_cols:
-            # Para la tabla de datos detallados, como tiene paginación y es muy grande, 
-            # es mejor NO convertir a String todo para no perder performance,
-            # pero SÍ usar set_index para fijar columnas.
-            # Aquí el style.format funciona bien porque no hay conflicto de subset complejo.
-            df_page_show = df_page.set_index(existing_fix_cols)
+        # --- BLINDAJE ANTI-ERROR EN VISUALIZACIÓN ---
+        try:
+            if existing_fix_cols:
+                # Para la tabla de datos detallados, usamos set_index para fijar columnas.
+                df_page_show = df_page.set_index(existing_fix_cols)
+                
+                # Ajustar formateo para no incluir índice
+                format_mapper_no_index = {k: v for k, v in format_mapper.items() if k not in existing_fix_cols}
+                cols_align_no_index = [c for c in columns_to_align_right if c not in existing_fix_cols]
+                
+                st.dataframe(
+                    df_page_show.style.format(format_mapper_no_index, na_rep="")
+                    .set_properties(subset=cols_align_no_index, **{'text-align': 'right !important'}), 
+                    use_container_width=False, 
+                    hide_index=False # Mostrar índice para que se fije
+                )
+            else:
+                st.dataframe(
+                    df_page.style.format(format_mapper, na_rep="")
+                    .set_properties(subset=columns_to_align_right, **{'text-align': 'right !important'}), 
+                    use_container_width=False, 
+                    hide_index=True
+                )
+        except Exception:
+            # Si el estilo falla (por tipos de datos raros o duplicados), mostramos modo compatibilidad
+            st.warning("⚠️ Nota: Se detectó un problema con el formato visual avanzado. Se muestra la tabla en modo de compatibilidad.")
             
-            # Ajustar formateo para no incluir índice
-            format_mapper_no_index = {k: v for k, v in format_mapper.items() if k not in existing_fix_cols}
-            cols_align_no_index = [c for c in columns_to_align_right if c not in existing_fix_cols]
+            # Aplicar formato directamente a los datos (convirtiéndolos a string)
+            df_fallback = df_page.copy()
+            for col, func in format_mapper.items():
+                if col in df_fallback.columns:
+                    try:
+                        df_fallback[col] = df_fallback[col].apply(func)
+                    except:
+                        pass
             
-            st.dataframe(
-                df_page_show.style.format(format_mapper_no_index, na_rep="")
-                .set_properties(subset=cols_align_no_index, **{'text-align': 'right !important'}), 
-                use_container_width=False, 
-                hide_index=False # Mostrar índice para que se fije
-            )
-        else:
-            st.dataframe(df_page.style.format(format_mapper, na_rep="").set_properties(subset=columns_to_align_right, **{'text-align': 'right !important'}), use_container_width=False, hide_index=True)
+            st.dataframe(df_fallback, use_container_width=False, hide_index=True)
+
     else:
         st.info("No hay datos que coincidan con los filtros seleccionados.")
 
