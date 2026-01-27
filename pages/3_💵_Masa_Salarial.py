@@ -335,50 +335,51 @@ df_filtered = apply_filters(df, st.session_state.ms_selections)
 
 
 # =============================================================================
-# --- INICIO: LÓGICA DE MÉTRICAS ---
+# --- INICIO: LÓGICA DE MÉTRICAS (CORREGIDA PARA AÑOS NUEVOS) ---
 # =============================================================================
 
-all_months_sorted = get_sorted_unique_options(df, 'Mes')
-selected_months = st.session_state.ms_selections.get('Mes', [])
-sorted_selected_months = [m for m in all_months_sorted if m in selected_months]
+# 1. Determinar el contexto de filtros "Estructurales" (sin tiempo)
+# Esto nos sirve para buscar el mes anterior histórico real, aunque no esté seleccionado en el filtro de mes/año
+selections_structural = st.session_state.ms_selections.copy()
+if 'Mes' in selections_structural: del selections_structural['Mes']
+if 'Año' in selections_structural: del selections_structural['Año']
 
-latest_month_name = None
-previous_month_name = None
+df_structural = apply_filters(df, selections_structural)
 
-if sorted_selected_months:
-    latest_month_name = sorted_selected_months[-1]
-    if len(sorted_selected_months) > 1:
-        previous_month_name = sorted_selected_months[-2]
-else:
-    if not df_filtered.empty:
-        # Lógica mejorada para encontrar el último mes considerando AÑO
-        # Ordenamos por fecha real (Período) para estar seguros
-        df_sorted_dates = df_filtered.sort_values('Período', ascending=False)
-        latest_period = df_sorted_dates['Período'].iloc[0]
-        latest_month_name = df_sorted_dates['Mes'].iloc[0]
+# 2. Determinar el "Último Período" basado en lo que el usuario está viendo (df_filtered)
+if not df_filtered.empty:
+    # Usamos la columna de fecha real (datetime) para encontrar el máximo, ignorando nombres de meses
+    latest_period_dt = df_filtered['Período'].max()
+    
+    # df_current: Datos del último período disponible dentro de la selección
+    df_current = df_filtered[df_filtered['Período'] == latest_period_dt]
+    
+    # 3. Determinar el "Período Anterior" histórico (mirando fuera de los filtros de tiempo si es necesario)
+    # Buscamos en df_structural todos los períodos disponibles
+    available_periods = sorted(df_structural['Período'].unique())
+    
+    # Encontramos el índice del current
+    if latest_period_dt in available_periods:
+        current_idx = available_periods.index(latest_period_dt)
+        if current_idx > 0:
+            previous_period_dt = available_periods[current_idx - 1]
+            df_previous = df_structural[df_structural['Período'] == previous_period_dt]
+        else:
+            df_previous = pd.DataFrame()
+            previous_period_dt = None
+    else:
+        df_previous = pd.DataFrame()
+        previous_period_dt = None
         
-        # Buscar mes anterior en los datos disponibles
-        df_prev = df_filtered[df_filtered['Período'] < latest_period].sort_values('Período', ascending=False)
-        if not df_prev.empty:
-            previous_month_name = df_prev['Mes'].iloc[0]
+    # Nombre para mostrar
+    meses_espanol = {1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"}
+    display_month_name = f"{meses_espanol.get(latest_period_dt.month, '')} {latest_period_dt.year}"
 
-selections_without_month = st.session_state.ms_selections.copy()
-selections_without_month.pop('Mes', [])
-df_metrics_base = apply_filters(df, selections_without_month)
-
-df_current = pd.DataFrame()
-df_previous = pd.DataFrame()
-
-if latest_month_name:
-    # Ajuste: Filtrar usando Período si es posible para precisión de año, pero aquí usamos Mes string
-    # Si hay múltiples años seleccionados, esto podría sumar Enero 25 + Enero 26.
-    # Por eso es IMPORTANTE usar el filtro de Año.
-    df_current = df_metrics_base[df_metrics_base['Mes'] == latest_month_name]
-if previous_month_name:
-    df_previous = df_metrics_base[df_metrics_base['Mes'] == previous_month_name]
-
-if df_current.empty and not df_metrics_base.empty and not sorted_selected_months:
-     df_current = df_metrics_base[df_metrics_base['Mes'] == latest_month_name]
+else:
+    # Caso fallback si no hay datos
+    df_current = pd.DataFrame()
+    df_previous = pd.DataFrame()
+    display_month_name = "N/A"
 
 
 def calculate_monthly_metrics(df_month):
@@ -426,8 +427,6 @@ delta_total = get_delta_pct_str(metrics_current['total_masa'], metrics_previous[
 delta_empleados = get_delta_pct_str(metrics_current['empleados'], metrics_previous['empleados'])
 delta_costo_conv = get_delta_pct_str(metrics_current['costo_medio_conv'], metrics_previous['costo_medio_conv'])
 delta_costo_fc = get_delta_pct_str(metrics_current['costo_medio_fc'], metrics_previous['costo_medio_fc'])
-
-display_month_name = latest_month_name if latest_month_name else "N/A"
 
 # --- TARJETAS DE MÉTRICAS ---
 cards_html = f"""
