@@ -305,8 +305,9 @@ def load_coords_from_url(url):
 def load_and_clean_data(uploaded_file):
     df_excel = pd.DataFrame()
     try:
-        # Asumimos que la hoja sigue llamándose 'Dotacion_25' o el usuario usará un archivo con esa hoja
-        df_excel = pd.read_excel(uploaded_file, sheet_name='Dotacion_25', engine='openpyxl')
+        # --- CORRECCIÓN 2026: Leer la primera hoja (índice 0) en lugar de una hoja fija 'Dotacion_25' ---
+        # Esto permite que el archivo se llame 'Dotacion_26' o lo que sea.
+        df_excel = pd.read_excel(uploaded_file, sheet_name=0, engine='openpyxl')
 
         # --- AÑADIDO (PUNTO 3): Eliminar columnas "Unnamed" ---
         if not df_excel.empty:
@@ -314,7 +315,7 @@ def load_and_clean_data(uploaded_file):
         # --- FIN DE LA MODIFICACIÓN ---
 
     except Exception as e:
-        st.error(f"ERROR CRÍTICO: No se pudo leer la hoja 'Dotacion_25' del archivo cargado. Mensaje: {e}")
+        st.error(f"ERROR CRÍTICO: No se pudo leer la primera hoja del archivo cargado. Mensaje: {e}")
         return pd.DataFrame()
     if df_excel.empty: return pd.DataFrame()
 
@@ -392,14 +393,14 @@ def load_and_clean_data(uploaded_file):
 
         # 4. Crear la columna 'Año' basada en el 'Periodo' (ahora formateado)
         def get_year_from_periodo(periodo_str):
-            match = re.search(r'(\d{2})$', periodo_str) # Busca 'XX' al final (ej: 'Dic-23')
+            match = re.search(r'(\d{2})$', periodo_str) # Busca 'XX' al final (ej: 'Dic-23', 'Ene-26')
             if match:
                 year_suffix = match.group(1)
-                if year_suffix == '23': return '2023'
-                if year_suffix == '24': return '2024'
-                if year_suffix == '25': return '2025'
+                # --- CORRECCIÓN 2026: Lógica Dinámica ---
+                # Devuelve '20' + el sufijo. Ej: '26' -> '2026'
+                return '20' + year_suffix
 
-            # Fallback para meses antiguos (asumiendo 2025 como en la lógica original)
+            # Fallback para meses antiguos sin año (asumiendo 2025 como en la lógica original)
             old_months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
             if periodo_str in old_months:
                  return '2025'
