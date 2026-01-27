@@ -308,7 +308,12 @@ if 'ms_selections' not in st.session_state:
 
 def reset_filters_callback():
     st.session_state.ms_selections = {col: get_sorted_unique_options(df, col) for col in filter_cols}
-    st.session_state.search_legajo_global = "" 
+    st.session_state.search_legajo_global = ""
+    # Borrar claves de widgets para evitar conflicto de default
+    for col in filter_cols:
+        k = f"ms_multiselect_{col}"
+        if k in st.session_state:
+            del st.session_state[k]
 
 st.sidebar.button("🔄 Resetear Filtros", use_container_width=True, on_click=reset_filters_callback)
 
@@ -319,13 +324,21 @@ if not search_query:
     for col in filter_cols:
         label = col.replace('_', ' ').replace('Clasificacion Ministerio', 'Clasificación Ministerio')
         available_options = get_available_options(df, st.session_state.ms_selections, col)
+        
+        # Lógica corregida para evitar advertencia de "default value vs session state"
         current_selection = [sel for sel in st.session_state.ms_selections.get(col, []) if sel in available_options]
-        selected = st.sidebar.multiselect(
-            label,
-            options=available_options,
-            default=current_selection,
-            key=f"ms_multiselect_{col}"
-        )
+        key_name = f"ms_multiselect_{col}"
+        
+        if key_name in st.session_state:
+            # Si el widget ya existe en sesión, actualizamos su valor interno para que sea válido
+            # y NO pasamos 'default'
+            valid_existing = [x for x in st.session_state[key_name] if x in available_options]
+            st.session_state[key_name] = valid_existing
+            selected = st.sidebar.multiselect(label, options=available_options, key=key_name)
+        else:
+            # Primera vez: pasamos default
+            selected = st.sidebar.multiselect(label, options=available_options, default=current_selection, key=key_name)
+            
         st.session_state.ms_selections[col] = selected
 
     if old_selections != st.session_state.ms_selections:
