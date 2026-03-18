@@ -105,13 +105,22 @@ def apply_filters(full_df, selections):
 def get_sorted_unique_options(dataframe, column_name):
     if column_name in dataframe.columns:
         unique_values = dataframe[column_name].dropna().unique().tolist()
-        unique_values = [v for v in unique_values if v != 'no disponible']
+        
+        # CORRECCIÓN: No eliminar 'no disponible' para que el usuario pueda ver
+        # y filtrar los registros en blanco (como la diferencia de $3M en Marzo 2026).
+        # unique_values = [v for v in unique_values if v != 'no disponible']
+        
         if column_name == 'Mes':
             try:
                 return sorted(unique_values, key=lambda x: datetime.strptime(x, '%Y-%m'))
             except ValueError:
                 return sorted(unique_values)
-        return sorted(unique_values)
+                
+        # Ordenamos la lista, pero nos aseguramos de que 'no disponible' quede al final si existe
+        sorted_vals = sorted([v for v in unique_values if v != 'no disponible'])
+        if 'no disponible' in unique_values:
+            sorted_vals.append('no disponible')
+        return sorted_vals
     return []
 
 def get_available_options(df, selections, target_column):
@@ -249,7 +258,9 @@ def load_and_clean_data(uploaded_file):
     cols_for_filters = ['Gerencia', 'Ministerio', 'CECO', 'Ubicación', 'Función', 'Nivel', 'Sexo', 'Liquidación', 'Apellido y nombre', 'Legajo']
     for col in cols_for_filters:
         if col not in df_excel.columns: df_excel[col] = 'no disponible'
-        df_excel[col] = df_excel[col].astype(str).str.strip().replace(['None', 'nan', ''], 'no disponible')
+        # CORRECCIÓN: Limpieza más estricta para asegurar que blancos, NaN de excel, etc., vayan a 'no disponible'
+        df_excel[col] = df_excel[col].astype(str).str.strip()
+        df_excel[col] = df_excel[col].replace(['None', 'nan', 'NaN', 'NAN', '<NA>', ''], 'no disponible')
     
     if 'Sexo' in df_excel.columns:
         valid_sexo = ['Masculino', 'Femenino']
