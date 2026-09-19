@@ -69,10 +69,10 @@ def load_and_process_data(uploaded_file):
         sheet_au = 'Data_Au' if 'Data_Au' in xls.sheet_names else xls.sheet_names[0]
         df_au = pd.read_excel(xls, sheet_name=sheet_au)
         
-        # Quitar columnas Unnamed
+        # Eliminar columnas Unnamed
         df_au = df_au.loc[:, ~df_au.columns.astype(str).str.startswith('Unnamed:')]
         
-        # Normalizar columnas numéricas
+        # Normalizar columnas numéricas de ausentismo
         if 'Total (D)' in df_au.columns:
             df_au['Total (D)'] = pd.to_numeric(df_au['Total (D)'], errors='coerce').fillna(0)
         else:
@@ -82,13 +82,14 @@ def load_and_process_data(uploaded_file):
             df_au['Total (H)'] = pd.to_numeric(df_au['Total (H)'], errors='coerce').fillna(0)
         else:
             df_au['Total (H)'] = 0
-            
+
+        # Normalizar Días Hábiles
         if 'Dias_Habiles' in df_au.columns:
             df_au['Dias_Habiles'] = pd.to_numeric(df_au['Dias_Habiles'], errors='coerce').fillna(21)
         else:
             df_au['Dias_Habiles'] = 21
 
-        # Formato Periodo Mes-Año (ej: 'Ene-26')
+        # Mapeo de meses y creación de etiquetas cronológicas (ej: 'Ene-26')
         mapa_meses = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
         if 'Período' in df_au.columns:
             temp_dt = pd.to_datetime(df_au['Período'], errors='coerce')
@@ -98,7 +99,7 @@ def load_and_process_data(uploaded_file):
             df_au['Periodo_Label'] = df_au['Mes'].astype(str).str.capitalize()
             df_au['Periodo_DT'] = pd.to_datetime('2026-01-01')
 
-        # Cargar dotación si existe para capacidad teórica real
+        # Cargar dotación si existe para capacidad teórica exacta
         df_dot = None
         if 'Dotación' in xls.sheet_names:
             df_dot = pd.read_excel(xls, sheet_name='Dotación')
@@ -108,7 +109,7 @@ def load_and_process_data(uploaded_file):
                 df_dot['Periodo_Label'] = temp_dt_dot.dt.month.map(mapa_meses) + '-' + temp_dt_dot.dt.strftime('%y')
                 df_dot['Periodo_DT'] = temp_dt_dot
 
-        # Columnas de filtro
+        # Normalizar campos de texto para filtros
         filter_cols = ['Legajo', 'Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo', 'Tipo', 'Descripción', 'Licencia']
         for c in filter_cols:
             if c in df_au.columns:
@@ -123,7 +124,7 @@ def load_and_process_data(uploaded_file):
 
 # --- UI Principal ---
 st.title("🩺 Gestión de Ausentismo y Licencias")
-st.write("Análisis de ausentismo en días y horas, distribución de licencias e impacto operativo.")
+st.write("Análisis integral de ausentismo en días y horas, capacidad teórica e impacto operativo.")
 
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Licencias / Ausentismo", type=["xlsx"])
 st.markdown("---")
@@ -139,7 +140,7 @@ if uploaded_file is not None:
     st.success(f"Se procesaron con éxito **{format_integer_es(len(df_au))}** registros de novedades y licencias.")
     st.markdown("---")
 
-    # --- Filtros en Barra Lateral ---
+    # --- Barra Lateral de Filtros ---
     st.sidebar.header("Filtros de Ausentismo")
 
     filter_dict = {
@@ -154,7 +155,7 @@ if uploaded_file is not None:
         'Sexo': 'Sexo'
     }
 
-    # Orden cronológico de períodos
+    # Orden cronológico asegurado
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
 
     if 'au_selections' not in st.session_state:
@@ -178,25 +179,26 @@ if uploaded_file is not None:
         if sel:
             filtered_df = filtered_df[filtered_df[col].isin(sel)]
 
-    # --- Período Activo y Período Previo para Tarjetas ---
+    # Determinar Período Activo y Período Previo
     sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections.get('Periodo_Label', [])]
     periodo_actual = sel_periodos[-1] if sel_periodos else None
     periodo_previo = sel_periodos[-2] if len(sel_periodos) > 1 else None
 
-    # --- KPI SUMMARY CARDS ---
+    # --- KPI SUMMARY CARDS (Días y Horas al estilo Looker) ---
     if periodo_actual and not filtered_df.empty:
         df_p_act = filtered_df[filtered_df['Periodo_Label'] == periodo_actual]
         total_dias = df_p_act['Total (D)'].sum()
-        total_horas = df_p_act['Total (H)'].sum()
+        total_horas = pd.to_numeric(df_p_act['Total (H)'], errors='coerce').fillna(0).sum()
         empleados_afectados = df_p_act['Legajo'].nunique()
 
-        # Dotación teórica y tasa de ausentismo (según Hoja1)
+        # Obtención de Dotación Teórica Activa
         dot_act = 0
         if df_dot is not None and not df_dot.empty:
             dot_act = df_dot[df_dot['Periodo_Label'] == periodo_actual]['Legajo'].nunique()
         if dot_act == 0:
             dot_act = df_p_act['Legajo'].nunique()
 
+        # Días hábiles exactos del período seleccionado
         dias_hab = df_p_act['Dias_Habiles'].iloc[0] if not df_p_act.empty else 21
         capacidad_dias = dot_act * dias_hab
         capacidad_horas = capacidad_dias * 8
@@ -204,15 +206,23 @@ if uploaded_file is not None:
         tasa_dias = (total_dias / capacidad_dias * 100) if capacidad_dias > 0 else 0
         tasa_horas = (total_horas / capacidad_horas * 100) if capacidad_horas > 0 else 0
 
-        # Deltas vs anterior
+        # Deltas respecto al mes anterior
         delta_dias_str = ""
+        delta_horas_str = ""
         if periodo_previo:
             df_p_prev = filtered_df[filtered_df['Periodo_Label'] == periodo_previo]
             prev_dias = df_p_prev['Total (D)'].sum()
-            diff_pct = ((total_dias - prev_dias) / prev_dias * 100) if prev_dias > 0 else 0
-            color = "red" if diff_pct > 0 else "green"
-            arrow = "▲" if diff_pct > 0 else "▼"
-            delta_dias_str = f'<div class="metric-delta {color}">{arrow} {format_percentage_es(diff_pct)} vs {periodo_previo}</div>'
+            prev_horas = pd.to_numeric(df_p_prev['Total (H)'], errors='coerce').fillna(0).sum()
+            
+            diff_dias_pct = ((total_dias - prev_dias) / prev_dias * 100) if prev_dias > 0 else 0
+            color_d = "#fca5a5" if diff_dias_pct > 0 else "#86efac"
+            arrow_d = "▲" if diff_dias_pct > 0 else "▼"
+            delta_dias_str = f'<div style="font-size:0.8rem; font-weight:600; color:{color_d}; margin-top:4px;">{arrow_d} {format_percentage_es(diff_dias_pct)} vs {periodo_previo}</div>'
+
+            diff_horas_pct = ((total_horas - prev_horas) / prev_horas * 100) if prev_horas > 0 else 0
+            color_h = "#fca5a5" if diff_horas_pct > 0 else "#86efac"
+            arrow_h = "▲" if diff_horas_pct > 0 else "▼"
+            delta_horas_str = f'<div style="font-size:0.8rem; font-weight:600; color:{color_h}; margin-top:4px;">{arrow_h} {format_percentage_es(diff_horas_pct)} vs {periodo_previo}</div>'
 
         card_html = f"""
         <style>
@@ -220,16 +230,28 @@ if uploaded_file is not None:
                 display: flex;
                 flex-wrap: wrap;
                 background-color: #ffffff;
-                border-radius: 15px;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+                border-radius: 16px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.06);
                 overflow: hidden;
-                border: 1px solid #f0f0f0;
-                margin-bottom: 25px;
+                border: 1px solid #e2e8f0;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             }}
-            .summary-main-kpi {{
-                flex: 1 1 300px;
-                background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
-                padding: 25px;
+            .hero-kpi-dias {{
+                flex: 1 1 230px;
+                background: linear-gradient(135deg, #0d9488 0%, #115e59 100%);
+                padding: 22px 18px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                color: white;
+                text-align: center;
+                border-right: 1px solid rgba(255,255,255,0.15);
+            }}
+            .hero-kpi-horas {{
+                flex: 1 1 230px;
+                background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+                padding: 22px 18px;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
@@ -237,56 +259,83 @@ if uploaded_file is not None:
                 color: white;
                 text-align: center;
             }}
+            .hero-title {{
+                font-size: 0.85rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.8px;
+                opacity: 0.95;
+            }}
+            .hero-percent {{
+                font-size: 2.7rem;
+                font-weight: 800;
+                line-height: 1.1;
+                margin: 6px 0;
+            }}
+            .hero-sub {{
+                font-size: 0.95rem;
+                opacity: 0.9;
+                font-weight: 500;
+            }}
             .summary-breakdown {{
-                flex: 2 1 400px;
-                padding: 20px;
+                flex: 2 1 340px;
+                padding: 16px 20px;
                 display: flex;
                 flex-wrap: wrap;
-                gap: 15px;
+                gap: 12px;
                 justify-content: center;
                 align-content: center;
+                background: #f8fafc;
             }}
             .metric-box {{
-                flex: 1 1 180px;
-                padding: 15px;
-                border-radius: 12px;
-                background: #f8fafc;
+                flex: 1 1 140px;
+                padding: 12px 14px;
+                border-radius: 10px;
+                background: #ffffff;
                 border: 1px solid #e2e8f0;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.02);
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
             }}
-            .metric-box .label {{ font-size: 0.85rem; color: #64748b; font-weight: 600; }}
-            .metric-box .val {{ font-size: 1.5rem; color: #0f172a; font-weight: 700; }}
-            .metric-box .sub {{ font-size: 0.8rem; color: #0d9488; font-weight: 600; }}
+            .metric-box .label {{ font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; }}
+            .metric-box .val {{ font-size: 1.35rem; color: #0f172a; font-weight: 800; margin: 3px 0; }}
+            .metric-box .sub {{ font-size: 0.75rem; color: #0d9488; font-weight: 600; }}
         </style>
         <div class="summary-container">
-            <div class="summary-main-kpi">
-                <div style="font-size: 0.95rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9;">AUSENTISMO {periodo_actual}</div>
-                <div style="font-size: 3.2rem; font-weight: 800; margin: 5px 0;">{format_integer_es(total_dias)} ds</div>
-                <div style="font-size: 1.1rem; opacity: 0.95;">{format_percentage_es(tasa_dias)} de Capacidad</div>
+            <div class="hero-kpi-dias">
+                <div class="hero-title">Índice Ausentismo (Días)</div>
+                <div class="hero-percent">{format_percentage_es(tasa_dias)}</div>
+                <div class="hero-sub">{format_integer_es(total_dias)} días ausentes</div>
                 {delta_dias_str}
+            </div>
+            <div class="hero-kpi-horas">
+                <div class="hero-title">Índice Ausentismo (Horas)</div>
+                <div class="hero-percent">{format_percentage_es(tasa_horas)}</div>
+                <div class="hero-sub">{format_integer_es(total_horas)} horas ausentes</div>
+                {delta_horas_str}
             </div>
             <div class="summary-breakdown">
                 <div class="metric-box">
-                    <div class="label">Total Horas Ausentes</div>
-                    <div class="val">⏱️ {format_integer_es(total_horas)} hs</div>
-                    <div class="sub">Tasa: {format_percentage_es(tasa_horas)}</div>
+                    <div class="label">Días Hábiles Mes</div>
+                    <div class="val">📅 {int(dias_hab)}</div>
+                    <div class="sub">Período {periodo_actual}</div>
                 </div>
                 <div class="metric-box">
-                    <div class="label">Agentes con Novedades</div>
+                    <div class="label">Agentes con Novedad</div>
                     <div class="val">👥 {format_integer_es(empleados_afectados)}</div>
                     <div class="sub">{format_percentage_es((empleados_afectados/dot_act*100) if dot_act else 0)} de la dotación</div>
                 </div>
                 <div class="metric-box">
-                    <div class="label">Capacidad Teórica Mes</div>
-                    <div class="val">📅 {format_integer_es(capacidad_dias)} ds</div>
-                    <div class="sub">{format_integer_es(dot_act)} agentes × {int(dias_hab)} ds hábiles</div>
+                    <div class="label">Capacidad Teórica</div>
+                    <div class="val">🏢 {format_integer_es(capacidad_dias)} ds</div>
+                    <div class="sub">{format_integer_es(dot_act)} agentes activos</div>
                 </div>
             </div>
         </div>
         """
-        st.components.v1.html(card_html, height=210)
+        st.components.v1.html(card_html, height=250)
+        st.markdown("<br>", unsafe_allow_html=True)
 
     # --- Pestañas de Análisis ---
     tab1, tab2, tab3, tab4 = st.tabs([
@@ -299,39 +348,69 @@ if uploaded_file is not None:
     # --- TAB 1: Evolución ---
     with tab1:
         st.subheader("Evolución Temporal del Ausentismo (Días y Horas)")
-        df_evo = filtered_df.groupby('Periodo_Label').agg(
-            Dias_Ausentes=('Total (D)', 'sum'),
-            Horas_Ausentes=('Total (H)', 'sum'),
-            Agentes=('Legajo', 'nunique')
-        ).reset_index()
-
-        df_evo['Periodo_Label'] = pd.Categorical(df_evo['Periodo_Label'], categories=sel_periodos, ordered=True)
-        df_evo = df_evo.sort_values('Periodo_Label')
+        
+        # Mapeo de días hábiles por mes para calcular la capacidad exacta de cada barra
+        dias_habiles_por_mes = filtered_df.groupby('Periodo_Label')['Dias_Habiles'].first().to_dict()
+        
+        # Construcción agregada de evolución
+        evo_rows = []
+        for p in sel_periodos:
+            sub = filtered_df[filtered_df['Periodo_Label'] == p]
+            d_sum = sub['Total (D)'].sum()
+            h_sum = pd.to_numeric(sub['Total (H)'], errors='coerce').fillna(0).sum()
+            agentes_sub = sub['Legajo'].nunique()
+            
+            # Dotación mensual
+            if df_dot is not None and not df_dot.empty:
+                dot_m = df_dot[df_dot['Periodo_Label'] == p]['Legajo'].nunique()
+            else:
+                dot_m = agentes_sub
+                
+            dh = dias_habiles_por_mes.get(p, 21)
+            cap_d = dot_m * dh
+            cap_h = cap_d * 8
+            
+            tasa_d = (d_sum / cap_d * 100) if cap_d > 0 else 0
+            tasa_h = (h_sum / cap_h * 100) if cap_h > 0 else 0
+            
+            evo_rows.append({
+                "Periodo": p,
+                "Dias_Ausentes": d_sum,
+                "Horas_Ausentes": h_sum,
+                "Índice_Días": tasa_d,
+                "Índice_Horas": tasa_h,
+                "Agentes": agentes_sub
+            })
+            
+        df_evo = pd.DataFrame(evo_rows)
 
         col_c, col_t = st.columns([2, 1])
         with col_c:
             fig_evo = make_subplots(specs=[[{"secondary_y": True}]])
             fig_evo.add_trace(go.Bar(
-                x=df_evo['Periodo_Label'], y=df_evo['Dias_Ausentes'],
+                x=df_evo['Periodo'], y=df_evo['Dias_Ausentes'],
                 name='Días Ausentes', marker_color='#0d9488', text=df_evo['Dias_Ausentes'], textposition='outside'
             ), secondary_y=False)
 
             fig_evo.add_trace(go.Scatter(
-                x=df_evo['Periodo_Label'], y=df_evo['Horas_Ausentes'],
+                x=df_evo['Periodo'], y=df_evo['Horas_Ausentes'],
                 name='Horas Ausentes', mode='lines+markers+text',
                 text=df_evo['Horas_Ausentes'], textposition='top center', line=dict(color='#f59e0b', width=3)
             ), secondary_y=True)
 
-            fig_evo.update_layout(title="Total Días vs Horas Ausentes por Mes", hovermode="x unified", legend=dict(orientation="h", y=1.1, x=1, xanchor='right'))
+            fig_evo.update_layout(title="Total Días vs Horas Ausentes por Mes", hovermode="x unified", legend=dict(orientation="h", y=1.12, x=1, xanchor='right'))
+            fig_evo.update_xaxes(categoryorder='array', categoryarray=sel_periodos)
             fig_evo.update_yaxes(title_text="Días Ausentes", secondary_y=False)
             fig_evo.update_yaxes(title_text="Horas Ausentes", secondary_y=True)
             st.plotly_chart(fig_evo, use_container_width=True)
 
         with col_t:
-            st.markdown("##### Tabla de Evolución")
+            st.markdown("##### Resumen Mensual")
             st.dataframe(df_evo.style.format({
                 "Dias_Ausentes": format_integer_es,
                 "Horas_Ausentes": format_integer_es,
+                "Índice_Días": lambda x: format_percentage_es(x, 2),
+                "Índice_Horas": lambda x: format_percentage_es(x, 2),
                 "Agentes": format_integer_es
             }), use_container_width=True, hide_index=True)
             generate_download_buttons(df_evo, "evolucion_ausentismo", key_suffix="_evo")
@@ -341,38 +420,40 @@ if uploaded_file is not None:
         st.subheader("Composición por Tipo y Motivo de Ausencia")
         c1, c2 = st.columns(2)
         with c1:
-            df_tipo = filtered_df.groupby('Tipo').agg(
+            df_tipo = filtered_df.groupby('Tipo', as_index=False).agg(
                 Dias=('Total (D)', 'sum'),
                 Horas=('Total (H)', 'sum'),
                 Casos=('Legajo', 'count')
-            ).reset_index()
-            fig_pie_tipo = px.pie(df_tipo, names='Tipo', values='Dias', title='Distribución de Días por Tipo (Licencia vs Novedad)', hole=0.4, color_discrete_sequence=['#0f766e', '#f59e0b', '#3b82f6'])
+            )
+            fig_pie_tipo = px.pie(df_tipo, names='Tipo', values='Dias', title='Distribución de Días por Tipo (Licencia vs Novedad)', hole=0.4, color_discrete_sequence=['#0f766e', '#0284c7', '#f59e0b'])
+            fig_pie_tipo.update_traces(textinfo='percent+label+value')
             st.plotly_chart(fig_pie_tipo, use_container_width=True)
 
         with c2:
-            df_motivos = filtered_df.groupby('Licencia').agg(
-                Dias=('Total (D)', 'sum'),
-                Horas=('Total (H)', 'sum')
-            ).reset_index().sort_values('Dias', ascending=False).head(10)
+            df_motivos = (
+                filtered_df.groupby('Licencia', as_index=False)
+                .agg(Dias=('Total (D)', 'sum'), Horas=('Total (H)', 'sum'))
+                .sort_values('Dias', ascending=False)
+                .head(10)
+            )
             fig_bar_mot = px.bar(df_motivos, x='Dias', y='Licencia', orientation='h', title='Top 10 Licencias por Días Ausentes', color='Dias', color_continuous_scale='Teal')
             fig_bar_mot.update_layout(yaxis=dict(autorange="reversed"))
             st.plotly_chart(fig_bar_mot, use_container_width=True)
 
         st.markdown("##### Detalle de Todos los Motivos")
-        df_lic_detail = filtered_df.groupby(['Tipo', 'Licencia', 'Descripción']).agg(
-            Dias=('Total (D)', 'sum'),
-            Horas=('Total (H)', 'sum'),
-            Agentes=('Legajo', 'nunique')
-        ).reset_index().sort_values('Dias', ascending=False)
+        df_lic_detail = (
+            filtered_df.groupby(['Tipo', 'Licencia', 'Descripción'], as_index=False)
+            .agg(Dias=('Total (D)', 'sum'), Horas=('Total (H)', 'sum'), Agentes=('Legajo', 'nunique'))
+            .sort_values('Dias', ascending=False)
+        )
         st.dataframe(df_lic_detail.style.format({"Dias": format_integer_es, "Horas": format_integer_es, "Agentes": format_integer_es}), use_container_width=True, hide_index=True)
         generate_download_buttons(df_lic_detail, "licencias_detalle", key_suffix="_lic")
 
-    # --- TAB 3: Gerencia y Distrito ---
+    # --- TAB 3: Gerencia y Distrito (Protegido contra KeyError) ---
     with tab3:
         st.subheader("Impacto por Área Organizativa y Ubicación")
         agrupador = st.selectbox("Seleccionar Nivel de Análisis:", ["Gerencia", "Distrito", "Ministerio", "Relación"], key="sel_agrup")
         
-        # Agrupamos y reseteamos el índice de forma limpia
         df_area = (
             filtered_df.groupby(agrupador, as_index=False)
             .agg(
@@ -386,7 +467,6 @@ if uploaded_file is not None:
 
         col_a1, col_a2 = st.columns([2, 1])
         with col_a1:
-            # Gráfico con Plotly Express sin 'color=agrupador' para evitar el conflicto de agrupación
             fig_area = px.bar(
                 df_area, 
                 x=agrupador, 
