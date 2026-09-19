@@ -331,6 +331,13 @@ cards_html = """
         <div class="card-desc">Mide el rendimiento y la productividad a través de KPIs clave.</div>
         <div class="go-btn">➜</div>
     </a>
+    <!-- Ausentismo -->
+    <a href="Ausentismo" target="_self" class="nav-card card-amber">
+        <div class="card-icon">🩺</div>
+        <div class="card-title">Ausentismo</div>
+        <div class="card-desc">Monitorea el índice de ausentismo en días y horas, tipos de licencias y novedades.</div>
+        <div class="go-btn">➜</div>
+    </a>
 </div>
 """
 
