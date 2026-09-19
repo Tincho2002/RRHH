@@ -88,7 +88,7 @@ def load_and_process_data(uploaded_file):
         else:
             df_au['Dias_Habiles'] = 21
 
-        # Mapeo de meses
+        # Mapeo de meses y creación de etiquetas cronológicas (ej: 'Ene-26')
         mapa_meses = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
         if 'Período' in df_au.columns:
             temp_dt = pd.to_datetime(df_au['Período'], errors='coerce')
@@ -98,7 +98,7 @@ def load_and_process_data(uploaded_file):
             df_au['Periodo_Label'] = df_au['Mes'].astype(str).str.capitalize()
             df_au['Periodo_DT'] = pd.to_datetime('2026-01-01')
 
-        # Cargar dotación si existe
+        # Cargar dotación y normalizarla
         df_dot = None
         if 'Dotación' in xls.sheet_names:
             df_dot = pd.read_excel(xls, sheet_name='Dotación')
@@ -107,7 +107,14 @@ def load_and_process_data(uploaded_file):
                 temp_dt_dot = pd.to_datetime(df_dot['Periodo'], errors='coerce')
                 df_dot['Periodo_Label'] = temp_dt_dot.dt.month.map(mapa_meses) + '-' + temp_dt_dot.dt.strftime('%y')
                 df_dot['Periodo_DT'] = temp_dt_dot
+            
+            # Normalizar columnas de texto en Dotación para filtros cruzados
+            dot_filter_cols = ['Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo']
+            for c in dot_filter_cols:
+                if c in df_dot.columns:
+                    df_dot[c] = df_dot[c].astype(str).replace(['nan', 'None', '<NA>'], 'no disponible').str.strip()
 
+        # Normalizar columnas de texto en Ausentismo
         filter_cols = ['Legajo', 'Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo', 'Tipo', 'Descripción', 'Licencia']
         for c in filter_cols:
             if c in df_au.columns:
@@ -169,67 +176,70 @@ if uploaded_file is not None:
         st.rerun()
 
     filtered_df = df_au.copy()
+    filtered_dot = df_dot.copy() if df_dot is not None else None
+
+    # Aplicar filtros a Ausentismo y a Dotación en simultáneo
     for col, label in filter_dict.items():
         opts = periodos_ordenados if col == 'Periodo_Label' else sorted(df_au[col].unique().tolist())
         sel = st.sidebar.multiselect(label, options=opts, default=st.session_state.au_selections.get(col, opts), key=f"sel_{col}")
         st.session_state.au_selections[col] = sel
         if sel:
             filtered_df = filtered_df[filtered_df[col].isin(sel)]
+            if filtered_dot is not None and col in filtered_dot.columns:
+                filtered_dot = filtered_dot[filtered_dot[col].isin(sel)]
         else:
-            # Si el usuario deselecciona todas las opciones de un filtro activo, el DataFrame queda vacío
             filtered_df = filtered_df.iloc[0:0]
+            if filtered_dot is not None and col in filtered_dot.columns:
+                filtered_dot = filtered_dot.iloc[0:0]
 
-    # Lista de períodos seleccionados
+    # Validaciones de filtros
     sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections.get('Periodo_Label', [])]
 
-    # --- VALIDACIÓN DE FILTROS VACÍOS ---
     if not sel_periodos:
-        st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Por favor, seleccione al menos un mes en la barra lateral para visualizar los datos.")
+        st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Seleccione al menos un mes en la barra lateral.")
         st.stop()
 
     if filtered_df.empty:
-        st.warning("⚠️ No se encontraron registros con la combinación de filtros seleccionada. Ajuste o resetee los filtros en la barra lateral.")
+        st.warning("⚠️ No se encontraron registros con los filtros seleccionados.")
         st.stop()
 
-    periodo_actual = sel_periodos[-1]
-    periodo_previo = sel_periodos[-2] if len(sel_periodos) > 1 else None
+    # --- CÁLCULO DE CAPACIDAD Y AUSENTISMO EXACTO (Total Acumulado) ---
+    dias_habiles_por_mes = df_au.groupby('Periodo_Label')['Dias_Habiles'].first().to_dict()
 
-    # --- KPI SUMMARY CARDS ---
-    df_p_act = filtered_df[filtered_df['Periodo_Label'] == periodo_actual]
-    total_dias = df_p_act['Total (D)'].sum()
-    total_horas = pd.to_numeric(df_p_act['Total (H)'], errors='coerce').fillna(0).sum()
-    empleados_afectados = df_p_act['Legajo'].nunique()
+    total_dias = filtered_df['Total (D)'].sum()
+    total_horas = pd.to_numeric(filtered_df['Total (H)'], errors='coerce').fillna(0).sum()
+    empleados_afectados = filtered_df['Legajo'].nunique()
 
-    # Dotación Teórica Activa
-    dot_act = 0
-    if df_dot is not None and not df_dot.empty:
-        dot_act = df_dot[df_dot['Periodo_Label'] == periodo_actual]['Legajo'].nunique()
-    if dot_act == 0:
-        dot_act = df_p_act['Legajo'].nunique()
+    # Capacidad teórica total de los períodos seleccionados (con filtros de gerencia, etc. aplicados)
+    capacidad_dias_total = 0
+    dotacion_promedio = 0
+    dotaciones_por_mes = []
 
-    dias_hab = df_p_act['Dias_Habiles'].iloc[0] if not df_p_act.empty else 21
-    capacidad_dias = dot_act * dias_hab
-    capacidad_horas = capacidad_dias * 8
+    for p in sel_periodos:
+        dh_p = dias_habiles_por_mes.get(p, 21)
+        if filtered_dot is not None and not filtered_dot.empty:
+            dot_p = filtered_dot[filtered_dot['Periodo_Label'] == p]['Legajo'].nunique()
+        else:
+            dot_p = filtered_df[filtered_df['Periodo_Label'] == p]['Legajo'].nunique()
+        dotaciones_por_mes.append(dot_p)
+        capacidad_dias_total += (dot_p * dh_p)
 
-    tasa_dias = (total_dias / capacidad_dias * 100) if capacidad_dias > 0 else 0
-    tasa_horas = (total_horas / capacidad_horas * 100) if capacidad_horas > 0 else 0
+    capacidad_horas_total = capacidad_dias_total * 8
+    dotacion_representativa = int(round(np.mean(dotaciones_por_mes))) if dotaciones_por_mes else empleados_afectados
 
-    delta_dias_str = ""
-    delta_horas_str = ""
-    if periodo_previo:
-        df_p_prev = filtered_df[filtered_df['Periodo_Label'] == periodo_previo]
-        prev_dias = df_p_prev['Total (D)'].sum()
-        prev_horas = pd.to_numeric(df_p_prev['Total (H)'], errors='coerce').fillna(0).sum()
-        
-        diff_dias_pct = ((total_dias - prev_dias) / prev_dias * 100) if prev_dias > 0 else 0
-        color_d = "#fca5a5" if diff_dias_pct > 0 else "#86efac"
-        arrow_d = "▲" if diff_dias_pct > 0 else "▼"
-        delta_dias_str = f'<div style="font-size:0.8rem; font-weight:600; color:{color_d}; margin-top:4px;">{arrow_d} {format_percentage_es(diff_dias_pct)} vs {periodo_previo}</div>'
+    tasa_dias = (total_dias / capacidad_dias_total * 100) if capacidad_dias_total > 0 else 0
+    tasa_horas = (total_horas / capacidad_horas_total * 100) if capacidad_horas_total > 0 else 0
 
-        diff_horas_pct = ((total_horas - prev_horas) / prev_horas * 100) if prev_horas > 0 else 0
-        color_h = "#fca5a5" if diff_horas_pct > 0 else "#86efac"
-        arrow_h = "▲" if diff_horas_pct > 0 else "▼"
-        delta_horas_str = f'<div style="font-size:0.8rem; font-weight:600; color:{color_h}; margin-top:4px;">{arrow_h} {format_percentage_es(diff_horas_pct)} vs {periodo_previo}</div>'
+    # Etiqueta de período (ej: "JUL-26" o "ENE-26 A JUL-26")
+    if len(sel_periodos) == 1:
+        periodo_txt = sel_periodos[0]
+        dias_habiles_txt = f"📅 {int(dias_habiles_por_mes.get(sel_periodos[0], 21))}"
+        sub_dias_hab = f"Período {periodo_txt}"
+    else:
+        periodo_txt = f"{sel_periodos[0]} a {sel_periodos[-1]}"
+        total_dh_acum = sum(dias_habiles_por_mes.get(p, 21) for p in sel_periodos)
+        dias_habiles_txt = f"📅 {int(total_dh_acum)}"
+        sub_dias_hab = f"Acumulado {len(sel_periodos)} meses"
 
     card_html = f"""
     <style>
@@ -314,29 +324,29 @@ if uploaded_file is not None:
             <div class="hero-title">Índice Ausentismo (Días)</div>
             <div class="hero-percent">{format_percentage_es(tasa_dias)}</div>
             <div class="hero-sub">{format_integer_es(total_dias)} días ausentes</div>
-            {delta_dias_str}
+            <div style="font-size:0.75rem; opacity:0.8; margin-top:4px;">{periodo_txt}</div>
         </div>
         <div class="hero-kpi-horas">
             <div class="hero-title">Índice Ausentismo (Horas)</div>
             <div class="hero-percent">{format_percentage_es(tasa_horas)}</div>
             <div class="hero-sub">{format_integer_es(total_horas)} horas ausentes</div>
-            {delta_horas_str}
+            <div style="font-size:0.75rem; opacity:0.8; margin-top:4px;">{periodo_txt}</div>
         </div>
         <div class="summary-breakdown">
             <div class="metric-box">
-                <div class="label">Días Hábiles Mes</div>
-                <div class="val">📅 {int(dias_hab)}</div>
-                <div class="sub">Período {periodo_actual}</div>
+                <div class="label">Días Hábiles</div>
+                <div class="val">{dias_habiles_txt}</div>
+                <div class="sub">{sub_dias_hab}</div>
             </div>
             <div class="metric-box">
                 <div class="label">Agentes con Novedad</div>
                 <div class="val">👥 {format_integer_es(empleados_afectados)}</div>
-                <div class="sub">{format_percentage_es((empleados_afectados/dot_act*100) if dot_act else 0)} de la dotación</div>
+                <div class="sub">{format_percentage_es((empleados_afectados/dotacion_representativa*100) if dotacion_representativa else 0)} del personal</div>
             </div>
             <div class="metric-box">
                 <div class="label">Capacidad Teórica</div>
-                <div class="val">🏢 {format_integer_es(capacidad_dias)} ds</div>
-                <div class="sub">{format_integer_es(dot_act)} agentes activos</div>
+                <div class="val">🏢 {format_integer_es(capacidad_dias_total)} ds</div>
+                <div class="sub">~{format_integer_es(dotacion_representativa)} agentes en dotación</div>
             </div>
         </div>
     </div>
@@ -356,8 +366,6 @@ if uploaded_file is not None:
     with tab1:
         st.subheader("Evolución Temporal del Ausentismo (Días y Horas)")
         
-        dias_habiles_por_mes = filtered_df.groupby('Periodo_Label')['Dias_Habiles'].first().to_dict()
-        
         evo_rows = []
         for p in sel_periodos:
             sub = filtered_df[filtered_df['Periodo_Label'] == p]
@@ -365,8 +373,9 @@ if uploaded_file is not None:
             h_sum = pd.to_numeric(sub['Total (H)'], errors='coerce').fillna(0).sum()
             agentes_sub = sub['Legajo'].nunique()
             
-            if df_dot is not None and not df_dot.empty:
-                dot_m = df_dot[df_dot['Periodo_Label'] == p]['Legajo'].nunique()
+            # Dotación mensual con filtros activos
+            if filtered_dot is not None and not filtered_dot.empty:
+                dot_m = filtered_dot[filtered_dot['Periodo_Label'] == p]['Legajo'].nunique()
             else:
                 dot_m = agentes_sub
                 
