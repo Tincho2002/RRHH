@@ -145,7 +145,7 @@ if uploaded_file is not None:
     st.success(f"Se procesaron con éxito **{format_integer_es(len(df_au))}** registros de novedades y licencias.")
     st.markdown("---")
 
-    # --- Barra Lateral de Filtros ---
+# --- Barra Lateral de Filtros ---
     st.sidebar.header("Filtros de Ausentismo")
 
     filter_dict = {
@@ -162,50 +162,55 @@ if uploaded_file is not None:
 
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
 
-    # Consolidar opciones unificadas (evita excluir categorías como Autoridades Superiores)
+    # Opciones completas combinando ambas fuentes
     def get_combined_options(col_name):
         opts_au = set(df_au[col_name].dropna().unique()) if col_name in df_au.columns else set()
         opts_dot = set(df_dot[col_name].dropna().unique()) if (df_dot is not None and col_name in df_dot.columns) else set()
         total_opts = sorted(list(opts_au.union(opts_dot)))
-        return [o for o in total_opts if str(o) != 'no disponible']
+        return [str(o).strip() for o in total_opts if str(o).strip() not in ['no disponible', 'nan', 'None']]
 
-    if 'au_selections' not in st.session_state:
-        st.session_state.au_selections = {
-            k: (periodos_ordenados if k == 'Periodo_Label' else get_combined_options(k))
-            for k in filter_dict.keys()
-        }
+    # Diccionario con el 100% de las opciones posibles
+    all_possible_options = {
+        k: (periodos_ordenados if k == 'Periodo_Label' else get_combined_options(k))
+        for k in filter_dict.keys()
+    }
 
-    if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
-        st.session_state.au_selections = {
-            k: (periodos_ordenados if k == 'Periodo_Label' else get_combined_options(k))
-            for k in filter_dict.keys()
-        }
+    # Inicialización limpia o reseteo
+    if 'au_selections_v2' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
+        st.session_state.au_selections_v2 = {k: list(v) for k, v in all_possible_options.items()}
         st.rerun()
 
     filtered_df = df_au.copy()
     filtered_dot = df_dot.copy() if df_dot is not None else None
 
-    # Aplicar filtros a Ausentismo y Dotación simultáneamente
+    # Renderizado y aplicación inteligente de filtros
     for col, label in filter_dict.items():
-        opts = periodos_ordenados if col == 'Periodo_Label' else get_combined_options(col)
+        opts = all_possible_options[col]
+        # Garantizar que los valores por defecto existan en las opciones actuales
+        current_defaults = [x for x in st.session_state.au_selections_v2.get(col, opts) if x in opts]
+        
         sel = st.sidebar.multiselect(
             label, 
             options=opts, 
-            default=st.session_state.au_selections.get(col, opts), 
-            key=f"sel_{col}"
+            default=current_defaults, 
+            key=f"sel_v2_{col}"
         )
-        st.session_state.au_selections[col] = sel
-        if sel:
-            filtered_df = filtered_df[filtered_df[col].isin(sel)]
-            if filtered_dot is not None and col in filtered_dot.columns:
-                filtered_dot = filtered_dot[filtered_dot[col].isin(sel)]
-        else:
+        st.session_state.au_selections_v2[col] = sel
+
+        # Solo filtramos si el usuario realmente desmarcó alguna opción
+        if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
             if filtered_dot is not None and col in filtered_dot.columns:
                 filtered_dot = filtered_dot.iloc[0:0]
+        elif len(sel) < len(opts):
+            # Filtro activo (subconjunto elegido)
+            if col in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df[col].isin(sel)]
+            if filtered_dot is not None and col in filtered_dot.columns:
+                filtered_dot = filtered_dot[filtered_dot[col].isin(sel)]
 
-    # Validaciones de filtros
-    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections.get('Periodo_Label', [])]
+    # Validaciones de filtros vacíos
+    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v2.get('Periodo_Label', [])]
 
     if not sel_periodos:
         st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Seleccione al menos un mes en la barra lateral.")
