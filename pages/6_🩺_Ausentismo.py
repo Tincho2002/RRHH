@@ -371,20 +371,51 @@ if uploaded_file is not None:
     with tab3:
         st.subheader("Impacto por Área Organizativa y Ubicación")
         agrupador = st.selectbox("Seleccionar Nivel de Análisis:", ["Gerencia", "Distrito", "Ministerio", "Relación"], key="sel_agrup")
-        df_area = filtered_df.groupby(agrupador).agg(
-            Dias=('Total (D)', 'sum'),
-            Horas=('Total (H)', 'sum'),
-            Agentes=('Legajo', 'nunique')
-        ).reset_index().sort_values('Dias', ascending=False)
+        
+        # Agrupamos y reseteamos el índice de forma limpia
+        df_area = (
+            filtered_df.groupby(agrupador, as_index=False)
+            .agg(
+                Dias=('Total (D)', 'sum'),
+                Horas=('Total (H)', 'sum'),
+                Agentes=('Legajo', 'nunique')
+            )
+            .sort_values('Dias', ascending=False)
+            .reset_index(drop=True)
+        )
 
         col_a1, col_a2 = st.columns([2, 1])
         with col_a1:
-            fig_area = px.bar(df_area, x=agrupador, y='Dias', text='Dias', title=f'Días Ausentes por {agrupador}', color=agrupador)
-            fig_area.update_traces(textposition='outside')
+            # Gráfico con Plotly Express sin 'color=agrupador' para evitar el conflicto de agrupación
+            fig_area = px.bar(
+                df_area, 
+                x=agrupador, 
+                y='Dias', 
+                text='Dias', 
+                title=f'Días Ausentes por {agrupador}',
+                color_discrete_sequence=['#0d9488']
+            )
+            fig_area.update_traces(
+                textposition='outside',
+                texttemplate='%{text:,.0f}'
+            )
+            fig_area.update_layout(
+                xaxis_title=agrupador,
+                yaxis_title="Días Ausentes",
+                xaxis_tickangle=-45 if agrupador in ['Distrito', 'Ministerio'] else 0
+            )
             st.plotly_chart(fig_area, use_container_width=True)
 
         with col_a2:
-            st.dataframe(df_area.style.format({"Dias": format_integer_es, "Horas": format_integer_es, "Agentes": format_integer_es}), use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_area.style.format({
+                    "Dias": format_integer_es, 
+                    "Horas": format_integer_es, 
+                    "Agentes": format_integer_es
+                }), 
+                use_container_width=True, 
+                hide_index=True
+            )
             generate_download_buttons(df_area, f"ausentismo_{agrupador.lower()}", key_suffix="_area")
 
     # --- TAB 4: Datos Brutos ---
