@@ -88,7 +88,7 @@ def load_and_process_data(uploaded_file):
         else:
             df_au['Dias_Habiles'] = 21
 
-        # Mapeo de meses y creación de etiquetas cronológicas (ej: 'Ene-26')
+        # Mapeo de meses y etiquetas cronológicas (ej: 'Ene-26')
         mapa_meses = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
         if 'Período' in df_au.columns:
             temp_dt = pd.to_datetime(df_au['Período'], errors='coerce')
@@ -162,15 +162,22 @@ if uploaded_file is not None:
 
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
 
+    # Consolidar opciones unificadas (evita excluir categorías como Autoridades Superiores)
+    def get_combined_options(col_name):
+        opts_au = set(df_au[col_name].dropna().unique()) if col_name in df_au.columns else set()
+        opts_dot = set(df_dot[col_name].dropna().unique()) if (df_dot is not None and col_name in df_dot.columns) else set()
+        total_opts = sorted(list(opts_au.union(opts_dot)))
+        return [o for o in total_opts if str(o) != 'no disponible']
+
     if 'au_selections' not in st.session_state:
         st.session_state.au_selections = {
-            k: (periodos_ordenados if k == 'Periodo_Label' else sorted(df_au[k].unique().tolist()))
+            k: (periodos_ordenados if k == 'Periodo_Label' else get_combined_options(k))
             for k in filter_dict.keys()
         }
 
     if st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
         st.session_state.au_selections = {
-            k: (periodos_ordenados if k == 'Periodo_Label' else sorted(df_au[k].unique().tolist()))
+            k: (periodos_ordenados if k == 'Periodo_Label' else get_combined_options(k))
             for k in filter_dict.keys()
         }
         st.rerun()
@@ -178,10 +185,15 @@ if uploaded_file is not None:
     filtered_df = df_au.copy()
     filtered_dot = df_dot.copy() if df_dot is not None else None
 
-    # Aplicar filtros a Ausentismo y a Dotación en simultáneo
+    # Aplicar filtros a Ausentismo y Dotación simultáneamente
     for col, label in filter_dict.items():
-        opts = periodos_ordenados if col == 'Periodo_Label' else sorted(df_au[col].unique().tolist())
-        sel = st.sidebar.multiselect(label, options=opts, default=st.session_state.au_selections.get(col, opts), key=f"sel_{col}")
+        opts = periodos_ordenados if col == 'Periodo_Label' else get_combined_options(col)
+        sel = st.sidebar.multiselect(
+            label, 
+            options=opts, 
+            default=st.session_state.au_selections.get(col, opts), 
+            key=f"sel_{col}"
+        )
         st.session_state.au_selections[col] = sel
         if sel:
             filtered_df = filtered_df[filtered_df[col].isin(sel)]
@@ -203,16 +215,15 @@ if uploaded_file is not None:
         st.warning("⚠️ No se encontraron registros con los filtros seleccionados.")
         st.stop()
 
-    # --- CÁLCULO DE CAPACIDAD Y AUSENTISMO EXACTO (Total Acumulado) ---
+    # --- CÁLCULO DE CAPACIDAD Y AUSENTISMO (Total Acumulado) ---
     dias_habiles_por_mes = df_au.groupby('Periodo_Label')['Dias_Habiles'].first().to_dict()
 
     total_dias = filtered_df['Total (D)'].sum()
     total_horas = pd.to_numeric(filtered_df['Total (H)'], errors='coerce').fillna(0).sum()
     empleados_afectados = filtered_df['Legajo'].nunique()
 
-    # Capacidad teórica total de los períodos seleccionados (con filtros de gerencia, etc. aplicados)
+    # Capacidad teórica total de los períodos seleccionados (con filtros cruzados)
     capacidad_dias_total = 0
-    dotacion_promedio = 0
     dotaciones_por_mes = []
 
     for p in sel_periodos:
@@ -230,7 +241,7 @@ if uploaded_file is not None:
     tasa_dias = (total_dias / capacidad_dias_total * 100) if capacidad_dias_total > 0 else 0
     tasa_horas = (total_horas / capacidad_horas_total * 100) if capacidad_horas_total > 0 else 0
 
-    # Etiqueta de período (ej: "JUL-26" o "ENE-26 A JUL-26")
+    # Etiqueta de período
     if len(sel_periodos) == 1:
         periodo_txt = sel_periodos[0]
         dias_habiles_txt = f"📅 {int(dias_habiles_por_mes.get(sel_periodos[0], 21))}"
@@ -373,7 +384,6 @@ if uploaded_file is not None:
             h_sum = pd.to_numeric(sub['Total (H)'], errors='coerce').fillna(0).sum()
             agentes_sub = sub['Legajo'].nunique()
             
-            # Dotación mensual con filtros activos
             if filtered_dot is not None and not filtered_dot.empty:
                 dot_m = filtered_dot[filtered_dot['Periodo_Label'] == p]['Legajo'].nunique()
             else:
