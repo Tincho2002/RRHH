@@ -44,6 +44,10 @@ def format_integer_es(num):
     if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
     return f"{int(round(num)):,}".replace(",", ".")
 
+def format_decimal_es(num, decimals=1):
+    if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
+    return f"{num:,.{decimals}f}".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
+
 def format_percentage_es(num, decimals=2):
     if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
@@ -98,6 +102,39 @@ def load_and_process_data(uploaded_file):
             df_au['Periodo_Label'] = df_au['Mes'].astype(str).str.capitalize()
             df_au['Periodo_DT'] = pd.to_datetime('2026-01-01')
 
+        # Normalizar fecha diaria y horas para análisis de Horas Caídas
+        if 'Desde (D)' in df_au.columns:
+            df_au['Fecha_Diaria'] = pd.to_datetime(df_au['Desde (D)'], errors='coerce')
+        else:
+            df_au['Fecha_Diaria'] = pd.NaT
+
+        def extract_hour(val):
+            if pd.isna(val): return None
+            if hasattr(val, 'hour'): return val.hour
+            val_s = str(val).strip()
+            if ':' in val_s:
+                try: return int(val_s.split(':')[0])
+                except: pass
+            return None
+
+        if 'Desde (H)' in df_au.columns:
+            df_au['Hora_Inicio'] = df_au['Desde (H)'].apply(extract_hour)
+        else:
+            df_au['Hora_Inicio'] = None
+
+        def assign_rango_horario(h):
+            if h is None or pd.isna(h): return 'Otro Horario'
+            h = int(h)
+            if 0 <= h < 4: return '00:00 a 04:00 hs'
+            elif 4 <= h < 8: return '04:00 a 08:00 hs'
+            elif 8 <= h < 12: return '08:00 a 12:00 hs'
+            elif 12 <= h < 16: return '12:00 a 16:00 hs'
+            elif 16 <= h < 20: return '16:00 a 20:00 hs'
+            elif 20 <= h < 24: return '20:00 a 00:00 hs'
+            return 'Otro Horario'
+
+        df_au['Rango_Horario'] = df_au['Hora_Inicio'].apply(assign_rango_horario)
+
         # Cargar dotación y normalizarla
         df_dot = None
         if 'Dotación' in xls.sheet_names:
@@ -108,7 +145,6 @@ def load_and_process_data(uploaded_file):
                 df_dot['Periodo_Label'] = temp_dt_dot.dt.month.map(mapa_meses) + '-' + temp_dt_dot.dt.strftime('%y')
                 df_dot['Periodo_DT'] = temp_dt_dot
             
-            # Limpieza de espacios en columnas clave
             dot_filter_cols = ['Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo']
             for c in dot_filter_cols:
                 if c in df_dot.columns:
@@ -463,11 +499,12 @@ if uploaded_file is not None:
 
     df_geo_distritos = pd.DataFrame(distrito_data_rows)
 
-    # --- Pestañas de Análisis ---
-    tab_iau, tab_geo_d, tab_geo_h, tab1, tab2, tab3, tab4 = st.tabs([
+    # --- Pestañas de Análisis (Ahora con HORAS CAÍDAS) ---
+    tab_iau, tab_geo_d, tab_geo_h, tab_horas_caidas, tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Tablero Ejecutivo IAU",
         "🗺️ Distribución Geográfica (Días)",
         "🗺️ Distribución Geográfica (Horas)",
+        "⏰ Horas Caídas",
         "📈 Evolución de Volúmenes (Días y Horas)",
         "📂 Motivos y Tipos de Licencia",
         "🏢 Distribución por Gerencia y Distrito",
@@ -782,6 +819,171 @@ if uploaded_file is not None:
                     st.warning("No se encontraron coordenadas válidas para mostrar el mapa.")
         else:
             st.info("No hay datos geográficos disponibles.")
+
+    # =========================================================================
+    # --- NUEVA PESTAÑA: HORAS CAÍDAS (ANÁLISIS TEMPORAL E INTERVALOS) ---
+    # =========================================================================
+    with tab_horas_caidas:
+        st.subheader("Análisis de Horas Caídas por Franja Horaria y Fecha")
+        
+        # Filtramos únicamente registros que posean horas
+        df_hc = filtered_df[filtered_df['Total (H)'] > 0].copy()
+        
+        if not df_hc.empty:
+            # --- FILA SUPERIOR: TABLA RANGO HORARIO, COMBO CHART Y BARRAS POR HORA CRÍTICA ---
+            col_hc1, col_hc2, col_hc3 = st.columns([1.1, 1.4, 1.5])
+            
+            # Orden estricto de los rangos de Looker
+            orden_rangos = [
+                '00:00 a 04:00 hs',
+                '04:00 a 08:00 hs',
+                '08:00 a 12:00 hs',
+                '12:00 a 16:00 hs',
+                '16:00 a 20:00 hs',
+                '20:00 a 00:00 hs',
+                'Otro Horario'
+            ]
+            
+            df_rango = df_hc.groupby('Rango_Horario')['Total (H)'].sum().reindex(orden_rangos, fill_value=0.0).reset_index()
+            total_hc_general = df_rango['Total (H)'].sum()
+            df_rango['Part. (%)'] = (df_rango['Total (H)'] / total_hc_general * 100) if total_hc_general > 0 else 0.0
+            
+            # 1. Tabla de Rangos Horarios
+            with col_hc1:
+                st.markdown("##### Horas Caídas por Rango Horario")
+                df_rango_display = df_rango.copy()
+                total_row_rango = pd.DataFrame({
+                    'Rango_Horario': ['Total'],
+                    'Total (H)': [total_hc_general],
+                    'Part. (%)': [100.0]
+                })
+                df_rango_display = pd.concat([df_rango_display, total_row_rango], ignore_index=True)
+                st.dataframe(
+                    df_rango_display.style.format({
+                        'Total (H)': lambda x: format_decimal_es(x, 1) if x % 1 != 0 else format_integer_es(x),
+                        'Part. (%)': lambda x: format_percentage_es(x, 2)
+                    }),
+                    use_container_width=True,
+                    height=320,
+                    hide_index=True
+                )
+
+            # 2. Gráfico Combo: Barras (Total H) + Línea (Part %)
+            with col_hc2:
+                st.markdown("##### Horas Caídas por Rango Horario")
+                df_rango_chart = df_rango[df_rango['Total (H)'] > 0]
+                
+                fig_combo_rango = make_subplots(specs=[[{"secondary_y": True}]])
+                fig_combo_rango.add_trace(go.Bar(
+                    x=df_rango_chart['Rango_Horario'],
+                    y=df_rango_chart['Total (H)'],
+                    name='Total (H)',
+                    text=[format_decimal_es(v, 1) if v % 1 != 0 else format_integer_es(v) for v in df_rango_chart['Total (H)']],
+                    textposition='outside',
+                    marker_color='#2563eb'
+                ), secondary_y=False)
+
+                fig_combo_rango.add_trace(go.Scatter(
+                    x=df_rango_chart['Rango_Horario'],
+                    y=df_rango_chart['Part. (%)'],
+                    name='Part. (%)',
+                    mode='lines+markers',
+                    line=dict(color='#dc2626', width=2.5),
+                    marker=dict(size=6)
+                ), secondary_y=True)
+
+                fig_combo_rango.update_layout(
+                    legend=dict(orientation="h", y=1.15, x=0.5, xanchor='center'),
+                    margin=dict(t=30, b=40, l=10, r=10),
+                    height=320,
+                    xaxis_tickangle=-35
+                )
+                fig_combo_rango.update_yaxes(title_text="Horas", secondary_y=False, showgrid=True)
+                fig_combo_rango.update_yaxes(title_text="Participación (%)", secondary_y=True, showgrid=False, ticksuffix="%")
+                st.plotly_chart(fig_combo_rango, use_container_width=True)
+
+            # 3. Horas Caídas por Hora (Intervalo Crítico)
+            with col_hc3:
+                st.markdown("##### Horas Caídas por Hora (intervalo crítico)")
+                df_horas_crit = df_hc.dropna(subset=['Hora_Inicio']).copy()
+                df_horas_crit['Hora_Inicio'] = df_horas_crit['Hora_Inicio'].astype(int)
+                
+                # Agrupamos por hora 00 a 23
+                df_hora_agg = df_horas_crit.groupby('Hora_Inicio')['Total (H)'].sum().reset_index()
+                df_hora_agg['Hora_Label'] = df_hora_agg['Hora_Inicio'].apply(lambda h: f"{h:02d}:00 hs")
+                df_hora_agg = df_hora_agg.sort_values('Hora_Inicio')
+
+                fig_bar_hora = px.bar(
+                    df_hora_agg,
+                    x='Hora_Label',
+                    y='Total (H)',
+                    text='Total (H)',
+                    color_discrete_sequence=['#2563eb']
+                )
+                fig_bar_hora.update_traces(
+                    texttemplate='%{text:,.0f}',
+                    textposition='outside'
+                )
+                fig_bar_hora.update_layout(
+                    xaxis_title=None,
+                    yaxis_title="Horas Caídas",
+                    margin=dict(t=30, b=40, l=10, r=10),
+                    height=320,
+                    xaxis_tickangle=-45
+                )
+                st.plotly_chart(fig_bar_hora, use_container_width=True)
+
+            st.markdown("---")
+
+            # --- FILA INFERIOR: EVOLUCIÓN DE HORAS CAÍDAS POR FECHA ---
+            col_fec_tbl, col_fec_chart = st.columns([1.1, 2.9])
+            
+            df_fechas = df_hc.dropna(subset=['Fecha_Diaria']).groupby('Fecha_Diaria')['Total (H)'].sum().reset_index()
+            df_fechas = df_fechas.sort_values('Fecha_Diaria')
+            
+            # Formato Fecha castellano (ej: 2 ene 2026)
+            mapa_meses_full = {1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun', 7: 'jul', 8: 'ago', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dic'}
+            df_fechas['Fecha_Label'] = df_fechas['Fecha_Diaria'].apply(lambda d: f"{d.day} {mapa_meses_full.get(d.month, '')} {d.year}")
+            
+            with col_fec_tbl:
+                st.markdown("##### Horas Caídas por Fecha")
+                df_fechas_show = df_fechas[['Fecha_Label', 'Total (H)']].copy().rename(columns={'Fecha_Label': 'Fecha'})
+                total_fec_row = pd.DataFrame({'Fecha': ['Total'], 'Total (H)': [df_fechas_show['Total (H)'].sum()]})
+                df_fechas_show = pd.concat([df_fechas_show, total_fec_row], ignore_index=True)
+                
+                st.dataframe(
+                    df_fechas_show.style.format({
+                        'Total (H)': lambda x: format_decimal_es(x, 1) if x % 1 != 0 else format_integer_es(x)
+                    }),
+                    use_container_width=True,
+                    height=400,
+                    hide_index=True
+                )
+                generate_download_buttons(df_fechas_show, "horas_caidas_por_fecha", key_suffix="_hc_fec")
+
+            with col_fec_chart:
+                st.markdown("##### Evolución de la cantidad de horas caídas por fecha")
+                fig_line_fecha = go.Figure()
+                fig_line_fecha.add_trace(go.Scatter(
+                    x=df_fechas['Fecha_Diaria'],
+                    y=df_fechas['Total (H)'],
+                    mode='lines+markers',
+                    name='Total (H)',
+                    line=dict(color='#2563eb', width=2),
+                    marker=dict(size=6, color='#2563eb'),
+                    hovertemplate='Fecha: %{x|%d %b %Y}<br>Total (H): %{y:,.1f}<extra></extra>'
+                ))
+                fig_line_fecha.update_layout(
+                    xaxis_title="Fecha",
+                    yaxis_title="Total Horas",
+                    hovermode="x unified",
+                    margin=dict(t=30, b=30, l=10, r=10),
+                    height=400
+                )
+                st.plotly_chart(fig_line_fecha, use_container_width=True)
+
+        else:
+            st.info("No se registran novedades horarias en la selección actual.")
 
     # --- TAB 1: Volúmenes Absolutos ---
     with tab1:
