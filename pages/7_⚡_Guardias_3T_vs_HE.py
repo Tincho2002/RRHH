@@ -49,6 +49,10 @@ def format_decimal_es(num, decimals=1):
     if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
     return f"{num:,.{decimals}f}".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
+def format_percentage_es(num, decimals=2):
+    if pd.isna(num) or not isinstance(num, (int, float, np.number)): return "0,00%"
+    return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
+
 def format_currency_es(num, decimals=2):
     if pd.isna(num) or not isinstance(num, (int, float, np.number)): return "$ 0,00"
     return f"${num:,.{decimals}f}".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
@@ -118,11 +122,9 @@ def load_and_process_g3t(uploaded_file):
 
         def resolver_periodo(val):
             if pd.isna(val): return 'otro'
-            # 1. Si es datetime o convertible a datetime (ej: 2026-01-01)
             dt_val = pd.to_datetime(val, errors='coerce')
             if pd.notna(dt_val):
                 return mapa_num_mes.get(dt_val.month, 'otro')
-            # 2. Si es texto (ej: ago-26, Enero, etc.)
             val_s = str(val).strip().lower()
             for k, v in mapa_str_mes.items():
                 if val_s.startswith(k):
@@ -216,7 +218,7 @@ if uploaded_file is not None:
         st.warning("⚠️ No se encontraron registros con los filtros seleccionados. Ajuste los filtros en la barra lateral.")
         st.stop()
 
-    # --- KPIs PRINCIPALES (Cálculos limpios fuera del f-string) ---
+    # --- KPIs PRINCIPALES (Cálculos limpios previos al render) ---
     total_g3t_pesos = filtered_df['G3T ($)'].sum()
     total_g3t_cant = filtered_df['G3T (Q)'].sum()
     total_he_cant = filtered_df['Total HE (Q)'].sum()
