@@ -102,11 +102,16 @@ def load_and_process_data(uploaded_file):
             df_au['Periodo_Label'] = df_au['Mes'].astype(str).str.capitalize()
             df_au['Periodo_DT'] = pd.to_datetime('2026-01-01')
 
-        # Normalizar fechas y horas para Horas Caídas
+        # Normalizar fechas diarias
         if 'Desde (D)' in df_au.columns:
             df_au['Fecha_Diaria'] = pd.to_datetime(df_au['Desde (D)'], errors='coerce')
         else:
             df_au['Fecha_Diaria'] = pd.NaT
+
+        if 'Hasta (D)' in df_au.columns:
+            df_au['Fecha_Hasta_D'] = pd.to_datetime(df_au['Hasta (D)'], errors='coerce')
+        else:
+            df_au['Fecha_Hasta_D'] = pd.NaT
 
         def extract_hour(val):
             if pd.isna(val): return None
@@ -134,9 +139,11 @@ def load_and_process_data(uploaded_file):
         if 'Desde (H)' in df_au.columns:
             df_au['Hora_Inicio'] = df_au['Desde (H)'].apply(extract_hour)
             df_au['Hora_Inicio_Label'] = df_au['Hora_Inicio'].apply(lambda h: f"{int(h):02d}:00 hs" if pd.notna(h) else "Otro Horario")
+            df_au['Desde_H_Str'] = df_au['Desde (H)'].apply(format_time_exact)
         else:
             df_au['Hora_Inicio'] = None
             df_au['Hora_Inicio_Label'] = "Otro Horario"
+            df_au['Desde_H_Str'] = None
 
         if 'Hasta (H)' in df_au.columns:
             df_au['Hora_Fin_Label'] = df_au['Hasta (H)'].apply(format_time_exact)
@@ -520,13 +527,15 @@ if uploaded_file is not None:
 
     df_geo_distritos = pd.DataFrame(distrito_data_rows)
 
-    # --- Pestañas de Análisis (con Horas Caídas y Matriz de Inicio a Fin) ---
-    tab_iau, tab_geo_d, tab_geo_h, tab_horas_caidas, tab_matriz_hc, tab1, tab2, tab3, tab4 = st.tabs([
+    # --- Pestañas de Análisis Completas ---
+    tab_iau, tab_geo_d, tab_geo_h, tab_dias_caidos, tab_horas_caidas, tab_matriz_hc, tab_cronologia, tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Tablero Ejecutivo IAU",
         "🗺️ Distribución Geográfica (Días)",
         "🗺️ Distribución Geográfica (Horas)",
+        "📅 Días Caídos",
         "⏰ Horas Caídas",
         "⏱️ Horas Caídas por Horario",
+        "📜 Cronología de Licencias",
         "📈 Evolución de Volúmenes (Días y Horas)",
         "📂 Motivos y Tipos de Licencia",
         "🏢 Distribución por Gerencia y Distrito",
@@ -843,6 +852,162 @@ if uploaded_file is not None:
             st.info("No hay datos geográficos disponibles.")
 
     # =========================================================================
+    # --- NUEVA PESTAÑA: DÍAS CAÍDOS (ANÁLISIS TEMPORAL Y VARIACIONES) ---
+    # =========================================================================
+    with tab_dias_caidos:
+        st.subheader("Análisis de Días Caídos por Mes y Fecha")
+        
+        df_dc = filtered_df[filtered_df['Total (D)'] > 0].copy()
+        
+        if not df_dc.empty:
+            # --- FILA SUPERIOR: TABLA MENSUAL Y GRÁFICO COMBO ---
+            col_dc1, col_dc2 = st.columns([1.3, 2.2])
+            
+            # Tabla de Días Caídos por Mes
+            df_mes_dc = df_dc.groupby('Periodo_Label', sort=False)['Total (D)'].sum().reindex(sel_periodos, fill_value=0.0).reset_index()
+            
+            # Cálculo de Var (Q)
+            df_mes_dc['Var (Q)'] = df_mes_dc['Total (D)'].diff()
+            if not df_mes_dc.empty:
+                df_mes_dc.loc[0, 'Var (Q)'] = df_mes_dc.loc[0, 'Total (D)']
+            
+            # Cálculo de % (mes)
+            df_mes_dc['% (mes)'] = df_mes_dc['Total (D)'].pct_change() * 100
+            
+            # Cálculo de % (acum) vs mes base (máximo histórico)
+            max_dias_val = df_mes_dc['Total (D)'].max()
+            df_mes_dc['% (acum)'] = ((df_mes_dc['Total (D)'] - max_dias_val) / max_dias_val * 100) if max_dias_val > 0 else 0.0
+
+            total_dias_gen = df_mes_dc['Total (D)'].sum()
+            
+            with col_dc1:
+                st.markdown("##### Días Caídos por Mes")
+                df_mes_dc_display = df_mes_dc.copy()
+                total_row_dc = pd.DataFrame({
+                    'Periodo_Label': ['Total'],
+                    'Total (D)': [total_dias_gen],
+                    'Var (Q)': [total_dias_gen],
+                    '% (acum)': [df_mes_dc['% (acum)'].sum() if len(df_mes_dc) > 0 else 0.0],
+                    '% (mes)': [np.nan]
+                })
+                df_mes_dc_display = pd.concat([df_mes_dc_display, total_row_dc], ignore_index=True)
+                
+                st.dataframe(
+                    df_mes_dc_display.rename(columns={'Periodo_Label': 'Período'}).style.format({
+                        'Total (D)': format_integer_es,
+                        'Var (Q)': lambda x: f"{int(round(x)):,}".replace(",", ".") if pd.notna(x) else "-",
+                        '% (acum)': lambda x: f"{x:,.2f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".") if pd.notna(x) else "-",
+                        '% (mes)': lambda x: f"{x:,.2f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".") if pd.notna(x) else "-"
+                    }),
+                    use_container_width=True,
+                    height=320,
+                    hide_index=True
+                )
+
+            with col_dc2:
+                st.markdown("##### Días Caídos por Mes (Evolución y Variación)")
+                fig_combo_dc = make_subplots(specs=[[{"secondary_y": True}]])
+                
+                # Barras Total (D)
+                fig_combo_dc.add_trace(go.Bar(
+                    x=df_mes_dc['Periodo_Label'],
+                    y=df_mes_dc['Total (D)'],
+                    name='Total (D)',
+                    text=[format_integer_es(v) for v in df_mes_dc['Total (D)']],
+                    textposition='outside',
+                    marker_color='#2563eb'
+                ), secondary_y=False)
+
+                # Barras Var (Q)
+                fig_combo_dc.add_trace(go.Bar(
+                    x=df_mes_dc['Periodo_Label'],
+                    y=df_mes_dc['Var (Q)'],
+                    name='Var (Q)',
+                    text=[format_integer_es(v) for v in df_mes_dc['Var (Q)']],
+                    textposition='outside',
+                    marker_color='#dc2626'
+                ), secondary_y=False)
+
+                # Línea % (acum)
+                fig_combo_dc.add_trace(go.Scatter(
+                    x=df_mes_dc['Periodo_Label'],
+                    y=df_mes_dc['% (acum)'],
+                    name='% (acum)',
+                    mode='lines+markers',
+                    line=dict(color='#eab308', width=2.5),
+                    marker=dict(size=6)
+                ), secondary_y=True)
+
+                # Línea % (mes)
+                fig_combo_dc.add_trace(go.Scatter(
+                    x=df_mes_dc['Periodo_Label'],
+                    y=df_mes_dc['% (mes)'],
+                    name='% (mes)',
+                    mode='lines+markers',
+                    line=dict(color='#22c55e', width=2.5),
+                    marker=dict(size=6)
+                ), secondary_y=True)
+
+                fig_combo_dc.update_layout(
+                    barmode='group',
+                    legend=dict(orientation="h", y=1.15, x=0.5, xanchor='center'),
+                    margin=dict(t=30, b=40, l=10, r=10),
+                    height=320
+                )
+                fig_combo_dc.update_yaxes(title_text="Días", secondary_y=False, showgrid=True)
+                fig_combo_dc.update_yaxes(title_text="Variación (%)", secondary_y=True, showgrid=False, ticksuffix="%")
+                st.plotly_chart(fig_combo_dc, use_container_width=True)
+
+            st.markdown("---")
+
+            # --- FILA INFERIOR: EVOLUCIÓN DE DÍAS CAÍDOS POR FECHA ---
+            col_fec_tbl_d, col_fec_chart_d = st.columns([1.1, 2.9])
+            
+            df_fechas_d = df_dc.dropna(subset=['Fecha_Diaria']).groupby('Fecha_Diaria')['Total (D)'].sum().reset_index()
+            df_fechas_d = df_fechas_d.sort_values('Fecha_Diaria')
+            
+            mapa_meses_full = {1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun', 7: 'jul', 8: 'ago', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dic'}
+            df_fechas_d['Fecha_Label'] = df_fechas_d['Fecha_Diaria'].apply(lambda d: f"{d.day} {mapa_meses_full.get(d.month, '')} {d.year}")
+            
+            with col_fec_tbl_d:
+                st.markdown("##### Días Caídos por Fecha")
+                df_fechas_d_show = df_fechas_d[['Fecha_Label', 'Total (D)']].copy().rename(columns={'Fecha_Label': 'Fecha'})
+                total_fec_row_d = pd.DataFrame({'Fecha': ['Total'], 'Total (D)': [df_fechas_d_show['Total (D)'].sum()]})
+                df_fechas_d_show = pd.concat([df_fechas_d_show, total_fec_row_d], ignore_index=True)
+                
+                st.dataframe(
+                    df_fechas_d_show.style.format({'Total (D)': format_integer_es}),
+                    use_container_width=True,
+                    height=400,
+                    hide_index=True
+                )
+                generate_download_buttons(df_fechas_d_show, "dias_caidos_por_fecha", key_suffix="_dc_fec")
+
+            with col_fec_chart_d:
+                st.markdown("##### Evolución de la cantidad de dias caídos por fecha")
+                fig_line_fecha_d = go.Figure()
+                fig_line_fecha_d.add_trace(go.Scatter(
+                    x=df_fechas_d['Fecha_Diaria'],
+                    y=df_fechas_d['Total (D)'],
+                    mode='lines+markers',
+                    name='Total (D)',
+                    line=dict(color='#2563eb', width=2),
+                    marker=dict(size=6, color='#2563eb'),
+                    hovertemplate='Fecha: %{x|%d %b %Y}<br>Total (D): %{y:,.0f}<extra></extra>'
+                ))
+                fig_line_fecha_d.update_layout(
+                    xaxis_title="Fecha",
+                    yaxis_title="Total Días",
+                    hovermode="x unified",
+                    margin=dict(t=30, b=30, l=10, r=10),
+                    height=400
+                )
+                st.plotly_chart(fig_line_fecha_d, use_container_width=True)
+
+        else:
+            st.info("No se registran novedades de días caídos en la selección actual.")
+
+    # =========================================================================
     # --- TAB HORAS CAÍDAS (ANÁLISIS TEMPORAL E INTERVALOS) ---
     # =========================================================================
     with tab_horas_caidas:
@@ -999,7 +1164,7 @@ if uploaded_file is not None:
             st.info("No se registran novedades horarias en la selección actual.")
 
     # =========================================================================
-    # --- NUEVA PESTAÑA: HORAS CAÍDAS SEGÚN HORA DE INICIO (MATRIZ PIVOT) ---
+    # --- TAB HORAS CAÍDAS SEGÚN HORA DE INICIO (MATRIZ PIVOT) ---
     # =========================================================================
     with tab_matriz_hc:
         st.subheader("Matriz de Horas Caídas según Hora de Inicio y Hora de Fin")
@@ -1008,7 +1173,6 @@ if uploaded_file is not None:
         df_matriz_source = filtered_df[(filtered_df['Total (H)'] > 0) & (filtered_df['Hora_Fin_Label'].notna())].copy()
         
         if not df_matriz_source.empty:
-            # Construcción de la tabla pivot
             df_pivot_hc = pd.pivot_table(
                 df_matriz_source,
                 index='Hora_Inicio_Label',
@@ -1018,7 +1182,6 @@ if uploaded_file is not None:
                 fill_value=0.0
             )
             
-            # Ordenamiento de las filas (Hora de Inicio)
             def get_sort_hour(label):
                 try:
                     return int(str(label).split(':')[0])
@@ -1029,16 +1192,12 @@ if uploaded_file is not None:
             columnas_ordenadas = sorted(df_pivot_hc.columns.tolist())
             
             df_pivot_hc = df_pivot_hc.reindex(index=filas_ordenadas, columns=columnas_ordenadas, fill_value=0.0)
-            
-            # Cálculo de columna Total
             df_pivot_hc['Total'] = df_pivot_hc.sum(axis=1)
             
-            # Cálculo de fila Total General
             total_general_row = df_pivot_hc.sum(axis=0).to_frame().T
             total_general_row.index = ['Total general']
             df_pivot_display = pd.concat([df_pivot_hc, total_general_row])
             
-            # Formateo visual: valores > 0 con formato numérico y 0 como vacío "-" estilo Looker
             def format_celda_horas(val):
                 if pd.isna(val) or val == 0:
                     return "-"
@@ -1053,11 +1212,58 @@ if uploaded_file is not None:
                 height=550
             )
             
-            # Opciones de descarga
             df_download_matriz = df_pivot_hc.reset_index().rename(columns={'Hora_Inicio_Label': 'Hora de Inicio'})
             generate_download_buttons(df_download_matriz, "horas_caidas_segun_hora_inicio", key_suffix="_hc_matriz")
         else:
             st.info("No hay registros con información de horario de inicio y fin para la selección actual.")
+
+    # =========================================================================
+    # --- NUEVA PESTAÑA: CRONOLOGÍA POR TIPO Y POR LICENCIA ---
+    # =========================================================================
+    with tab_cronologia:
+        st.subheader("Cronología por Tipo y por Licencia")
+        st.write("Detalle individual consolidado de agentes con mayores días y horas de ausencia acumulados.")
+        
+        # Agrupamos por agente, licencia y fechas extremas
+        cron_cols_group = ['Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia']
+        cron_agg = filtered_df.groupby(cron_cols_group, as_index=False).agg(
+            Desde_D=('Fecha_Diaria', 'min'),
+            Hasta_D=('Fecha_Hasta_D', 'max'),
+            Desde_H=('Desde_H_Str', 'first'),
+            Hasta_H=('Hora_Fin_Label', 'first'),
+            Total_D=('Total (D)', 'sum'),
+            Total_H=('Total (H)', 'sum')
+        ).sort_values(by='Total_D', ascending=False).reset_index(drop=True)
+        
+        if not cron_agg.empty:
+            mapa_meses_full = {1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun', 7: 'jul', 8: 'ago', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dic'}
+            def format_date_str(d):
+                if pd.isna(d): return "-"
+                return f"{d.day} {mapa_meses_full.get(d.month, '')} {d.year}"
+            
+            cron_agg['Desde (D)'] = cron_agg['Desde_D'].apply(format_date_str)
+            cron_agg['Hasta (D)'] = cron_agg['Hasta_D'].apply(format_date_str)
+            cron_agg['Desde (H)'] = cron_agg['Desde_H'].fillna("-")
+            cron_agg['Hasta (H)'] = cron_agg['Hasta_H'].fillna("-")
+
+            cron_display = cron_agg[[
+                'Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia',
+                'Desde (D)', 'Hasta (D)', 'Desde (H)', 'Hasta (H)',
+                'Total_D', 'Total_H'
+            ]].rename(columns={'Total_D': 'Total (D)', 'Total_H': 'Total (H)'})
+
+            st.dataframe(
+                cron_display.style.format({
+                    'Total (D)': lambda x: format_integer_es(x) if x > 0 else "-",
+                    'Total (H)': lambda x: format_decimal_es(x, 1) if (x > 0 and x % 1 != 0) else (format_integer_es(x) if x > 0 else "-")
+                }),
+                use_container_width=True,
+                height=550,
+                hide_index=True
+            )
+            generate_download_buttons(cron_display, "cronologia_licencias_agentes", key_suffix="_cron")
+        else:
+            st.info("No hay registros cronológicos para los filtros seleccionados.")
 
     # --- TAB 1: Volúmenes Absolutos ---
     with tab1:
