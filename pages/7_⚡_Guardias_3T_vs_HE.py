@@ -112,13 +112,25 @@ def load_and_process_g3t(uploaded_file):
         df['Total HE (Q)'] = df['HE al 50 % (Q)'] + df['HE al 50 % Sábados (Q)'] + df['HE al 100 % (Q)']
         df['Total HE ($)'] = df['HE al 50 % ($)'] + df['HE al 50 % Sábados ($)'] + df['HE al 100 % ($)']
 
-        # Período normalizado
-        mapa_meses = {'ene': 'enero', 'feb': 'febrero', 'mar': 'marzo', 'abr': 'abril', 'may': 'mayo', 'jun': 'junio', 'jul': 'julio', 'ago': 'agosto', 'sep': 'septiembre', 'oct': 'octubre', 'nov': 'noviembre', 'dic': 'diciembre'}
+        # Mapeo universal de Período a nombre de mes en español
+        mapa_num_mes = {1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril', 5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto', 9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'}
+        mapa_str_mes = {'ene': 'enero', 'feb': 'febrero', 'mar': 'marzo', 'abr': 'abril', 'may': 'mayo', 'jun': 'junio', 'jul': 'julio', 'ago': 'agosto', 'sep': 'septiembre', 'oct': 'octubre', 'nov': 'noviembre', 'dic': 'diciembre'}
+
+        def resolver_periodo(val):
+            if pd.isna(val): return 'otro'
+            # 1. Si es datetime o convertible a datetime (ej: 2026-01-01)
+            dt_val = pd.to_datetime(val, errors='coerce')
+            if pd.notna(dt_val):
+                return mapa_num_mes.get(dt_val.month, 'otro')
+            # 2. Si es texto (ej: ago-26, Enero, etc.)
+            val_s = str(val).strip().lower()
+            for k, v in mapa_str_mes.items():
+                if val_s.startswith(k):
+                    return v
+            return val_s
+
         if 'Periodo' in df.columns:
-            df['Periodo_Label'] = df['Periodo'].astype(str).str.strip().str.lower()
-            # Mapear prefijos
-            for k, v in mapa_meses.items():
-                df.loc[df['Periodo_Label'].str.startswith(k), 'Periodo_Label'] = v
+            df['Periodo_Label'] = df['Periodo'].apply(resolver_periodo)
         else:
             df['Periodo_Label'] = 'General'
 
@@ -204,12 +216,16 @@ if uploaded_file is not None:
         st.warning("⚠️ No se encontraron registros con los filtros seleccionados. Ajuste los filtros en la barra lateral.")
         st.stop()
 
-    # --- KPIs PRINCIPALES (Estilo Looker) ---
+    # --- KPIs PRINCIPALES (Cálculos limpios fuera del f-string) ---
     total_g3t_pesos = filtered_df['G3T ($)'].sum()
     total_g3t_cant = filtered_df['G3T (Q)'].sum()
     total_he_cant = filtered_df['Total HE (Q)'].sum()
     total_he_pesos = filtered_df['Total HE ($)'].sum()
     total_legajos = filtered_df['Legajo'].nunique()
+    total_he_100_q = filtered_df['HE al 100 % (Q)'].sum()
+
+    pct_he_100_val = (total_he_100_q / total_he_cant * 100) if total_he_cant > 0 else 0.0
+    pct_he_100_str = format_percentage_es(pct_he_100_val)
 
     card_html = f"""
     <style>
@@ -309,8 +325,8 @@ if uploaded_file is not None:
             </div>
             <div class="metric-box">
                 <div class="label">HE al 100 % (Q)</div>
-                <div class="val">⏱️ {format_decimal_es(filtered_df['HE al 100 % (Q)'].sum(), 1)} hs</div>
-                <div class="sub">{format_percentage_es(filtered_df['HE al 100 % (Q)'].sum() / total_he_cant * 100 if total_he_cant else 0)} del total HE</div>
+                <div class="val">⏱️ {format_decimal_es(total_he_100_q, 1)} hs</div>
+                <div class="sub">{pct_he_100_str} del total HE</div>
             </div>
             <div class="metric-box">
                 <div class="label">Costo Total Combinado</div>
@@ -337,7 +353,6 @@ if uploaded_file is not None:
     with tab_intro:
         st.subheader("Guardias 3T vs HExtras - Evolución Mensual")
 
-        # Agrupación por Mes
         meses_sel = [m for m in orden_meses_std if m in filtered_df['Periodo_Label'].unique()]
         if not meses_sel:
             meses_sel = sorted(list(filtered_df['Periodo_Label'].unique()))
@@ -354,7 +369,6 @@ if uploaded_file is not None:
             Total_HE_Q=('Total HE (Q)', 'sum')
         ).reindex(meses_sel, fill_value=0.0).reset_index()
 
-        # Fila Total General
         tot_row_t1 = pd.DataFrame({
             'Periodo_Label': ['Total'],
             'G3T_Pesos': [df_tabla1['G3T_Pesos'].sum()],
@@ -383,7 +397,6 @@ if uploaded_file is not None:
         }
         df_tabla1_show = df_tabla1_display.rename(columns=rename_t1)
 
-        # Formateo
         st.markdown("##### Guardias 3T vs HExtras Tabla 1")
         st.dataframe(
             df_tabla1_show.style.format({
@@ -405,7 +418,6 @@ if uploaded_file is not None:
 
         st.markdown("---")
 
-        # Gráficos de Evolución Mensual
         col_g_q, col_g_p = st.columns(2)
 
         with col_g_q:
@@ -470,7 +482,6 @@ if uploaded_file is not None:
     with tab_ranking:
         st.subheader("Guardias 3T vs HExtras Tabla 2 - Ranking de Agentes")
 
-        # Agrupación por Legajo
         grp_leg = ['Legajo', 'Apellido y Nombre', 'Nivel', 'Subnivel', 'Gerencia', 'CeCo', 'Tipo de Liquidación']
         df_rank = filtered_df.groupby(grp_leg, as_index=False).agg(
             G3T_Pesos=('G3T ($)', 'sum'),
@@ -489,7 +500,6 @@ if uploaded_file is not None:
         }
         df_rank_display = df_rank.rename(columns=rename_t2)
 
-        # Fila Total
         tot_row_t2 = pd.DataFrame({
             'Legajo': ['Total'],
             'Apellido y Nombre': [''],
@@ -522,7 +532,6 @@ if uploaded_file is not None:
 
         st.markdown("---")
 
-        # Gráfico TOP 20
         st.markdown("##### TOP 20: Total HE (Q) y G3T ($) por Legajo")
         df_top20 = df_rank.head(20).copy()
 
@@ -566,7 +575,6 @@ if uploaded_file is not None:
 
         col_geo_t, col_geo_m = st.columns([1.1, 1.9])
 
-        # Agrupación por Gerencia y Distrito
         df_geo_dist = filtered_df.groupby(['Gerencia', 'Distrito'], as_index=False).agg(
             Casos=('Legajo', 'count'),
             Total_G3T_Pesos=('G3T ($)', 'sum'),
@@ -597,7 +605,6 @@ if uploaded_file is not None:
         with col_geo_m:
             st.markdown("##### Mapa de Concentración por Distrito")
             
-            # Ponderación de coordenadas por Distrito
             df_map_data = filtered_df.dropna(subset=['Latitud', 'Longitud']).groupby(['Distrito'], as_index=False).agg(
                 Latitud=('Latitud', 'first'),
                 Longitud=('Longitud', 'first'),
