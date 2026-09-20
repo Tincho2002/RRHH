@@ -528,7 +528,7 @@ if uploaded_file is not None:
     df_geo_distritos = pd.DataFrame(distrito_data_rows)
 
     # --- Pestañas de Análisis Completas ---
-    tab_iau, tab_geo_d, tab_geo_h, tab_dias_caidos, tab_horas_caidas, tab_matriz_hc, tab_cronologia, tab1, tab2, tab3, tab4 = st.tabs([
+    tab_iau, tab_geo_d, tab_geo_h, tab_dias_caidos, tab_horas_caidas, tab_matriz_hc, tab_cronologia, tab_gantt, tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Tablero Ejecutivo IAU",
         "🗺️ Distribución Geográfica (Días)",
         "🗺️ Distribución Geográfica (Horas)",
@@ -536,6 +536,7 @@ if uploaded_file is not None:
         "⏰ Horas Caídas",
         "⏱️ Horas Caídas por Horario",
         "📜 Cronología de Licencias",
+        "📊 Cronograma de Licencias (Gantt)",
         "📈 Evolución de Volúmenes (Días y Horas)",
         "📂 Motivos y Tipos de Licencia",
         "🏢 Distribución por Gerencia y Distrito",
@@ -852,7 +853,7 @@ if uploaded_file is not None:
             st.info("No hay datos geográficos disponibles.")
 
     # =========================================================================
-    # --- NUEVA PESTAÑA: DÍAS CAÍDOS (ANÁLISIS TEMPORAL Y VARIACIONES) ---
+    # --- TAB DÍAS CAÍDOS (ANÁLISIS TEMPORAL Y VARIACIONES) ---
     # =========================================================================
     with tab_dias_caidos:
         st.subheader("Análisis de Días Caídos por Mes y Fecha")
@@ -860,21 +861,16 @@ if uploaded_file is not None:
         df_dc = filtered_df[filtered_df['Total (D)'] > 0].copy()
         
         if not df_dc.empty:
-            # --- FILA SUPERIOR: TABLA MENSUAL Y GRÁFICO COMBO ---
             col_dc1, col_dc2 = st.columns([1.3, 2.2])
             
-            # Tabla de Días Caídos por Mes
             df_mes_dc = df_dc.groupby('Periodo_Label', sort=False)['Total (D)'].sum().reindex(sel_periodos, fill_value=0.0).reset_index()
             
-            # Cálculo de Var (Q)
             df_mes_dc['Var (Q)'] = df_mes_dc['Total (D)'].diff()
             if not df_mes_dc.empty:
                 df_mes_dc.loc[0, 'Var (Q)'] = df_mes_dc.loc[0, 'Total (D)']
             
-            # Cálculo de % (mes)
             df_mes_dc['% (mes)'] = df_mes_dc['Total (D)'].pct_change() * 100
             
-            # Cálculo de % (acum) vs mes base (máximo histórico)
             max_dias_val = df_mes_dc['Total (D)'].max()
             df_mes_dc['% (acum)'] = ((df_mes_dc['Total (D)'] - max_dias_val) / max_dias_val * 100) if max_dias_val > 0 else 0.0
 
@@ -908,7 +904,6 @@ if uploaded_file is not None:
                 st.markdown("##### Días Caídos por Mes (Evolución y Variación)")
                 fig_combo_dc = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # Barras Total (D)
                 fig_combo_dc.add_trace(go.Bar(
                     x=df_mes_dc['Periodo_Label'],
                     y=df_mes_dc['Total (D)'],
@@ -918,7 +913,6 @@ if uploaded_file is not None:
                     marker_color='#2563eb'
                 ), secondary_y=False)
 
-                # Barras Var (Q)
                 fig_combo_dc.add_trace(go.Bar(
                     x=df_mes_dc['Periodo_Label'],
                     y=df_mes_dc['Var (Q)'],
@@ -928,7 +922,6 @@ if uploaded_file is not None:
                     marker_color='#dc2626'
                 ), secondary_y=False)
 
-                # Línea % (acum)
                 fig_combo_dc.add_trace(go.Scatter(
                     x=df_mes_dc['Periodo_Label'],
                     y=df_mes_dc['% (acum)'],
@@ -938,7 +931,6 @@ if uploaded_file is not None:
                     marker=dict(size=6)
                 ), secondary_y=True)
 
-                # Línea % (mes)
                 fig_combo_dc.add_trace(go.Scatter(
                     x=df_mes_dc['Periodo_Label'],
                     y=df_mes_dc['% (mes)'],
@@ -960,7 +952,6 @@ if uploaded_file is not None:
 
             st.markdown("---")
 
-            # --- FILA INFERIOR: EVOLUCIÓN DE DÍAS CAÍDOS POR FECHA ---
             col_fec_tbl_d, col_fec_chart_d = st.columns([1.1, 2.9])
             
             df_fechas_d = df_dc.dropna(subset=['Fecha_Diaria']).groupby('Fecha_Diaria')['Total (D)'].sum().reset_index()
@@ -1218,13 +1209,12 @@ if uploaded_file is not None:
             st.info("No hay registros con información de horario de inicio y fin para la selección actual.")
 
     # =========================================================================
-    # --- NUEVA PESTAÑA: CRONOLOGÍA POR TIPO Y POR LICENCIA ---
+    # --- TAB CRONOLOGÍA POR TIPO Y POR LICENCIA ---
     # =========================================================================
     with tab_cronologia:
         st.subheader("Cronología por Tipo y por Licencia")
         st.write("Detalle individual consolidado de agentes con mayores días y horas de ausencia acumulados.")
         
-        # Agrupamos por agente, licencia y fechas extremas
         cron_cols_group = ['Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia']
         cron_agg = filtered_df.groupby(cron_cols_group, as_index=False).agg(
             Desde_D=('Fecha_Diaria', 'min'),
@@ -1264,6 +1254,93 @@ if uploaded_file is not None:
             generate_download_buttons(cron_display, "cronologia_licencias_agentes", key_suffix="_cron")
         else:
             st.info("No hay registros cronológicos para los filtros seleccionados.")
+
+    # =========================================================================
+    # --- NUEVA PESTAÑA: CRONOGRAMA DE LICENCIAS (DIAGRAMA DE GANTT) ---
+    # =========================================================================
+    with tab_gantt:
+        st.subheader("Cronograma Visual de Licencias (Diagrama de Gantt)")
+        st.write("Visualización temporal de duración de ausencias por agente y concepto.")
+        
+        # Filtramos registros con fechas válidas y duración en días
+        df_gantt_base = filtered_df[
+            (filtered_df['Total (D)'] > 0) & 
+            (filtered_df['Fecha_Diaria'].notna()) & 
+            (filtered_df['Fecha_Hasta_D'].notna())
+        ].copy()
+
+        if not df_gantt_base.empty:
+            df_gantt_base = df_gantt_base[df_gantt_base['Fecha_Hasta_D'] >= df_gantt_base['Fecha_Diaria']]
+            
+            # Eliminamos duplicados de eventos idénticos
+            df_gantt_unique = df_gantt_base.drop_duplicates(
+                subset=['Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia', 'Fecha_Diaria', 'Fecha_Hasta_D']
+            ).copy()
+
+            # Orden cronológico por inicio
+            df_gantt_unique = df_gantt_unique.sort_values(by='Fecha_Diaria', ascending=True)
+
+            def make_gantt_label(row):
+                lic = str(row['Licencia']).strip()
+                lic_clean = ' - '.join([part.strip() for part in lic.split('-')])
+                return f"{row['Legajo']} - {row['Apellido y Nombre']} - {lic_clean}"
+
+            df_gantt_unique['Agente_Licencia'] = df_gantt_unique.apply(make_gantt_label, axis=1)
+
+            # Controles de visualización
+            col_g1, col_g2 = st.columns([1.5, 2.5])
+            with col_g1:
+                cant_mostrar = st.slider(
+                    "Cantidad de registros a mostrar:",
+                    min_value=5,
+                    max_value=min(100, len(df_gantt_unique)),
+                    value=min(25, len(df_gantt_unique)),
+                    step=5,
+                    key="gantt_cant_slider"
+                )
+            with col_g2:
+                tipos_lic_gantt = sorted(list(df_gantt_unique['Tipo'].unique()))
+                sel_tipos_gantt = st.multiselect(
+                    "Filtrar por Tipo:",
+                    options=tipos_lic_gantt,
+                    default=tipos_lic_gantt,
+                    key="gantt_tipo_sel"
+                )
+
+            df_plot_gantt = df_gantt_unique[df_gantt_unique['Tipo'].isin(sel_tipos_gantt)].head(cant_mostrar).copy()
+
+            if not df_plot_gantt.empty:
+                # Diagrama de Gantt nativo con px.timeline
+                fig_gantt = px.timeline(
+                    df_plot_gantt,
+                    x_start="Fecha_Diaria",
+                    x_end="Fecha_Hasta_D",
+                    y="Agente_Licencia",
+                    color_discrete_sequence=['#2563eb'],
+                    hover_name="Apellido y Nombre",
+                    hover_data={
+                        "Legajo": True,
+                        "Licencia": True,
+                        "Total (D)": ":,.0f",
+                        "Fecha_Diaria": "|%d/%m/%Y",
+                        "Fecha_Hasta_D": "|%d/%m/%Y",
+                        "Agente_Licencia": False
+                    }
+                )
+
+                # Ajustamos orden de arriba hacia abajo para replicar Looker
+                fig_gantt.update_yaxes(autorange="reversed", title=None)
+                fig_gantt.update_xaxes(title="Línea de Tiempo", showgrid=True)
+                fig_gantt.update_layout(
+                    height=max(450, cant_mostrar * 24),
+                    margin=dict(l=10, r=20, t=20, b=30),
+                    hovermode="closest"
+                )
+                st.plotly_chart(fig_gantt, use_container_width=True)
+            else:
+                st.info("No hay registros que coincidan con los tipos seleccionados.")
+        else:
+            st.info("No hay registros con fechas de inicio y fin para construir el cronograma.")
 
     # --- TAB 1: Volúmenes Absolutos ---
     with tab1:
