@@ -218,7 +218,7 @@ if uploaded_file is not None:
         st.warning("⚠️ No se encontraron registros con los filtros seleccionados. Ajuste los filtros en la barra lateral.")
         st.stop()
 
-    # --- KPIs PRINCIPALES (Cálculos limpios previos al render) ---
+    # --- KPIs PRINCIPALES ---
     total_g3t_pesos = filtered_df['G3T ($)'].sum()
     total_g3t_cant = filtered_df['G3T (Q)'].sum()
     total_he_cant = filtered_df['Total HE (Q)'].sum()
@@ -420,6 +420,7 @@ if uploaded_file is not None:
 
         st.markdown("---")
 
+        # --- FILA 1: EVOLUCIÓN MENSUAL EN CANTIDADES Y EN PESOS ---
         col_g_q, col_g_p = st.columns(2)
 
         with col_g_q:
@@ -477,6 +478,92 @@ if uploaded_file is not None:
             fig_p.update_yaxes(title_text="Importe HE ($)", secondary_y=False, showgrid=True)
             fig_p.update_yaxes(title_text="Importe G3T ($)", secondary_y=True, showgrid=False)
             st.plotly_chart(fig_p, use_container_width=True)
+
+        st.markdown("---")
+
+        # --- FILA 2: GRÁFICOS DE TOTALES (BARRAS/LÍNEA Y TORTAS DE PARTICIPACIÓN) ---
+        col_tot_combo, col_pie_g3t, col_pie_he = st.columns([1.6, 1.2, 1.2])
+
+        paleta_donuts = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5']
+
+        # 1. Gráfico Combinado: Total HE (Q) y G3T (Q) por Período
+        with col_tot_combo:
+            st.markdown("##### Total HE (Q) y G3T (Q) por Periodo (Mes)")
+            fig_tot_combo = make_subplots(specs=[[{"secondary_y": True}]])
+
+            fig_tot_combo.add_trace(go.Bar(
+                x=df_tabla1['Periodo_Label'],
+                y=df_tabla1['Total_HE_Q'],
+                name='Total HE (Q)',
+                marker_color='#2563eb'
+            ), secondary_y=False)
+
+            fig_tot_combo.add_trace(go.Scatter(
+                x=df_tabla1['Periodo_Label'],
+                y=df_tabla1['G3T_Q'],
+                name='G3T (Q)',
+                mode='lines+markers',
+                line=dict(color='#0284c7', width=3),
+                marker=dict(size=7)
+            ), secondary_y=True)
+
+            fig_tot_combo.update_layout(
+                legend=dict(orientation="h", y=1.15, x=0.5, xanchor='center'),
+                margin=dict(t=30, b=30, l=10, r=10),
+                height=320,
+                hovermode="x unified"
+            )
+            fig_tot_combo.update_yaxes(title_text="Total HE (hs)", secondary_y=False, showgrid=True)
+            fig_tot_combo.update_yaxes(title_text="G3T (Q)", secondary_y=True, showgrid=False)
+            st.plotly_chart(fig_tot_combo, use_container_width=True)
+
+        # 2. Torta / Donut: Período (Mes) por G3T ($)
+        with col_pie_g3t:
+            st.markdown("##### Período (Mes) por G3T ($)")
+            df_pie_g3t = df_tabla1[df_tabla1['G3T_Pesos'] > 0].copy()
+            fig_pie_g3t = px.pie(
+                df_pie_g3t,
+                names='Periodo_Label',
+                values='G3T_Pesos',
+                hole=0.45,
+                color_discrete_sequence=paleta_donuts
+            )
+            fig_pie_g3t.update_traces(
+                textinfo='percent',
+                textposition='inside',
+                insidetextorientation='horizontal'
+            )
+            fig_pie_g3t.update_layout(
+                showlegend=True,
+                legend=dict(orientation="v", y=0.5, x=1.02, font=dict(size=10)),
+                margin=dict(t=20, b=20, l=10, r=10),
+                height=320
+            )
+            st.plotly_chart(fig_pie_g3t, use_container_width=True)
+
+        # 3. Torta / Donut: Período (Mes) por Total HE (Q)
+        with col_pie_he:
+            st.markdown("##### Período (Mes) por Total HE (Q)")
+            df_pie_he = df_tabla1[df_tabla1['Total_HE_Q'] > 0].copy()
+            fig_pie_he = px.pie(
+                df_pie_he,
+                names='Periodo_Label',
+                values='Total_HE_Q',
+                hole=0.45,
+                color_discrete_sequence=paleta_donuts
+            )
+            fig_pie_he.update_traces(
+                textinfo='percent',
+                textposition='inside',
+                insidetextorientation='horizontal'
+            )
+            fig_pie_he.update_layout(
+                showlegend=True,
+                legend=dict(orientation="v", y=0.5, x=1.02, font=dict(size=10)),
+                margin=dict(t=20, b=20, l=10, r=10),
+                height=320
+            )
+            st.plotly_chart(fig_pie_he, use_container_width=True)
 
     # =========================================================================
     # --- PESTAÑA 2: RANKING POR LEGAJO ---
