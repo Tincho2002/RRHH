@@ -338,6 +338,13 @@ cards_html = """
         <div class="card-desc">Monitorea el índice de ausentismo en días y horas, tipos de licencias y novedades.</div>
         <div class="go-btn">➜</div>
     </a>
+    <!-- Guardias 3T vs Horas Extras -->
+    <a href="Guardias_3T_vs_HE" target="_self" class="nav-card card-teal">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">Guardias 3T vs HE</div>
+        <div class="card-desc">Compara la asignación de guardias rotativas frente al impacto y costo de horas extras.</div>
+        <div class="go-btn">➜</div>
+    </a>
 </div>
 """
 
