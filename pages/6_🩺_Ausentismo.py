@@ -88,7 +88,7 @@ def load_and_process_data(uploaded_file):
         else:
             df_au['Dias_Habiles'] = 21
 
-        # Mapeo de meses y etiquetas cronológicas (ej: 'Ene-26')
+        # Mapeo de meses y etiquetas cronológicas
         mapa_meses = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
         if 'Período' in df_au.columns:
             temp_dt = pd.to_datetime(df_au['Período'], errors='coerce')
@@ -145,7 +145,7 @@ if uploaded_file is not None:
     st.success(f"Se procesaron con éxito **{format_integer_es(len(df_au))}** registros de novedades y licencias.")
     st.markdown("---")
 
-# --- Barra Lateral de Filtros ---
+    # --- Barra Lateral de Filtros ---
     st.sidebar.header("Filtros de Ausentismo")
 
     filter_dict = {
@@ -162,20 +162,18 @@ if uploaded_file is not None:
 
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
 
-    # Opciones completas combinando ambas fuentes
+    # Opciones completas unificando Ausentismo y Dotación
     def get_combined_options(col_name):
         opts_au = set(df_au[col_name].dropna().unique()) if col_name in df_au.columns else set()
         opts_dot = set(df_dot[col_name].dropna().unique()) if (df_dot is not None and col_name in df_dot.columns) else set()
         total_opts = sorted(list(opts_au.union(opts_dot)))
         return [str(o).strip() for o in total_opts if str(o).strip() not in ['no disponible', 'nan', 'None']]
 
-    # Diccionario con el 100% de las opciones posibles
     all_possible_options = {
         k: (periodos_ordenados if k == 'Periodo_Label' else get_combined_options(k))
         for k in filter_dict.keys()
     }
 
-    # Inicialización limpia o reseteo
     if 'au_selections_v2' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
         st.session_state.au_selections_v2 = {k: list(v) for k, v in all_possible_options.items()}
         st.rerun()
@@ -183,10 +181,9 @@ if uploaded_file is not None:
     filtered_df = df_au.copy()
     filtered_dot = df_dot.copy() if df_dot is not None else None
 
-    # Renderizado y aplicación inteligente de filtros
+    # Filtrado inteligente
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
-        # Garantizar que los valores por defecto existan en las opciones actuales
         current_defaults = [x for x in st.session_state.au_selections_v2.get(col, opts) if x in opts]
         
         sel = st.sidebar.multiselect(
@@ -197,13 +194,11 @@ if uploaded_file is not None:
         )
         st.session_state.au_selections_v2[col] = sel
 
-        # Solo filtramos si el usuario realmente desmarcó alguna opción
         if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
             if filtered_dot is not None and col in filtered_dot.columns:
                 filtered_dot = filtered_dot.iloc[0:0]
         elif len(sel) < len(opts):
-            # Filtro activo (subconjunto elegido)
             if col in filtered_df.columns:
                 filtered_df = filtered_df[filtered_df[col].isin(sel)]
             if filtered_dot is not None and col in filtered_dot.columns:
@@ -227,7 +222,6 @@ if uploaded_file is not None:
     total_horas = pd.to_numeric(filtered_df['Total (H)'], errors='coerce').fillna(0).sum()
     empleados_afectados = filtered_df['Legajo'].nunique()
 
-    # Capacidad teórica total de los períodos seleccionados (con filtros cruzados)
     capacidad_dias_total = 0
     dotaciones_por_mes = []
 
@@ -246,7 +240,6 @@ if uploaded_file is not None:
     tasa_dias = (total_dias / capacidad_dias_total * 100) if capacidad_dias_total > 0 else 0
     tasa_horas = (total_horas / capacidad_horas_total * 100) if capacidad_horas_total > 0 else 0
 
-    # Etiqueta de período
     if len(sel_periodos) == 1:
         periodo_txt = sel_periodos[0]
         dias_habiles_txt = f"📅 {int(dias_habiles_por_mes.get(sel_periodos[0], 21))}"
@@ -370,48 +363,220 @@ if uploaded_file is not None:
     st.components.v1.html(card_html, height=250)
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # --- Cálculo de Datos de Evolución Mensual Compartidos ---
+    evo_rows = []
+    for p in sel_periodos:
+        sub = filtered_df[filtered_df['Periodo_Label'] == p]
+        d_sum = sub['Total (D)'].sum()
+        h_sum = pd.to_numeric(sub['Total (H)'], errors='coerce').fillna(0).sum()
+        agentes_sub = sub['Legajo'].nunique()
+        
+        if filtered_dot is not None and not filtered_dot.empty:
+            dot_m = filtered_dot[filtered_dot['Periodo_Label'] == p]['Legajo'].nunique()
+        else:
+            dot_m = agentes_sub
+            
+        dh = dias_habiles_por_mes.get(p, 21)
+        cap_d = dot_m * dh
+        cap_h = cap_d * 8
+        
+        tasa_d = (d_sum / cap_d * 100) if cap_d > 0 else 0
+        tasa_h = (h_sum / cap_h * 100) if cap_h > 0 else 0
+        
+        evo_rows.append({
+            "Periodo": p,
+            "Dias_Ausentes": d_sum,
+            "Horas_Ausentes": h_sum,
+            "Capacidad_Dias": cap_d,
+            "Capacidad_Horas": cap_h,
+            "Índice_Días": tasa_d,
+            "Índice_Horas": tasa_h,
+            "Agentes": agentes_sub
+        })
+        
+    df_evo = pd.DataFrame(evo_rows)
+
     # --- Pestañas de Análisis ---
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📈 Evolución e Índices",
+    tab_iau, tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Tablero Ejecutivo IAU",
+        "📈 Evolución de Volúmenes (Días y Horas)",
         "📂 Motivos y Tipos de Licencia",
         "🏢 Distribución por Gerencia y Distrito",
         "📋 Detalle de Registros"
     ])
 
-    # --- TAB 1: Evolución ---
+    # =========================================================================
+    # --- TABLA EJECUTIVA IAU (PANTALLA COMPLETA DE LOOKER) ---
+    # =========================================================================
+    with tab_iau:
+        st.subheader("Tablero Comparativo de Índices de Ausentismo (IAU)")
+        
+        if not df_evo.empty:
+            # --- FILA 1: DONUT DÍAS, LÍNEAS COMPARATIVAS, DONUT HORAS ---
+            col_d1, col_line, col_d2 = st.columns([1.2, 2.2, 1.2])
+
+            paleta_meses = ['#1f77b4', '#d62728', '#2ca02c', '#ff7f0e', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+
+            with col_d1:
+                st.markdown("<h5 style='text-align: center; color: #334155;'>IAU (Días) - Participación -</h5>", unsafe_allow_html=True)
+                fig_pie_d = px.pie(
+                    df_evo, 
+                    names='Periodo', 
+                    values='Índice_Días', 
+                    hole=0.45,
+                    color_discrete_sequence=paleta_meses
+                )
+                fig_pie_d.update_traces(
+                    textinfo='percent',
+                    textposition='inside',
+                    insidetextorientation='horizontal'
+                )
+                fig_pie_d.update_layout(
+                    showlegend=True,
+                    legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10)),
+                    margin=dict(t=20, b=20, l=10, r=10),
+                    height=280
+                )
+                st.plotly_chart(fig_pie_d, use_container_width=True)
+
+            with col_line:
+                st.markdown("<h5 style='text-align: center; color: #334155;'>IAU (Días) vs IAU (Horas) - Evolución Mensual -</h5>", unsafe_allow_html=True)
+                fig_line = make_subplots(specs=[[{"secondary_y": True}]])
+
+                # Línea IAU Días (Azul)
+                fig_line.add_trace(go.Scatter(
+                    x=df_evo['Periodo'],
+                    y=df_evo['Índice_Días'],
+                    name='IAU (Días)',
+                    mode='lines+markers+text',
+                    text=[f"{v:.2f}%".replace('.', ',') for v in df_evo['Índice_Días']],
+                    textposition='top center',
+                    textfont=dict(size=11, color='#2563eb'),
+                    line=dict(color='#2563eb', width=3),
+                    marker=dict(size=7)
+                ), secondary_y=False)
+
+                # Línea IAU Horas (Rojo)
+                fig_line.add_trace(go.Scatter(
+                    x=df_evo['Periodo'],
+                    y=df_evo['Índice_Horas'],
+                    name='IAU (Horas)',
+                    mode='lines+markers+text',
+                    text=[f"{v:.2f}%".replace('.', ',') for v in df_evo['Índice_Horas']],
+                    textposition='top center',
+                    textfont=dict(size=11, color='#dc2626'),
+                    line=dict(color='#dc2626', width=2.5),
+                    marker=dict(size=7)
+                ), secondary_y=True)
+
+                fig_line.update_layout(
+                    legend=dict(orientation="h", y=1.12, x=0.5, xanchor='center'),
+                    hovermode="x unified",
+                    margin=dict(t=30, b=20, l=10, r=10),
+                    height=280
+                )
+                fig_line.update_xaxes(categoryorder='array', categoryarray=sel_periodos)
+                fig_line.update_yaxes(title_text="IAU Días (%)", secondary_y=False, showgrid=True)
+                fig_line.update_yaxes(title_text="IAU Horas (%)", secondary_y=True, showgrid=False)
+                st.plotly_chart(fig_line, use_container_width=True)
+
+            with col_d2:
+                st.markdown("<h5 style='text-align: center; color: #334155;'>IAU (Horas) - Participación -</h5>", unsafe_allow_html=True)
+                fig_pie_h = px.pie(
+                    df_evo, 
+                    names='Periodo', 
+                    values='Índice_Horas', 
+                    hole=0.45,
+                    color_discrete_sequence=paleta_meses
+                )
+                fig_pie_h.update_traces(
+                    textinfo='percent',
+                    textposition='inside',
+                    insidetextorientation='horizontal'
+                )
+                fig_pie_h.update_layout(
+                    showlegend=True,
+                    legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10)),
+                    margin=dict(t=20, b=20, l=10, r=10),
+                    height=280
+                )
+                st.plotly_chart(fig_pie_h, use_container_width=True)
+
+            st.markdown("---")
+
+            # --- FILA 2: TABLAS RESUMEN HORIZONTALES (IDÉNTICAS A LOOKER) ---
+            col_tbl_d, col_tbl_h = st.columns(2)
+
+            with col_tbl_d:
+                st.markdown("##### Índice Ausentismo (Días) - Evolución Mensual -")
+                cols_periodos = list(df_evo['Periodo'])
+                valores_dias = [format_percentage_es(val) for val in df_evo['Índice_Días']]
+                tabla_dias_dict = {p: [v] for p, v in zip(cols_periodos, valores_dias)}
+                tabla_dias_dict['Total general'] = [format_percentage_es(tasa_dias)]
+                df_tbl_d = pd.DataFrame(tabla_dias_dict, index=['Índice Ausentismo (Días)'])
+                st.dataframe(df_tbl_d, use_container_width=True)
+
+            with col_tbl_h:
+                st.markdown("##### Índice Ausentismo (Horas) - Evolución Mensual -")
+                valores_horas = [format_percentage_es(val) for val in df_evo['Índice_Horas']]
+                tabla_horas_dict = {p: [v] for p, v in zip(cols_periodos, valores_horas)}
+                tabla_horas_dict['Total general'] = [format_percentage_es(tasa_horas)]
+                df_tbl_h = pd.DataFrame(tabla_horas_dict, index=['Índice Ausentismo (Horas)'])
+                st.dataframe(df_tbl_h, use_container_width=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # --- FILA 3: BARRAS COMPARATIVAS INDEPENDIENTES ---
+            col_bar_d, col_bar_h = st.columns(2)
+
+            with col_bar_d:
+                st.markdown("##### Índice Ausentismo (Días) - Evolución Mensual -")
+                fig_bar_d = go.Figure()
+                fig_bar_d.add_trace(go.Bar(
+                    x=df_evo['Periodo'],
+                    y=df_evo['Índice_Días'],
+                    text=[f"{v:.2f}%".replace('.', ',') for v in df_evo['Índice_Días']],
+                    textposition='outside',
+                    marker_color='#2563eb',
+                    name='IAU Días'
+                ))
+                min_d = max(0, df_evo['Índice_Días'].min() - 5)
+                max_d = df_evo['Índice_Días'].max() + 8
+                fig_bar_d.update_layout(
+                    yaxis=dict(title="Índice Ausentismo (%)", range=[min_d, max_d]),
+                    xaxis=dict(categoryorder='array', categoryarray=sel_periodos),
+                    margin=dict(t=30, b=20, l=10, r=10),
+                    height=320
+                )
+                st.plotly_chart(fig_bar_d, use_container_width=True)
+
+            with col_bar_h:
+                st.markdown("##### Índice Ausentismo (Horas) - Evolución Mensual -")
+                fig_bar_h = go.Figure()
+                fig_bar_h.add_trace(go.Bar(
+                    x=df_evo['Periodo'],
+                    y=df_evo['Índice_Horas'],
+                    text=[f"{v:.2f}%".replace('.', ',') for v in df_evo['Índice_Horas']],
+                    textposition='outside',
+                    marker_color='#0284c7',
+                    name='IAU Horas'
+                ))
+                min_h = max(0, df_evo['Índice_Horas'].min() - 0.5)
+                max_h = df_evo['Índice_Horas'].max() + 0.8
+                fig_bar_h.update_layout(
+                    yaxis=dict(title="Índice Ausentismo (%)", range=[min_h, max_h]),
+                    xaxis=dict(categoryorder='array', categoryarray=sel_periodos),
+                    margin=dict(t=30, b=20, l=10, r=10),
+                    height=320
+                )
+                st.plotly_chart(fig_bar_h, use_container_width=True)
+
+        else:
+            st.info("No hay datos de evolución disponibles.")
+
+    # --- TAB 1: Volúmenes Absolutos ---
     with tab1:
         st.subheader("Evolución Temporal del Ausentismo (Días y Horas)")
-        
-        evo_rows = []
-        for p in sel_periodos:
-            sub = filtered_df[filtered_df['Periodo_Label'] == p]
-            d_sum = sub['Total (D)'].sum()
-            h_sum = pd.to_numeric(sub['Total (H)'], errors='coerce').fillna(0).sum()
-            agentes_sub = sub['Legajo'].nunique()
-            
-            if filtered_dot is not None and not filtered_dot.empty:
-                dot_m = filtered_dot[filtered_dot['Periodo_Label'] == p]['Legajo'].nunique()
-            else:
-                dot_m = agentes_sub
-                
-            dh = dias_habiles_por_mes.get(p, 21)
-            cap_d = dot_m * dh
-            cap_h = cap_d * 8
-            
-            tasa_d = (d_sum / cap_d * 100) if cap_d > 0 else 0
-            tasa_h = (h_sum / cap_h * 100) if cap_h > 0 else 0
-            
-            evo_rows.append({
-                "Periodo": p,
-                "Dias_Ausentes": d_sum,
-                "Horas_Ausentes": h_sum,
-                "Índice_Días": tasa_d,
-                "Índice_Horas": tasa_h,
-                "Agentes": agentes_sub
-            })
-            
-        df_evo = pd.DataFrame(evo_rows)
-
         if not df_evo.empty:
             col_c, col_t = st.columns([2, 1])
             with col_c:
@@ -443,8 +608,6 @@ if uploaded_file is not None:
                     "Agentes": format_integer_es
                 }), use_container_width=True, hide_index=True)
                 generate_download_buttons(df_evo, "evolucion_ausentismo", key_suffix="_evo")
-        else:
-            st.info("No hay datos de evolución disponibles.")
 
     # --- TAB 2: Motivos y Licencias ---
     with tab2:
