@@ -181,7 +181,7 @@ if uploaded_file is not None:
     filtered_df = df_au.copy()
     filtered_dot = df_dot.copy() if df_dot is not None else None
 
-    # Filtrado inteligente (solo recorta cuando se desmarca alguna opción)
+    # Filtrado inteligente
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
         current_defaults = [x for x in st.session_state.au_selections_v2.get(col, opts) if x in opts]
@@ -615,7 +615,6 @@ if uploaded_file is not None:
             with col_geo_left:
                 st.markdown("##### Ausentismo en Días (Licencias) por Distrito y por Mes")
                 
-                # Columnas mensuales para la tabla
                 cols_meses_d = [f"{p} (D)" for p in sel_periodos]
                 cols_table_d = ["Distrito"] + cols_meses_d + ["Índice Ausentismo (Días)"]
                 
@@ -624,7 +623,6 @@ if uploaded_file is not None:
                 rename_dict_d["Índice Ausentismo (Días)"] = "Total"
                 df_tbl_show_d = df_tbl_show_d.rename(columns=rename_dict_d)
                 
-                # Fila Total
                 total_row_dict_d = {"Distrito": "Total"}
                 for p in sel_periodos:
                     val_mes = df_evo[df_evo['Periodo'] == p]['Índice_Días'].values
@@ -669,7 +667,7 @@ if uploaded_file is not None:
                         lat="Latitud",
                         lon="Longitud",
                         size="Índice Ausentismo (Días)",
-                        color="Distrito",
+                        color="Índice Ausentismo (Días)",
                         hover_name="Distrito",
                         hover_data={
                             "Latitud": False,
@@ -677,6 +675,7 @@ if uploaded_file is not None:
                             "Índice Ausentismo (Días)": ":.2f",
                             "Total (D)": ":,.0f"
                         },
+                        color_continuous_scale=px.colors.sequential.Plasma,
                         size_max=38,
                         zoom=6.1,
                         center={"lat": -31.8, "lon": -60.8},
@@ -685,7 +684,7 @@ if uploaded_file is not None:
                     fig_map_d.update_layout(
                         margin=dict(l=0, r=0, t=0, b=0),
                         height=600,
-                        legend=dict(orientation="v", y=0.5, x=0.02, bgcolor="rgba(255,255,255,0.7)")
+                        coloraxis_colorbar=dict(title="IAU Días (%)", ticksuffix="%")
                     )
                     st.plotly_chart(fig_map_d, use_container_width=True)
                 else:
@@ -759,7 +758,7 @@ if uploaded_file is not None:
                         lat="Latitud",
                         lon="Longitud",
                         size="Índice Ausentismo (Horas)",
-                        color="Distrito",
+                        color="Índice Ausentismo (Horas)",
                         hover_name="Distrito",
                         hover_data={
                             "Latitud": False,
@@ -767,6 +766,7 @@ if uploaded_file is not None:
                             "Índice Ausentismo (Horas)": ":.2f",
                             "Total (H)": ":,.0f"
                         },
+                        color_continuous_scale=px.colors.sequential.Blues,
                         size_max=38,
                         zoom=6.1,
                         center={"lat": -31.8, "lon": -60.8},
@@ -775,7 +775,7 @@ if uploaded_file is not None:
                     fig_map_h.update_layout(
                         margin=dict(l=0, r=0, t=0, b=0),
                         height=600,
-                        legend=dict(orientation="v", y=0.5, x=0.02, bgcolor="rgba(255,255,255,0.7)")
+                        coloraxis_colorbar=dict(title="IAU Horas (%)", ticksuffix="%")
                     )
                     st.plotly_chart(fig_map_h, use_container_width=True)
                 else:
