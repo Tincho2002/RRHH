@@ -27,15 +27,13 @@ st.markdown("""
         width: 100vw;
         height: 100vh;
         background: linear-gradient(180deg, #005A7A, #00A7C4);
-        z-index: 9999; /* Z-index alto para tapar todo */
+        z-index: 9999;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         color: white;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        
-        /* Animación de salida: se va hacia arriba */
         animation: slideUpSplash 1s ease-out 2.5s forwards;
     }
 
@@ -50,7 +48,6 @@ st.markdown("""
         animation: fadeInSlide 1.5s 1s ease-out forwards;
     }
 
-    /* Keyframes Animaciones */
     @keyframes slideUpSplash {
         from { transform: translateY(0); }
         to { transform: translateY(-100vh); visibility: hidden; }
@@ -77,7 +74,7 @@ st.markdown("""
     }
     @keyframes fall { to { transform: translateY(100vh); } }
 
-    /* --- Estilos del Contenido Principal (Fade In) --- */
+    /* Contenido Principal (Fade In) */
     #main-content {
         opacity: 0; 
         animation: showContent 1.5s ease-in 2.5s forwards;
@@ -87,7 +84,7 @@ st.markdown("""
         to { opacity: 1; }
     }
 
-    /* Animación para la UI (Barra Lateral y Cabecera) */
+    /* Barra Lateral y Cabecera */
     [data-testid="stSidebar"],
     [data-testid="stHeader"] {
         opacity: 0; 
@@ -98,12 +95,10 @@ st.markdown("""
         to { opacity: 1; transform: translateY(0); }
     }
 
-
     /* =========================================
-       2. ESTILOS DE LAS TARJETAS (NUEVO DISEÑO)
+       2. ESTILOS DE LAS TARJETAS
        ========================================= */
     
-    /* Grid Flexbox Responsivo */
     .cards-grid {
         display: flex;
         flex-wrap: wrap;
@@ -114,7 +109,6 @@ st.markdown("""
         font-family: 'Source Sans Pro', sans-serif;
     }
 
-    /* Tarjeta Base */
     .nav-card {
         background: white;
         border-radius: 16px;
@@ -136,38 +130,47 @@ st.markdown("""
         cursor: pointer;
     }
 
-    /* Efecto Hover */
     .nav-card:hover {
         transform: translateY(-10px);
         box-shadow: 0 20px 40px rgba(0,0,0,0.15);
     }
 
-    /* --- PALETA DE COLORES (Gama Azul/Violeta) --- */
+    /* --- PALETA DE COLORES DE CADA TARJETA --- */
     
-    /* Dotación (Cyan) */
+    /* 1. Dotación (Cyan) */
     .card-cyan { background: linear-gradient(145deg, #ffffff 0%, #e0f7fa 100%); border-top: 6px solid #00bcd4; }
     .card-cyan .card-icon { color: #00bcd4; }
     .card-cyan:hover .go-btn { background-color: #00bcd4; color: white; }
 
-    /* Horas Extras (Indigo) */
+    /* 2. Horas Extras (Indigo) */
     .card-indigo { background: linear-gradient(145deg, #ffffff 0%, #e8eaf6 100%); border-top: 6px solid #3f51b5; }
     .card-indigo .card-icon { color: #3f51b5; }
     .card-indigo:hover .go-btn { background-color: #3f51b5; color: white; }
 
-    /* Masa Salarial (Violeta) */
+    /* 3. Masa Salarial (Violeta) */
     .card-violet { background: linear-gradient(145deg, #ffffff 0%, #f3e5f5 100%); border-top: 6px solid #9c27b0; }
     .card-violet .card-icon { color: #9c27b0; }
     .card-violet:hover .go-btn { background-color: #9c27b0; color: white; }
 
-    /* Planta de Cargos (Slate) */
+    /* 4. Planta de Cargos (Slate) */
     .card-slate { background: linear-gradient(145deg, #ffffff 0%, #eceff1 100%); border-top: 6px solid #607d8b; }
     .card-slate .card-icon { color: #607d8b; }
     .card-slate:hover .go-btn { background-color: #607d8b; color: white; }
 
-    /* Indicadores (Azul) */
+    /* 5. Indicadores (Azul) */
     .card-blue { background: linear-gradient(145deg, #ffffff 0%, #e3f2fd 100%); border-top: 6px solid #2196f3; }
     .card-blue .card-icon { color: #2196f3; }
     .card-blue:hover .go-btn { background-color: #2196f3; color: white; }
+
+    /* 6. Ausentismo (Ámbar / Naranja Dorado) */
+    .card-amber { background: linear-gradient(145deg, #ffffff 0%, #fffbeb 100%); border-top: 6px solid #f59e0b; }
+    .card-amber .card-icon { color: #f59e0b; }
+    .card-amber:hover .go-btn { background-color: #f59e0b; color: white; }
+
+    /* 7. Guardias 3T vs HE (Teal / Esmeralda) */
+    .card-teal { background: linear-gradient(145deg, #ffffff 0%, #e0f2f1 100%); border-top: 6px solid #0d9488; }
+    .card-teal .card-icon { color: #0d9488; }
+    .card-teal:hover .go-btn { background-color: #0d9488; color: white; }
 
     /* Elementos Internos */
     .card-icon {
@@ -261,7 +264,6 @@ st.html("""
 # --- CONTENIDO PRINCIPAL ---
 # -----------------------------------------------------------------------
 
-# Envolvemos contenido en div para animación de entrada
 st.markdown('<div id="main-content">', unsafe_allow_html=True)
 
 # Header
@@ -292,53 +294,52 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- TARJETAS (HTML) ---
-# DEFINICIÓN DEL HTML EN UNA VARIABLE
+# --- TARJETAS DE NAVEGACIÓN ---
 cards_html = """
 <div class="cards-grid">
-    <!-- Dotación -->
+    <!-- 1. Dotación -->
     <a href="Dotación" target="_self" class="nav-card card-cyan">
         <div class="card-icon">👥</div>
         <div class="card-title">Dotación</div>
         <div class="card-desc">Consulta la estructura y distribución geográfica y por gerencia de personal.</div>
         <div class="go-btn">➜</div>
     </a>
-    <!-- Horas Extras -->
+    <!-- 2. Horas Extras -->
     <a href="Horas_Extras" target="_self" class="nav-card card-indigo">
         <div class="card-icon">⏰</div>
         <div class="card-title">Horas Extras</div>
         <div class="card-desc">Analiza el impacto de horas adicionales al 50% y al 100%.</div>
         <div class="go-btn">➜</div>
     </a>
-    <!-- Masa Salarial -->
+    <!-- 3. Masa Salarial -->
     <a href="Masa_Salarial" target="_self" class="nav-card card-violet">
         <div class="card-icon">💸</div>
         <div class="card-title">Masa Salarial</div>
         <div class="card-desc">Visualiza la composición, evolución y proyecciones de costos salariales.</div>
         <div class="go-btn">➜</div>
     </a>
-    <!-- Planta de Cargos -->
+    <!-- 4. Planta de Cargos -->
     <a href="Planta_de_Cargos" target="_self" class="nav-card card-slate">
         <div class="card-icon">📊</div>
         <div class="card-title">Planta de Cargos</div>
         <div class="card-desc">Analiza la dinámica de ingresos y egresos, y la composición detallada.</div>
         <div class="go-btn">➜</div>
     </a>
-    <!-- Indicadores -->
+    <!-- 5. Indicadores -->
     <a href="Indicadores_de_Eficiencia" target="_self" class="nav-card card-blue">
         <div class="card-icon">🎯</div>
         <div class="card-title">Indicadores de Eficiencia</div>
         <div class="card-desc">Mide el rendimiento y la productividad a través de KPIs clave.</div>
         <div class="go-btn">➜</div>
     </a>
-    <!-- Ausentismo -->
+    <!-- 6. Ausentismo -->
     <a href="Ausentismo" target="_self" class="nav-card card-amber">
         <div class="card-icon">🩺</div>
         <div class="card-title">Ausentismo</div>
         <div class="card-desc">Monitorea el índice de ausentismo en días y horas, tipos de licencias y novedades.</div>
         <div class="go-btn">➜</div>
     </a>
-    <!-- Guardias 3T vs Horas Extras -->
+    <!-- 7. Guardias 3T vs Horas Extras -->
     <a href="Guardias_3T_vs_HE" target="_self" class="nav-card card-teal">
         <div class="card-icon">⚡</div>
         <div class="card-title">Guardias 3T vs HE</div>
@@ -348,11 +349,9 @@ cards_html = """
 </div>
 """
 
-# --- AQUÍ ESTÁ LA CORRECCIÓN: USAR st.html PARA RENDERIZAR HTML PURO ---
 st.html(cards_html)
-# -----------------------------------------------------------------------
 
 st.markdown("---")
-st.markdown('</div>', unsafe_allow_html=True) # Cierre main-content
+st.markdown('</div>', unsafe_allow_html=True)
 
 st.sidebar.success("Selecciona una aplicación arriba.")
