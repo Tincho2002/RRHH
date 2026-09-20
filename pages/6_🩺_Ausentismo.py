@@ -108,13 +108,13 @@ def load_and_process_data(uploaded_file):
                 df_dot['Periodo_Label'] = temp_dt_dot.dt.month.map(mapa_meses) + '-' + temp_dt_dot.dt.strftime('%y')
                 df_dot['Periodo_DT'] = temp_dt_dot
             
-            # Normalizar columnas de texto en Dotación para filtros cruzados
+            # Limpieza de espacios en columnas clave
             dot_filter_cols = ['Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo']
             for c in dot_filter_cols:
                 if c in df_dot.columns:
                     df_dot[c] = df_dot[c].astype(str).replace(['nan', 'None', '<NA>'], 'no disponible').str.strip()
 
-        # Normalizar columnas de texto en Ausentismo
+        # Limpieza de columnas de texto en Ausentismo
         filter_cols = ['Legajo', 'Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo', 'Tipo', 'Descripción', 'Licencia']
         for c in filter_cols:
             if c in df_au.columns:
@@ -129,7 +129,7 @@ def load_and_process_data(uploaded_file):
 
 # --- UI Principal ---
 st.title("🩺 Gestión de Ausentismo y Licencias")
-st.write("Análisis integral de ausentismo en días y horas, capacidad teórica e impacto operativo.")
+st.write("Análisis integral de ausentismo en días y horas, capacidad teórica e impacto territorial.")
 
 uploaded_file = st.file_uploader("📂 Cargue aquí su archivo Excel de Licencias / Ausentismo", type=["xlsx"])
 st.markdown("---")
@@ -181,7 +181,7 @@ if uploaded_file is not None:
     filtered_df = df_au.copy()
     filtered_dot = df_dot.copy() if df_dot is not None else None
 
-    # Filtrado inteligente
+    # Filtrado inteligente (solo recorta cuando se desmarca alguna opción)
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
         current_defaults = [x for x in st.session_state.au_selections_v2.get(col, opts) if x in opts]
@@ -204,7 +204,7 @@ if uploaded_file is not None:
             if filtered_dot is not None and col in filtered_dot.columns:
                 filtered_dot = filtered_dot[filtered_dot[col].isin(sel)]
 
-    # Validaciones de filtros vacíos
+    # Validaciones de filtros
     sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v2.get('Periodo_Label', [])]
 
     if not sel_periodos:
@@ -363,7 +363,7 @@ if uploaded_file is not None:
     st.components.v1.html(card_html, height=250)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- Cálculo de Datos de Evolución Mensual Compartidos ---
+    # --- Cálculo de Datos de Evolución Mensual ---
     evo_rows = []
     for p in sel_periodos:
         sub = filtered_df[filtered_df['Periodo_Label'] == p]
@@ -396,9 +396,78 @@ if uploaded_file is not None:
         
     df_evo = pd.DataFrame(evo_rows)
 
+    # --- Cálculo de Datos de Distribución Geográfica (Distrito y Coordenadas) ---
+    coord_dict = {}
+    if 'Coordenadas' in df_au.columns:
+        coord_dict.update(df_au.dropna(subset=['Coordenadas']).groupby('Distrito')['Coordenadas'].first().to_dict())
+    if df_dot is not None and 'Coordenadas' in df_dot.columns:
+        coord_dict.update(df_dot.dropna(subset=['Coordenadas']).groupby('Distrito')['Coordenadas'].first().to_dict())
+
+    distritos_disponibles = sorted(list(set(filtered_df['Distrito'].unique())))
+    distrito_data_rows = []
+
+    for dist in distritos_disponibles:
+        sub_au_dist = filtered_df[filtered_df['Distrito'] == dist]
+        dias_tot = sub_au_dist['Total (D)'].sum()
+        horas_tot = pd.to_numeric(sub_au_dist['Total (H)'], errors='coerce').fillna(0).sum()
+        
+        cap_d_tot = 0
+        mes_indices_d = {}
+        mes_indices_h = {}
+
+        for p in sel_periodos:
+            dh_p = dias_habiles_por_mes.get(p, 21)
+            if filtered_dot is not None and not filtered_dot.empty:
+                dot_dp = filtered_dot[(filtered_dot['Distrito'] == dist) & (filtered_dot['Periodo_Label'] == p)]['Legajo'].nunique()
+            else:
+                dot_dp = sub_au_dist[sub_au_dist['Periodo_Label'] == p]['Legajo'].nunique()
+            
+            cap_dp = dot_dp * dh_p
+            cap_d_tot += cap_dp
+            
+            d_p = sub_au_dist[sub_au_dist['Periodo_Label'] == p]['Total (D)'].sum()
+            h_p = pd.to_numeric(sub_au_dist[sub_au_dist['Periodo_Label'] == p]['Total (H)'], errors='coerce').fillna(0).sum()
+            
+            mes_indices_d[p] = (d_p / cap_dp * 100) if cap_dp > 0 else 0.0
+            mes_indices_h[p] = (h_p / (cap_dp * 8) * 100) if cap_dp > 0 else 0.0
+
+        iau_dias_dist = (dias_tot / cap_d_tot * 100) if cap_d_tot > 0 else 0.0
+        iau_horas_dist = (horas_tot / (cap_d_tot * 8) * 100) if cap_d_tot > 0 else 0.0
+
+        lat, lon = np.nan, np.nan
+        coord_str = coord_dict.get(dist, "")
+        if coord_str and ',' in str(coord_str):
+            try:
+                parts = str(coord_str).split(',')
+                lat = float(parts[0].strip())
+                lon = float(parts[1].strip())
+            except:
+                pass
+
+        row_dict = {
+            "Distrito": dist,
+            "Total (D)": dias_tot,
+            "Total (H)": horas_tot,
+            "Capacidad (D)": cap_d_tot,
+            "Índice Ausentismo (Días)": iau_dias_dist,
+            "Índice Ausentismo (Horas)": iau_horas_dist,
+            "Latitud": lat,
+            "Longitud": lon,
+            "Coordenadas": coord_str
+        }
+        for p in sel_periodos:
+            row_dict[f"{p} (D)"] = mes_indices_d[p]
+            row_dict[f"{p} (H)"] = mes_indices_h[p]
+
+        distrito_data_rows.append(row_dict)
+
+    df_geo_distritos = pd.DataFrame(distrito_data_rows)
+
     # --- Pestañas de Análisis ---
-    tab_iau, tab1, tab2, tab3, tab4 = st.tabs([
+    tab_iau, tab_geo_d, tab_geo_h, tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Tablero Ejecutivo IAU",
+        "🗺️ Distribución Geográfica (Días)",
+        "🗺️ Distribución Geográfica (Horas)",
         "📈 Evolución de Volúmenes (Días y Horas)",
         "📂 Motivos y Tipos de Licencia",
         "🏢 Distribución por Gerencia y Distrito",
@@ -406,15 +475,13 @@ if uploaded_file is not None:
     ])
 
     # =========================================================================
-    # --- TABLA EJECUTIVA IAU (PANTALLA COMPLETA DE LOOKER) ---
+    # --- TABLERO EJECUTIVO IAU ---
     # =========================================================================
     with tab_iau:
         st.subheader("Tablero Comparativo de Índices de Ausentismo (IAU)")
         
         if not df_evo.empty:
-            # --- FILA 1: DONUT DÍAS, LÍNEAS COMPARATIVAS, DONUT HORAS ---
             col_d1, col_line, col_d2 = st.columns([1.2, 2.2, 1.2])
-
             paleta_meses = ['#1f77b4', '#d62728', '#2ca02c', '#ff7f0e', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
             with col_d1:
@@ -426,24 +493,14 @@ if uploaded_file is not None:
                     hole=0.45,
                     color_discrete_sequence=paleta_meses
                 )
-                fig_pie_d.update_traces(
-                    textinfo='percent',
-                    textposition='inside',
-                    insidetextorientation='horizontal'
-                )
-                fig_pie_d.update_layout(
-                    showlegend=True,
-                    legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10)),
-                    margin=dict(t=20, b=20, l=10, r=10),
-                    height=280
-                )
+                fig_pie_d.update_traces(textinfo='percent', textposition='inside', insidetextorientation='horizontal')
+                fig_pie_d.update_layout(showlegend=True, legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10)), margin=dict(t=20, b=20, l=10, r=10), height=280)
                 st.plotly_chart(fig_pie_d, use_container_width=True)
 
             with col_line:
                 st.markdown("<h5 style='text-align: center; color: #334155;'>IAU (Días) vs IAU (Horas) - Evolución Mensual -</h5>", unsafe_allow_html=True)
                 fig_line = make_subplots(specs=[[{"secondary_y": True}]])
 
-                # Línea IAU Días (Azul)
                 fig_line.add_trace(go.Scatter(
                     x=df_evo['Periodo'],
                     y=df_evo['Índice_Días'],
@@ -456,7 +513,6 @@ if uploaded_file is not None:
                     marker=dict(size=7)
                 ), secondary_y=False)
 
-                # Línea IAU Horas (Rojo)
                 fig_line.add_trace(go.Scatter(
                     x=df_evo['Periodo'],
                     y=df_evo['Índice_Horas'],
@@ -469,12 +525,7 @@ if uploaded_file is not None:
                     marker=dict(size=7)
                 ), secondary_y=True)
 
-                fig_line.update_layout(
-                    legend=dict(orientation="h", y=1.12, x=0.5, xanchor='center'),
-                    hovermode="x unified",
-                    margin=dict(t=30, b=20, l=10, r=10),
-                    height=280
-                )
+                fig_line.update_layout(legend=dict(orientation="h", y=1.12, x=0.5, xanchor='center'), hovermode="x unified", margin=dict(t=30, b=20, l=10, r=10), height=280)
                 fig_line.update_xaxes(categoryorder='array', categoryarray=sel_periodos)
                 fig_line.update_yaxes(title_text="IAU Días (%)", secondary_y=False, showgrid=True)
                 fig_line.update_yaxes(title_text="IAU Horas (%)", secondary_y=True, showgrid=False)
@@ -489,24 +540,13 @@ if uploaded_file is not None:
                     hole=0.45,
                     color_discrete_sequence=paleta_meses
                 )
-                fig_pie_h.update_traces(
-                    textinfo='percent',
-                    textposition='inside',
-                    insidetextorientation='horizontal'
-                )
-                fig_pie_h.update_layout(
-                    showlegend=True,
-                    legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10)),
-                    margin=dict(t=20, b=20, l=10, r=10),
-                    height=280
-                )
+                fig_pie_h.update_traces(textinfo='percent', textposition='inside', insidetextorientation='horizontal')
+                fig_pie_h.update_layout(showlegend=True, legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10)), margin=dict(t=20, b=20, l=10, r=10), height=280)
                 st.plotly_chart(fig_pie_h, use_container_width=True)
 
             st.markdown("---")
 
-            # --- FILA 2: TABLAS RESUMEN HORIZONTALES (IDÉNTICAS A LOOKER) ---
             col_tbl_d, col_tbl_h = st.columns(2)
-
             with col_tbl_d:
                 st.markdown("##### Índice Ausentismo (Días) - Evolución Mensual -")
                 cols_periodos = list(df_evo['Periodo'])
@@ -526,9 +566,7 @@ if uploaded_file is not None:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # --- FILA 3: BARRAS COMPARATIVAS INDEPENDIENTES ---
             col_bar_d, col_bar_h = st.columns(2)
-
             with col_bar_d:
                 st.markdown("##### Índice Ausentismo (Días) - Evolución Mensual -")
                 fig_bar_d = go.Figure()
@@ -542,12 +580,7 @@ if uploaded_file is not None:
                 ))
                 min_d = max(0, df_evo['Índice_Días'].min() - 5)
                 max_d = df_evo['Índice_Días'].max() + 8
-                fig_bar_d.update_layout(
-                    yaxis=dict(title="Índice Ausentismo (%)", range=[min_d, max_d]),
-                    xaxis=dict(categoryorder='array', categoryarray=sel_periodos),
-                    margin=dict(t=30, b=20, l=10, r=10),
-                    height=320
-                )
+                fig_bar_d.update_layout(yaxis=dict(title="Índice Ausentismo (%)", range=[min_d, max_d]), xaxis=dict(categoryorder='array', categoryarray=sel_periodos), margin=dict(t=30, b=20, l=10, r=10), height=320)
                 st.plotly_chart(fig_bar_d, use_container_width=True)
 
             with col_bar_h:
@@ -563,16 +596,192 @@ if uploaded_file is not None:
                 ))
                 min_h = max(0, df_evo['Índice_Horas'].min() - 0.5)
                 max_h = df_evo['Índice_Horas'].max() + 0.8
-                fig_bar_h.update_layout(
-                    yaxis=dict(title="Índice Ausentismo (%)", range=[min_h, max_h]),
-                    xaxis=dict(categoryorder='array', categoryarray=sel_periodos),
-                    margin=dict(t=30, b=20, l=10, r=10),
-                    height=320
-                )
+                fig_bar_h.update_layout(yaxis=dict(title="Índice Ausentismo (%)", range=[min_h, max_h]), xaxis=dict(categoryorder='array', categoryarray=sel_periodos), margin=dict(t=30, b=20, l=10, r=10), height=320)
                 st.plotly_chart(fig_bar_h, use_container_width=True)
-
         else:
             st.info("No hay datos de evolución disponibles.")
+
+    # =========================================================================
+    # --- TAB DISTRIBUCIÓN GEOGRÁFICA (DÍAS) ---
+    # =========================================================================
+    with tab_geo_d:
+        st.subheader("Ausentismo en Días (Licencias) por Distrito")
+        
+        if not df_geo_distritos.empty:
+            df_geo_d_sorted = df_geo_distritos.sort_values(by="Índice Ausentismo (Días)", ascending=False).reset_index(drop=True)
+            
+            col_geo_left, col_geo_right = st.columns([1.1, 1.1])
+            
+            with col_geo_left:
+                st.markdown("##### Ausentismo en Días (Licencias) por Distrito y por Mes")
+                
+                # Columnas mensuales para la tabla
+                cols_meses_d = [f"{p} (D)" for p in sel_periodos]
+                cols_table_d = ["Distrito"] + cols_meses_d + ["Índice Ausentismo (Días)"]
+                
+                df_tbl_show_d = df_geo_d_sorted[cols_table_d].copy()
+                rename_dict_d = {f"{p} (D)": p for p in sel_periodos}
+                rename_dict_d["Índice Ausentismo (Días)"] = "Total"
+                df_tbl_show_d = df_tbl_show_d.rename(columns=rename_dict_d)
+                
+                # Fila Total
+                total_row_dict_d = {"Distrito": "Total"}
+                for p in sel_periodos:
+                    val_mes = df_evo[df_evo['Periodo'] == p]['Índice_Días'].values
+                    total_row_dict_d[p] = val_mes[0] if len(val_mes) > 0 else 0.0
+                total_row_dict_d["Total"] = tasa_dias
+                
+                df_tbl_final_d = pd.concat([df_tbl_show_d, pd.DataFrame([total_row_dict_d])], ignore_index=True)
+                
+                format_cols_d = {col: lambda x: format_percentage_es(x, 2) for col in sel_periodos + ["Total"]}
+                st.dataframe(df_tbl_final_d.style.format(format_cols_d), use_container_width=True, height=280)
+
+                st.markdown("##### Ranking de Distritos - Índice Ausentismo (Días)")
+                fig_bar_dist_d = px.bar(
+                    df_geo_d_sorted.head(10),
+                    x="Distrito",
+                    y="Índice Ausentismo (Días)",
+                    text="Índice Ausentismo (Días)",
+                    color_discrete_sequence=['#2563eb']
+                )
+                fig_bar_dist_d.update_traces(
+                    texttemplate='%{text:.2f}%',
+                    textposition='outside'
+                )
+                fig_bar_dist_d.update_layout(
+                    yaxis=dict(title="Índice Ausentismo (Días)", range=[0, df_geo_d_sorted['Índice Ausentismo (Días)'].max() * 1.25]),
+                    xaxis_tickangle=-45,
+                    height=300,
+                    margin=dict(t=20, b=50, l=10, r=10)
+                )
+                st.plotly_chart(fig_bar_dist_d, use_container_width=True)
+
+            with col_geo_right:
+                st.markdown("##### Mapa de Coordenadas por Índice de Ausentismo (Días)")
+                df_map_d = df_geo_distritos.dropna(subset=['Latitud', 'Longitud']).copy()
+                
+                if not df_map_d.empty:
+                    mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
+                    px.set_mapbox_access_token(mapbox_access_token)
+
+                    fig_map_d = px.scatter_mapbox(
+                        df_map_d,
+                        lat="Latitud",
+                        lon="Longitud",
+                        size="Índice Ausentismo (Días)",
+                        color="Distrito",
+                        hover_name="Distrito",
+                        hover_data={
+                            "Latitud": False,
+                            "Longitud": False,
+                            "Índice Ausentismo (Días)": ":.2f",
+                            "Total (D)": ":,.0f"
+                        },
+                        size_max=38,
+                        zoom=6.1,
+                        center={"lat": -31.8, "lon": -60.8},
+                        mapbox_style="satellite-streets"
+                    )
+                    fig_map_d.update_layout(
+                        margin=dict(l=0, r=0, t=0, b=0),
+                        height=600,
+                        legend=dict(orientation="v", y=0.5, x=0.02, bgcolor="rgba(255,255,255,0.7)")
+                    )
+                    st.plotly_chart(fig_map_d, use_container_width=True)
+                else:
+                    st.warning("No se encontraron coordenadas válidas para mostrar el mapa.")
+        else:
+            st.info("No hay datos geográficos disponibles.")
+
+    # =========================================================================
+    # --- TAB DISTRIBUCIÓN GEOGRÁFICA (HORAS) ---
+    # =========================================================================
+    with tab_geo_h:
+        st.subheader("Ausentismo en Horas (Novedades) por Distrito")
+        
+        if not df_geo_distritos.empty:
+            df_geo_h_sorted = df_geo_distritos.sort_values(by="Índice Ausentismo (Horas)", ascending=False).reset_index(drop=True)
+            
+            col_geo_left_h, col_geo_right_h = st.columns([1.1, 1.1])
+            
+            with col_geo_left_h:
+                st.markdown("##### Ausentismo en Horas (Novedades) por Distrito y por Mes")
+                
+                cols_meses_h = [f"{p} (H)" for p in sel_periodos]
+                cols_table_h = ["Distrito"] + cols_meses_h + ["Índice Ausentismo (Horas)"]
+                
+                df_tbl_show_h = df_geo_h_sorted[cols_table_h].copy()
+                rename_dict_h = {f"{p} (H)": p for p in sel_periodos}
+                rename_dict_h["Índice Ausentismo (Horas)"] = "Total"
+                df_tbl_show_h = df_tbl_show_h.rename(columns=rename_dict_h)
+                
+                total_row_dict_h = {"Distrito": "Total"}
+                for p in sel_periodos:
+                    val_mes_h = df_evo[df_evo['Periodo'] == p]['Índice_Horas'].values
+                    total_row_dict_h[p] = val_mes_h[0] if len(val_mes_h) > 0 else 0.0
+                total_row_dict_h["Total"] = tasa_horas
+                
+                df_tbl_final_h = pd.concat([df_tbl_show_h, pd.DataFrame([total_row_dict_h])], ignore_index=True)
+                
+                format_cols_h = {col: lambda x: format_percentage_es(x, 2) for col in sel_periodos + ["Total"]}
+                st.dataframe(df_tbl_final_h.style.format(format_cols_h), use_container_width=True, height=280)
+
+                st.markdown("##### Ranking de Distritos - Índice Ausentismo (Horas)")
+                fig_bar_dist_h = px.bar(
+                    df_geo_h_sorted.head(10),
+                    x="Distrito",
+                    y="Índice Ausentismo (Horas)",
+                    text="Índice Ausentismo (Horas)",
+                    color_discrete_sequence=['#0284c7']
+                )
+                fig_bar_dist_h.update_traces(
+                    texttemplate='%{text:.2f}%',
+                    textposition='outside'
+                )
+                fig_bar_dist_h.update_layout(
+                    yaxis=dict(title="Índice Ausentismo (Horas)", range=[0, df_geo_h_sorted['Índice Ausentismo (Horas)'].max() * 1.25]),
+                    xaxis_tickangle=-45,
+                    height=300,
+                    margin=dict(t=20, b=50, l=10, r=10)
+                )
+                st.plotly_chart(fig_bar_dist_h, use_container_width=True)
+
+            with col_geo_right_h:
+                st.markdown("##### Mapa de Coordenadas por Índice de Ausentismo (Horas)")
+                df_map_h = df_geo_distritos.dropna(subset=['Latitud', 'Longitud']).copy()
+                
+                if not df_map_h.empty:
+                    mapbox_access_token = "pk.eyJ1Ijoic2FuZHJhcXVldmVkbyIsImEiOiJjbWYzOGNkZ2QwYWg0MnFvbDJucWc5d3VwIn0.bz6E-qxAwk6ZFPYohBsdMw"
+                    px.set_mapbox_access_token(mapbox_access_token)
+
+                    fig_map_h = px.scatter_mapbox(
+                        df_map_h,
+                        lat="Latitud",
+                        lon="Longitud",
+                        size="Índice Ausentismo (Horas)",
+                        color="Distrito",
+                        hover_name="Distrito",
+                        hover_data={
+                            "Latitud": False,
+                            "Longitud": False,
+                            "Índice Ausentismo (Horas)": ":.2f",
+                            "Total (H)": ":,.0f"
+                        },
+                        size_max=38,
+                        zoom=6.1,
+                        center={"lat": -31.8, "lon": -60.8},
+                        mapbox_style="satellite-streets"
+                    )
+                    fig_map_h.update_layout(
+                        margin=dict(l=0, r=0, t=0, b=0),
+                        height=600,
+                        legend=dict(orientation="v", y=0.5, x=0.02, bgcolor="rgba(255,255,255,0.7)")
+                    )
+                    st.plotly_chart(fig_map_h, use_container_width=True)
+                else:
+                    st.warning("No se encontraron coordenadas válidas para mostrar el mapa.")
+        else:
+            st.info("No hay datos geográficos disponibles.")
 
     # --- TAB 1: Volúmenes Absolutos ---
     with tab1:
