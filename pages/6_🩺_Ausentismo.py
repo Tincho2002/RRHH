@@ -102,7 +102,7 @@ def load_and_process_data(uploaded_file):
             df_au['Periodo_Label'] = df_au['Mes'].astype(str).str.capitalize()
             df_au['Periodo_DT'] = pd.to_datetime('2026-01-01')
 
-        # Normalizar fecha diaria y horas para análisis de Horas Caídas
+        # Normalizar fechas y horas para Horas Caídas
         if 'Desde (D)' in df_au.columns:
             df_au['Fecha_Diaria'] = pd.to_datetime(df_au['Desde (D)'], errors='coerce')
         else:
@@ -117,10 +117,31 @@ def load_and_process_data(uploaded_file):
                 except: pass
             return None
 
+        def format_time_exact(val):
+            if pd.isna(val): return None
+            if hasattr(val, 'strftime'): return val.strftime('%H:%M:%S')
+            val_s = str(val).strip()
+            parts = val_s.split(':')
+            if len(parts) >= 2:
+                try:
+                    h = int(parts[0])
+                    m = int(parts[1])
+                    s = int(parts[2]) if len(parts) > 2 else 0
+                    return f"{h:02d}:{m:02d}:{s:02d}"
+                except: pass
+            return val_s
+
         if 'Desde (H)' in df_au.columns:
             df_au['Hora_Inicio'] = df_au['Desde (H)'].apply(extract_hour)
+            df_au['Hora_Inicio_Label'] = df_au['Hora_Inicio'].apply(lambda h: f"{int(h):02d}:00 hs" if pd.notna(h) else "Otro Horario")
         else:
             df_au['Hora_Inicio'] = None
+            df_au['Hora_Inicio_Label'] = "Otro Horario"
+
+        if 'Hasta (H)' in df_au.columns:
+            df_au['Hora_Fin_Label'] = df_au['Hasta (H)'].apply(format_time_exact)
+        else:
+            df_au['Hora_Fin_Label'] = None
 
         def assign_rango_horario(h):
             if h is None or pd.isna(h): return 'Otro Horario'
@@ -499,12 +520,13 @@ if uploaded_file is not None:
 
     df_geo_distritos = pd.DataFrame(distrito_data_rows)
 
-    # --- Pestañas de Análisis (Ahora con HORAS CAÍDAS) ---
-    tab_iau, tab_geo_d, tab_geo_h, tab_horas_caidas, tab1, tab2, tab3, tab4 = st.tabs([
+    # --- Pestañas de Análisis (con Horas Caídas y Matriz de Inicio a Fin) ---
+    tab_iau, tab_geo_d, tab_geo_h, tab_horas_caidas, tab_matriz_hc, tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Tablero Ejecutivo IAU",
         "🗺️ Distribución Geográfica (Días)",
         "🗺️ Distribución Geográfica (Horas)",
         "⏰ Horas Caídas",
+        "⏱️ Horas Caídas por Horario",
         "📈 Evolución de Volúmenes (Días y Horas)",
         "📂 Motivos y Tipos de Licencia",
         "🏢 Distribución por Gerencia y Distrito",
@@ -821,19 +843,16 @@ if uploaded_file is not None:
             st.info("No hay datos geográficos disponibles.")
 
     # =========================================================================
-    # --- NUEVA PESTAÑA: HORAS CAÍDAS (ANÁLISIS TEMPORAL E INTERVALOS) ---
+    # --- TAB HORAS CAÍDAS (ANÁLISIS TEMPORAL E INTERVALOS) ---
     # =========================================================================
     with tab_horas_caidas:
         st.subheader("Análisis de Horas Caídas por Franja Horaria y Fecha")
         
-        # Filtramos únicamente registros que posean horas
         df_hc = filtered_df[filtered_df['Total (H)'] > 0].copy()
         
         if not df_hc.empty:
-            # --- FILA SUPERIOR: TABLA RANGO HORARIO, COMBO CHART Y BARRAS POR HORA CRÍTICA ---
             col_hc1, col_hc2, col_hc3 = st.columns([1.1, 1.4, 1.5])
             
-            # Orden estricto de los rangos de Looker
             orden_rangos = [
                 '00:00 a 04:00 hs',
                 '04:00 a 08:00 hs',
@@ -848,7 +867,6 @@ if uploaded_file is not None:
             total_hc_general = df_rango['Total (H)'].sum()
             df_rango['Part. (%)'] = (df_rango['Total (H)'] / total_hc_general * 100) if total_hc_general > 0 else 0.0
             
-            # 1. Tabla de Rangos Horarios
             with col_hc1:
                 st.markdown("##### Horas Caídas por Rango Horario")
                 df_rango_display = df_rango.copy()
@@ -868,7 +886,6 @@ if uploaded_file is not None:
                     hide_index=True
                 )
 
-            # 2. Gráfico Combo: Barras (Total H) + Línea (Part %)
             with col_hc2:
                 st.markdown("##### Horas Caídas por Rango Horario")
                 df_rango_chart = df_rango[df_rango['Total (H)'] > 0]
@@ -902,13 +919,11 @@ if uploaded_file is not None:
                 fig_combo_rango.update_yaxes(title_text="Participación (%)", secondary_y=True, showgrid=False, ticksuffix="%")
                 st.plotly_chart(fig_combo_rango, use_container_width=True)
 
-            # 3. Horas Caídas por Hora (Intervalo Crítico)
             with col_hc3:
                 st.markdown("##### Horas Caídas por Hora (intervalo crítico)")
                 df_horas_crit = df_hc.dropna(subset=['Hora_Inicio']).copy()
                 df_horas_crit['Hora_Inicio'] = df_horas_crit['Hora_Inicio'].astype(int)
                 
-                # Agrupamos por hora 00 a 23
                 df_hora_agg = df_horas_crit.groupby('Hora_Inicio')['Total (H)'].sum().reset_index()
                 df_hora_agg['Hora_Label'] = df_hora_agg['Hora_Inicio'].apply(lambda h: f"{h:02d}:00 hs")
                 df_hora_agg = df_hora_agg.sort_values('Hora_Inicio')
@@ -935,13 +950,11 @@ if uploaded_file is not None:
 
             st.markdown("---")
 
-            # --- FILA INFERIOR: EVOLUCIÓN DE HORAS CAÍDAS POR FECHA ---
             col_fec_tbl, col_fec_chart = st.columns([1.1, 2.9])
             
             df_fechas = df_hc.dropna(subset=['Fecha_Diaria']).groupby('Fecha_Diaria')['Total (H)'].sum().reset_index()
             df_fechas = df_fechas.sort_values('Fecha_Diaria')
             
-            # Formato Fecha castellano (ej: 2 ene 2026)
             mapa_meses_full = {1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun', 7: 'jul', 8: 'ago', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dic'}
             df_fechas['Fecha_Label'] = df_fechas['Fecha_Diaria'].apply(lambda d: f"{d.day} {mapa_meses_full.get(d.month, '')} {d.year}")
             
@@ -984,6 +997,67 @@ if uploaded_file is not None:
 
         else:
             st.info("No se registran novedades horarias en la selección actual.")
+
+    # =========================================================================
+    # --- NUEVA PESTAÑA: HORAS CAÍDAS SEGÚN HORA DE INICIO (MATRIZ PIVOT) ---
+    # =========================================================================
+    with tab_matriz_hc:
+        st.subheader("Matriz de Horas Caídas según Hora de Inicio y Hora de Fin")
+        st.write("Cruce detallado de franjas horarias exactas con totales acumulados.")
+        
+        df_matriz_source = filtered_df[(filtered_df['Total (H)'] > 0) & (filtered_df['Hora_Fin_Label'].notna())].copy()
+        
+        if not df_matriz_source.empty:
+            # Construcción de la tabla pivot
+            df_pivot_hc = pd.pivot_table(
+                df_matriz_source,
+                index='Hora_Inicio_Label',
+                columns='Hora_Fin_Label',
+                values='Total (H)',
+                aggfunc='sum',
+                fill_value=0.0
+            )
+            
+            # Ordenamiento de las filas (Hora de Inicio)
+            def get_sort_hour(label):
+                try:
+                    return int(str(label).split(':')[0])
+                except:
+                    return 99
+            
+            filas_ordenadas = sorted(df_pivot_hc.index.tolist(), key=get_sort_hour)
+            columnas_ordenadas = sorted(df_pivot_hc.columns.tolist())
+            
+            df_pivot_hc = df_pivot_hc.reindex(index=filas_ordenadas, columns=columnas_ordenadas, fill_value=0.0)
+            
+            # Cálculo de columna Total
+            df_pivot_hc['Total'] = df_pivot_hc.sum(axis=1)
+            
+            # Cálculo de fila Total General
+            total_general_row = df_pivot_hc.sum(axis=0).to_frame().T
+            total_general_row.index = ['Total general']
+            df_pivot_display = pd.concat([df_pivot_hc, total_general_row])
+            
+            # Formateo visual: valores > 0 con formato numérico y 0 como vacío "-" estilo Looker
+            def format_celda_horas(val):
+                if pd.isna(val) or val == 0:
+                    return "-"
+                if val % 1 != 0:
+                    return format_decimal_es(val, 1)
+                return format_integer_es(val)
+            
+            st.markdown("##### Horas Caídas según Hora de Inicio")
+            st.dataframe(
+                df_pivot_display.style.format(format_celda_horas),
+                use_container_width=True,
+                height=550
+            )
+            
+            # Opciones de descarga
+            df_download_matriz = df_pivot_hc.reset_index().rename(columns={'Hora_Inicio_Label': 'Hora de Inicio'})
+            generate_download_buttons(df_download_matriz, "horas_caidas_segun_hora_inicio", key_suffix="_hc_matriz")
+        else:
+            st.info("No hay registros con información de horario de inicio y fin para la selección actual.")
 
     # --- TAB 1: Volúmenes Absolutos ---
     with tab1:
