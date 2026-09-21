@@ -102,16 +102,20 @@ def load_and_process_data(uploaded_file):
             df_au['Periodo_Label'] = df_au['Mes'].astype(str).str.capitalize()
             df_au['Periodo_DT'] = pd.to_datetime('2026-01-01')
 
-        # Normalizar fechas diarias
+        # Normalizar fechas diarias (Desde Días y Hasta Días)
         if 'Desde (D)' in df_au.columns:
             df_au['Fecha_Diaria'] = pd.to_datetime(df_au['Desde (D)'], errors='coerce')
+            df_au['Desde_Dias_Str'] = df_au['Fecha_Diaria'].dt.strftime('%d/%m/%Y')
         else:
             df_au['Fecha_Diaria'] = pd.NaT
+            df_au['Desde_Dias_Str'] = None
 
         if 'Hasta (D)' in df_au.columns:
             df_au['Fecha_Hasta_D'] = pd.to_datetime(df_au['Hasta (D)'], errors='coerce')
+            df_au['Hasta_Dias_Str'] = df_au['Fecha_Hasta_D'].dt.strftime('%d/%m/%Y')
         else:
             df_au['Fecha_Hasta_D'] = pd.NaT
+            df_au['Hasta_Dias_Str'] = None
 
         def extract_hour(val):
             if pd.isna(val): return None
@@ -182,13 +186,13 @@ def load_and_process_data(uploaded_file):
                 df_dot['Legajo'] = pd.to_numeric(df_dot['Legajo'], errors='coerce').astype('Int64').astype(str)
                 df_dot['Legajo'] = df_dot['Legajo'].replace(['<NA>', 'nan'], 'no disponible')
 
-            dot_filter_cols = ['Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo', 'Legajo']
+            dot_filter_cols = ['Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo', 'Legajo', 'Sede']
             for c in dot_filter_cols:
                 if c in df_dot.columns:
                     df_dot[c] = df_dot[c].astype(str).replace(['nan', 'None', '<NA>'], 'no disponible').str.strip()
 
         # Limpieza de columnas de texto en Ausentismo
-        filter_cols = ['Legajo', 'Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo', 'Tipo', 'Descripción', 'Licencia']
+        filter_cols = ['Legajo', 'Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo', 'Tipo', 'Descripción', 'Licencia', 'Sede', 'Rango_Horario']
         for c in filter_cols:
             if c in df_au.columns:
                 df_au[c] = df_au[c].astype(str).replace(['nan', 'None', '<NA>'], 'no disponible').str.strip()
@@ -221,14 +225,20 @@ if uploaded_file is not None:
     # --- Barra Lateral de Filtros ---
     st.sidebar.header("Filtros de Ausentismo")
 
-    # Filtros categóricos habituales (se marcan todos por defecto)
+    orden_rangos_def = [
+        '00:00 a 04:00 hs', '04:00 a 08:00 hs', '08:00 a 12:00 hs',
+        '12:00 a 16:00 hs', '16:00 a 20:00 hs', '20:00 a 00:00 hs', 'Otro Horario'
+    ]
+
     filter_dict = {
         'Periodo_Label': 'Período',
         'Tipo': 'Tipo de Novedad',
         'Licencia': 'Licencia / Concepto',
+        'Rango_Horario': 'Rango Horario',
         'Gerencia': 'Gerencia',
         'Ministerio': 'Ministerio',
         'Distrito': 'Distrito',
+        'Sede': 'Sede',
         'Relación': 'Relación Laboral',
         'Nivel': 'Nivel',
         'Sexo': 'Sexo'
@@ -237,6 +247,9 @@ if uploaded_file is not None:
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
 
     def get_combined_options(col_name):
+        if col_name == 'Rango_Horario':
+            presentes = set(df_au['Rango_Horario'].unique())
+            return [r for r in orden_rangos_def if r in presentes] or orden_rangos_def
         opts_au = set(df_au[col_name].dropna().unique()) if col_name in df_au.columns else set()
         opts_dot = set(df_dot[col_name].dropna().unique()) if (df_dot is not None and col_name in df_dot.columns) else set()
         total_opts = [str(o).strip() for o in opts_au.union(opts_dot) if str(o).strip() not in ['no disponible', 'nan', 'None', '<NA>']]
@@ -247,7 +260,7 @@ if uploaded_file is not None:
         for k in filter_dict.keys()
     }
 
-    # Opciones de Legajos ordenadas numéricamente
+    # Opciones de listas de búsqueda granular
     opts_legajos_raw = set(df_au['Legajo'].dropna().unique())
     if df_dot is not None and 'Legajo' in df_dot.columns:
         opts_legajos_raw = opts_legajos_raw.union(set(df_dot['Legajo'].dropna().unique()))
@@ -256,9 +269,22 @@ if uploaded_file is not None:
         key=lambda x: int(x) if str(x).isdigit() else 999999
     )
 
-    if 'au_selections_v4' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
-        st.session_state.au_selections_v4 = {k: list(v) for k, v in all_possible_options.items()}
+    # Fechas Desde (D) y Hasta (D) únicas ordenadas
+    fechas_desde_d_sorted = df_au.dropna(subset=['Fecha_Diaria']).sort_values('Fecha_Diaria')['Desde_Dias_Str'].unique().tolist()
+    fechas_hasta_d_sorted = df_au.dropna(subset=['Fecha_Hasta_D']).sort_values('Fecha_Hasta_D')['Hasta_Dias_Str'].unique().tolist()
+
+    # Horas Desde (H) y Hasta (H) únicas ordenadas
+    horas_desde_h_sorted = sorted([h for h in df_au['Desde_H_Str'].dropna().unique() if h not in ['None', 'nan']])
+    horas_hasta_h_sorted = sorted([h for h in df_au['Hora_Fin_Label'].dropna().unique() if h not in ['None', 'nan']])
+
+    # Inicialización de estado y botón de reseteo
+    if 'au_selections_v5' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
+        st.session_state.au_selections_v5 = {k: list(v) for k, v in all_possible_options.items()}
         st.session_state.au_sel_legajo = []
+        st.session_state.au_sel_desde_d = []
+        st.session_state.au_sel_hasta_d = []
+        st.session_state.au_sel_desde_h = []
+        st.session_state.au_sel_hasta_h = []
         st.rerun()
 
     filtered_df = df_au.copy()
@@ -267,15 +293,15 @@ if uploaded_file is not None:
     # Filtrado de variables generales
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
-        current_defaults = [x for x in st.session_state.au_selections_v4.get(col, opts) if x in opts]
+        current_defaults = [x for x in st.session_state.au_selections_v5.get(col, opts) if x in opts]
         
         sel = st.sidebar.multiselect(
             label, 
             options=opts, 
             default=current_defaults, 
-            key=f"sel_v4_{col}"
+            key=f"sel_v5_{col}"
         )
-        st.session_state.au_selections_v4[col] = sel
+        st.session_state.au_selections_v5[col] = sel
 
         if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
@@ -287,23 +313,74 @@ if uploaded_file is not None:
             if filtered_dot is not None and col in filtered_dot.columns:
                 filtered_dot = filtered_dot[filtered_dot[col].isin(sel)]
 
-    # --- Filtro de Legajo como Búsqueda Específica ---
+    # --- FILTROS PUNTUALES DE BÚSQUEDA (Desde D, Hasta D, Desde H, Hasta H, Legajo) ---
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("##### Filtros de Fechas, Horas y Agentes")
+
+    # 1. Desde (Días)
+    sel_desde_d = st.sidebar.multiselect(
+        "Desde (Días):",
+        options=fechas_desde_d_sorted,
+        default=st.session_state.get('au_sel_desde_d', []),
+        help="Deje vacío para incluir todas las fechas de inicio, o elija una o más puntuales.",
+        key="sel_v5_desde_d"
+    )
+    st.session_state.au_sel_desde_d = sel_desde_d
+    if len(sel_desde_d) > 0:
+        filtered_df = filtered_df[filtered_df['Desde_Dias_Str'].isin(sel_desde_d)]
+
+    # 2. Hasta (Días)
+    sel_hasta_d = st.sidebar.multiselect(
+        "Hasta (Días):",
+        options=fechas_hasta_d_sorted,
+        default=st.session_state.get('au_sel_hasta_d', []),
+        help="Deje vacío para incluir todas las fechas de fin, o elija una o más puntuales.",
+        key="sel_v5_hasta_d"
+    )
+    st.session_state.au_sel_hasta_d = sel_hasta_d
+    if len(sel_hasta_d) > 0:
+        filtered_df = filtered_df[filtered_df['Hasta_Dias_Str'].isin(sel_hasta_d)]
+
+    # 3. Desde (Horas)
+    sel_desde_h = st.sidebar.multiselect(
+        "Desde (Horas):",
+        options=horas_desde_h_sorted,
+        default=st.session_state.get('au_sel_desde_h', []),
+        help="Deje vacío para todos los horarios de inicio, o elija franjas específicas.",
+        key="sel_v5_desde_h"
+    )
+    st.session_state.au_sel_desde_h = sel_desde_h
+    if len(sel_desde_h) > 0:
+        filtered_df = filtered_df[filtered_df['Desde_H_Str'].isin(sel_desde_h)]
+
+    # 4. Hasta (Horas)
+    sel_hasta_h = st.sidebar.multiselect(
+        "Hasta (Horas):",
+        options=horas_hasta_h_sorted,
+        default=st.session_state.get('au_sel_hasta_h', []),
+        help="Deje vacío para todos los horarios de fin, o elija franjas específicas.",
+        key="sel_v5_hasta_h"
+    )
+    st.session_state.au_sel_hasta_h = sel_hasta_h
+    if len(sel_hasta_h) > 0:
+        filtered_df = filtered_df[filtered_df['Hora_Fin_Label'].isin(sel_hasta_h)]
+
+    # 5. Legajo
     sel_legajo = st.sidebar.multiselect(
         "Legajo (Búsqueda puntual):",
         options=opts_legajos,
         default=st.session_state.get('au_sel_legajo', []),
-        help="Deje vacío para incluir a todos los colaboradores, o seleccione uno o más para aislar agentes específicos.",
-        key="sel_v4_legajo"
+        help="Deje vacío para incluir a todos los colaboradores, o seleccione agentes puntuales.",
+        key="sel_v5_legajo"
     )
     st.session_state.au_sel_legajo = sel_legajo
-
     if len(sel_legajo) > 0:
         filtered_df = filtered_df[filtered_df['Legajo'].isin(sel_legajo)]
         if filtered_dot is not None and 'Legajo' in filtered_dot.columns:
             filtered_dot = filtered_dot[filtered_dot['Legajo'].isin(sel_legajo)]
 
     # Validaciones de filtros
-    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v4.get('Periodo_Label', [])]
+    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v5.get('Periodo_Label', [])]
 
     if not sel_periodos:
         st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Seleccione al menos un mes en la barra lateral.")
@@ -578,7 +655,7 @@ if uploaded_file is not None:
     ])
 
     # =========================================================================
-    # --- TABLERO EJECUTIVO IAU (TORTAS EN ORDEN CRONOLÓGICO ESTRICTO) ---
+    # --- TABLERO EJECUTIVO IAU ---
     # =========================================================================
     with tab_iau:
         st.subheader("Tablero Comparativo de Índices de Ausentismo (IAU)")
@@ -1481,8 +1558,17 @@ if uploaded_file is not None:
                     .sort_values(by='Total (H)', ascending=False)
                 )
                 if not df_nov_horas.empty:
+                    top_nh = 5
+                    if len(df_nov_horas) > top_nh:
+                        df_top_h = df_nov_horas.head(top_nh).copy()
+                        otros_h = df_nov_horas.iloc[top_nh:]['Total (H)'].sum()
+                        df_otros_h = pd.DataFrame([{'Licencia': 'Otras Novedades', 'Total (H)': otros_h}])
+                        df_pie_nov_final = pd.concat([df_top_h, df_otros_h], ignore_index=True)
+                    else:
+                        df_pie_nov_final = df_nov_horas
+
                     fig_pie_nov = px.pie(
-                        df_nov_horas,
+                        df_pie_nov_final,
                         names='Licencia',
                         values='Total (H)',
                         title='Distribución de Horas por Concepto de Novedad',
@@ -1579,7 +1665,7 @@ if uploaded_file is not None:
     # --- TAB 4: Datos Brutos ---
     with tab4:
         st.subheader("Registros Detallados")
-        cols_mostrar = [c for c in ['Legajo', 'Apellido y Nombre', 'Periodo_Label', 'Tipo', 'Licencia', 'Total (D)', 'Total (H)', 'Gerencia', 'Distrito', 'Relación'] if c in filtered_df.columns]
+        cols_mostrar = [c for c in ['Legajo', 'Apellido y Nombre', 'Periodo_Label', 'Tipo', 'Licencia', 'Total (D)', 'Total (H)', 'Gerencia', 'Distrito', 'Sede', 'Relación'] if c in filtered_df.columns]
         st.dataframe(filtered_df[cols_mostrar], use_container_width=True, hide_index=True)
         generate_download_buttons(filtered_df[cols_mostrar], "registros_ausentismo_filtrados", key_suffix="_bruto")
 else:
