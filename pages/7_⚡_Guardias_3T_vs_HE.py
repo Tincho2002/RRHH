@@ -98,6 +98,7 @@ def load_and_process_g3t(uploaded_file):
             elif cs.lower() in ['subni', 'subnivel']: col_rename[c] = 'Subnivel'
             elif 'periodo' in cs.lower() or 'período' in cs.lower(): col_rename[c] = 'Periodo'
             elif 'tipo de liquid' in cs.lower(): col_rename[c] = 'Tipo de Liquidación'
+            elif 'ubicaci' in cs.lower(): col_rename[c] = 'Ubicación'
         df = df.rename(columns=col_rename)
 
         # Normalizar columnas numéricas de Guardias e Importes
@@ -143,8 +144,8 @@ def load_and_process_g3t(uploaded_file):
         else:
             df['Legajo'] = 'no disponible'
 
-        # Limpieza de columnas de texto
-        text_cols = ['Apellido y Nombre', 'Nivel', 'Subnivel', 'Gerencia', 'CeCo', 'Distrito', 'Sede', 'Tipo de Liquidación']
+        # Limpieza de columnas de texto (incluyendo Ubicación)
+        text_cols = ['Apellido y Nombre', 'Nivel', 'Subnivel', 'Gerencia', 'CeCo', 'Distrito', 'Sede', 'Ubicación', 'Tipo de Liquidación']
         for tc in text_cols:
             if tc in df.columns:
                 df[tc] = df[tc].astype(str).replace(['nan', 'None', '<NA>'], 'no disponible').str.strip()
@@ -197,11 +198,13 @@ if uploaded_file is not None:
     if not meses_presentes:
         meses_presentes = sorted(list(df_raw['Periodo_Label'].unique()))
 
+    # Filtros categóricos generales (ahora incluye Ubicación Laboral)
     filter_dict = {
         'Periodo_Label': ('Período (Mes)', meses_presentes),
         'Tipo de Liquidación': ('Tipo de Liquidación', sorted(df_raw['Tipo de Liquidación'].unique().tolist())),
         'Gerencia': ('Gerencia', sorted(df_raw['Gerencia'].unique().tolist())),
         'Distrito': ('Distrito', sorted(df_raw['Distrito'].unique().tolist())),
+        'Ubicación': ('Ubicación Laboral', sorted([u for u in df_raw['Ubicación'].unique().tolist() if u != 'no disponible'])),
         'CeCo': ('Centro de Costo (CeCo)', sorted(df_raw['CeCo'].unique().tolist())),
         'Nivel': ('Nivel', sorted(df_raw['Nivel'].unique().tolist()))
     }
@@ -213,8 +216,8 @@ if uploaded_file is not None:
         key=lambda x: int(x) if str(x).isdigit() else 999999
     )
 
-    if 'g3t_selections' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
-        st.session_state.g3t_selections = {k: list(v[1]) for k, v in filter_dict.items()}
+    if 'g3t_selections_v2' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
+        st.session_state.g3t_selections_v2 = {k: list(v[1]) for k, v in filter_dict.items()}
         st.session_state.g3t_sel_legajo = []
         st.rerun()
 
@@ -222,9 +225,9 @@ if uploaded_file is not None:
 
     # Filtrado categórico estándar
     for col, (label, opts) in filter_dict.items():
-        curr_defaults = [x for x in st.session_state.g3t_selections.get(col, opts) if x in opts]
-        sel = st.sidebar.multiselect(label, options=opts, default=curr_defaults, key=f"sel_g3t_{col}")
-        st.session_state.g3t_selections[col] = sel
+        curr_defaults = [x for x in st.session_state.g3t_selections_v2.get(col, opts) if x in opts]
+        sel = st.sidebar.multiselect(label, options=opts, default=curr_defaults, key=f"sel_g3t_v2_{col}")
+        st.session_state.g3t_selections_v2[col] = sel
 
         if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
@@ -780,7 +783,7 @@ if uploaded_file is not None:
             'Tipo de Liquidación', 'Periodo_Label', 'G3T ($)', 'G3T (Q)',
             'HE al 50 % ($)', 'HE al 50 % Sábados ($)', 'HE al 100 % ($)',
             'HE al 50 % (Q)', 'HE al 50 % Sábados (Q)', 'HE al 100 % (Q)',
-            'Total HE (Q)', 'Distrito', 'Sede'
+            'Total HE (Q)', 'Distrito', 'Ubicación', 'Sede'
         ]
         cols_presentes = [c for c in cols_display_cruda if c in filtered_df.columns]
         df_cruda_show = filtered_df[cols_presentes].copy().rename(columns={'Periodo_Label': 'Periodo (Mes)'})
