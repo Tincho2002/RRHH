@@ -136,8 +136,15 @@ def load_and_process_g3t(uploaded_file):
         else:
             df['Periodo_Label'] = 'General'
 
+        # Normalizar Legajo
+        if 'Legajo' in df.columns:
+            df['Legajo'] = pd.to_numeric(df['Legajo'], errors='coerce').astype('Int64').astype(str)
+            df['Legajo'] = df['Legajo'].replace(['<NA>', 'nan'], 'no disponible')
+        else:
+            df['Legajo'] = 'no disponible'
+
         # Limpieza de columnas de texto
-        text_cols = ['Legajo', 'Apellido y Nombre', 'Nivel', 'Subnivel', 'Gerencia', 'CeCo', 'Distrito', 'Sede', 'Tipo de Liquidación']
+        text_cols = ['Apellido y Nombre', 'Nivel', 'Subnivel', 'Gerencia', 'CeCo', 'Distrito', 'Sede', 'Tipo de Liquidación']
         for tc in text_cols:
             if tc in df.columns:
                 df[tc] = df[tc].astype(str).replace(['nan', 'None', '<NA>'], 'no disponible').str.strip()
@@ -199,11 +206,21 @@ if uploaded_file is not None:
         'Nivel': ('Nivel', sorted(df_raw['Nivel'].unique().tolist()))
     }
 
+    # Opciones de Legajos ordenadas numéricamente
+    opts_legajos_raw = set(df_raw['Legajo'].dropna().unique())
+    opts_legajos = sorted(
+        [str(o).strip() for o in opts_legajos_raw if str(o).strip() not in ['no disponible', 'nan', 'None', '<NA>']],
+        key=lambda x: int(x) if str(x).isdigit() else 999999
+    )
+
     if 'g3t_selections' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
         st.session_state.g3t_selections = {k: list(v[1]) for k, v in filter_dict.items()}
+        st.session_state.g3t_sel_legajo = []
         st.rerun()
 
     filtered_df = df_raw.copy()
+
+    # Filtrado categórico estándar
     for col, (label, opts) in filter_dict.items():
         curr_defaults = [x for x in st.session_state.g3t_selections.get(col, opts) if x in opts]
         sel = st.sidebar.multiselect(label, options=opts, default=curr_defaults, key=f"sel_g3t_{col}")
@@ -213,6 +230,20 @@ if uploaded_file is not None:
             filtered_df = filtered_df.iloc[0:0]
         elif len(sel) < len(opts):
             filtered_df = filtered_df[filtered_df[col].isin(sel)]
+
+    # Filtro de búsqueda puntual por Legajo
+    st.sidebar.markdown("---")
+    sel_legajo = st.sidebar.multiselect(
+        "Legajo (Búsqueda puntual):",
+        options=opts_legajos,
+        default=st.session_state.get('g3t_sel_legajo', []),
+        help="Deje vacío para incluir a todos los colaboradores, o seleccione agentes puntuales.",
+        key="sel_g3t_legajo"
+    )
+    st.session_state.g3t_sel_legajo = sel_legajo
+
+    if len(sel_legajo) > 0:
+        filtered_df = filtered_df[filtered_df['Legajo'].isin(sel_legajo)]
 
     if filtered_df.empty:
         st.warning("⚠️ No se encontraron registros con los filtros seleccionados. Ajuste los filtros en la barra lateral.")
@@ -481,9 +512,8 @@ if uploaded_file is not None:
 
         st.markdown("---")
 
-        # --- FILA 2: GRÁFICOS DE TOTALES (BARRAS/LÍNEA Y TORTAS DE PARTICIPACIÓN) ---
+        # --- FILA 2: GRÁFICOS DE TOTALES ---
         col_tot_combo, col_pie_g3t, col_pie_he = st.columns([1.6, 1.2, 1.2])
-
         paleta_donuts = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5']
 
         # 1. Gráfico Combinado: Total HE (Q) y G3T (Q) por Período
@@ -529,13 +559,15 @@ if uploaded_file is not None:
                 color_discrete_sequence=paleta_donuts
             )
             fig_pie_g3t.update_traces(
+                sort=False,
                 textinfo='percent',
                 textposition='inside',
-                insidetextorientation='horizontal'
+                insidetextorientation='horizontal',
+                direction='clockwise'
             )
             fig_pie_g3t.update_layout(
                 showlegend=True,
-                legend=dict(orientation="v", y=0.5, x=1.02, font=dict(size=10)),
+                legend=dict(orientation="v", y=0.5, x=1.02, font=dict(size=10), traceorder="normal"),
                 margin=dict(t=20, b=20, l=10, r=10),
                 height=320
             )
@@ -553,13 +585,15 @@ if uploaded_file is not None:
                 color_discrete_sequence=paleta_donuts
             )
             fig_pie_he.update_traces(
+                sort=False,
                 textinfo='percent',
                 textposition='inside',
-                insidetextorientation='horizontal'
+                insidetextorientation='horizontal',
+                direction='clockwise'
             )
             fig_pie_he.update_layout(
                 showlegend=True,
-                legend=dict(orientation="v", y=0.5, x=1.02, font=dict(size=10)),
+                legend=dict(orientation="v", y=0.5, x=1.02, font=dict(size=10), traceorder="normal"),
                 margin=dict(t=20, b=20, l=10, r=10),
                 height=320
             )
