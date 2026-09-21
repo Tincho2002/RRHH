@@ -221,6 +221,7 @@ if uploaded_file is not None:
     # --- Barra Lateral de Filtros ---
     st.sidebar.header("Filtros de Ausentismo")
 
+    # Filtros categóricos habituales (se marcan todos por defecto)
     filter_dict = {
         'Periodo_Label': 'Período',
         'Tipo': 'Tipo de Novedad',
@@ -230,8 +231,7 @@ if uploaded_file is not None:
         'Distrito': 'Distrito',
         'Relación': 'Relación Laboral',
         'Nivel': 'Nivel',
-        'Sexo': 'Sexo',
-        'Legajo': 'Legajo'
+        'Sexo': 'Sexo'
     }
 
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
@@ -240,8 +240,6 @@ if uploaded_file is not None:
         opts_au = set(df_au[col_name].dropna().unique()) if col_name in df_au.columns else set()
         opts_dot = set(df_dot[col_name].dropna().unique()) if (df_dot is not None and col_name in df_dot.columns) else set()
         total_opts = [str(o).strip() for o in opts_au.union(opts_dot) if str(o).strip() not in ['no disponible', 'nan', 'None', '<NA>']]
-        if col_name == 'Legajo':
-            return sorted(total_opts, key=lambda x: int(x) if str(x).isdigit() else 999999)
         return sorted(total_opts)
 
     all_possible_options = {
@@ -249,25 +247,35 @@ if uploaded_file is not None:
         for k in filter_dict.keys()
     }
 
-    if 'au_selections_v3' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
-        st.session_state.au_selections_v3 = {k: list(v) for k, v in all_possible_options.items()}
+    # Opciones de Legajos ordenadas numéricamente
+    opts_legajos_raw = set(df_au['Legajo'].dropna().unique())
+    if df_dot is not None and 'Legajo' in df_dot.columns:
+        opts_legajos_raw = opts_legajos_raw.union(set(df_dot['Legajo'].dropna().unique()))
+    opts_legajos = sorted(
+        [str(o).strip() for o in opts_legajos_raw if str(o).strip() not in ['no disponible', 'nan', 'None', '<NA>']],
+        key=lambda x: int(x) if str(x).isdigit() else 999999
+    )
+
+    if 'au_selections_v4' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
+        st.session_state.au_selections_v4 = {k: list(v) for k, v in all_possible_options.items()}
+        st.session_state.au_sel_legajo = []
         st.rerun()
 
     filtered_df = df_au.copy()
     filtered_dot = df_dot.copy() if df_dot is not None else None
 
-    # Filtrado inteligente
+    # Filtrado de variables generales
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
-        current_defaults = [x for x in st.session_state.au_selections_v3.get(col, opts) if x in opts]
+        current_defaults = [x for x in st.session_state.au_selections_v4.get(col, opts) if x in opts]
         
         sel = st.sidebar.multiselect(
             label, 
             options=opts, 
             default=current_defaults, 
-            key=f"sel_v3_{col}"
+            key=f"sel_v4_{col}"
         )
-        st.session_state.au_selections_v3[col] = sel
+        st.session_state.au_selections_v4[col] = sel
 
         if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
@@ -279,8 +287,23 @@ if uploaded_file is not None:
             if filtered_dot is not None and col in filtered_dot.columns:
                 filtered_dot = filtered_dot[filtered_dot[col].isin(sel)]
 
+    # --- Filtro de Legajo como Búsqueda Específica ---
+    sel_legajo = st.sidebar.multiselect(
+        "Legajo (Búsqueda puntual):",
+        options=opts_legajos,
+        default=st.session_state.get('au_sel_legajo', []),
+        help="Deje vacío para incluir a todos los colaboradores, o seleccione uno o más para aislar agentes específicos.",
+        key="sel_v4_legajo"
+    )
+    st.session_state.au_sel_legajo = sel_legajo
+
+    if len(sel_legajo) > 0:
+        filtered_df = filtered_df[filtered_df['Legajo'].isin(sel_legajo)]
+        if filtered_dot is not None and 'Legajo' in filtered_dot.columns:
+            filtered_dot = filtered_dot[filtered_dot['Legajo'].isin(sel_legajo)]
+
     # Validaciones de filtros
-    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v3.get('Periodo_Label', [])]
+    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v4.get('Periodo_Label', [])]
 
     if not sel_periodos:
         st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Seleccione al menos un mes en la barra lateral.")
@@ -294,7 +317,7 @@ if uploaded_file is not None:
     dias_habiles_por_mes = df_au.groupby('Periodo_Label')['Dias_Habiles'].first().to_dict()
 
     total_dias = filtered_df['Total (D)'].sum()
-    total_horas = pd.to_numeric(filtered_df['Total (H)'], errors='coerce').fillna(0).sum()
+    total_horas = pd.to_numeric(filtered_df['Total (H)'], errors='coerce').fillna(0.0).sum()
     empleados_afectados = filtered_df['Legajo'].nunique()
 
     capacidad_dias_total = 0
@@ -312,8 +335,8 @@ if uploaded_file is not None:
     capacidad_horas_total = capacidad_dias_total * 8
     dotacion_representativa = int(round(np.mean(dotaciones_por_mes))) if dotaciones_por_mes else empleados_afectados
 
-    tasa_dias = (total_dias / capacidad_dias_total * 100) if capacidad_dias_total > 0 else 0
-    tasa_horas = (total_horas / capacidad_horas_total * 100) if capacidad_horas_total > 0 else 0
+    tasa_dias = (total_dias / capacidad_dias_total * 100) if capacidad_dias_total > 0 else 0.0
+    tasa_horas = (total_horas / capacidad_horas_total * 100) if capacidad_horas_total > 0 else 0.0
 
     if len(sel_periodos) == 1:
         periodo_txt = sel_periodos[0]
@@ -443,7 +466,7 @@ if uploaded_file is not None:
     for p in sel_periodos:
         sub = filtered_df[filtered_df['Periodo_Label'] == p]
         d_sum = sub['Total (D)'].sum()
-        h_sum = pd.to_numeric(sub['Total (H)'], errors='coerce').fillna(0).sum()
+        h_sum = pd.to_numeric(sub['Total (H)'], errors='coerce').fillna(0.0).sum()
         agentes_sub = sub['Legajo'].nunique()
         
         if filtered_dot is not None and not filtered_dot.empty:
@@ -455,8 +478,8 @@ if uploaded_file is not None:
         cap_d = dot_m * dh
         cap_h = cap_d * 8
         
-        tasa_d = (d_sum / cap_d * 100) if cap_d > 0 else 0
-        tasa_h = (h_sum / cap_h * 100) if cap_h > 0 else 0
+        tasa_d = (d_sum / cap_d * 100) if cap_d > 0 else 0.0
+        tasa_h = (h_sum / cap_h * 100) if cap_h > 0 else 0.0
         
         evo_rows.append({
             "Periodo": p,
@@ -484,7 +507,7 @@ if uploaded_file is not None:
     for dist in distritos_disponibles:
         sub_au_dist = filtered_df[filtered_df['Distrito'] == dist]
         dias_tot = sub_au_dist['Total (D)'].sum()
-        horas_tot = pd.to_numeric(sub_au_dist['Total (H)'], errors='coerce').fillna(0).sum()
+        horas_tot = pd.to_numeric(sub_au_dist['Total (H)'], errors='coerce').fillna(0.0).sum()
         
         cap_d_tot = 0
         mes_indices_d = {}
@@ -501,7 +524,7 @@ if uploaded_file is not None:
             cap_d_tot += cap_dp
             
             d_p = sub_au_dist[sub_au_dist['Periodo_Label'] == p]['Total (D)'].sum()
-            h_p = pd.to_numeric(sub_au_dist[sub_au_dist['Periodo_Label'] == p]['Total (H)'], errors='coerce').fillna(0).sum()
+            h_p = pd.to_numeric(sub_au_dist[sub_au_dist['Periodo_Label'] == p]['Total (H)'], errors='coerce').fillna(0.0).sum()
             
             mes_indices_d[p] = (d_p / cap_dp * 100) if cap_dp > 0 else 0.0
             mes_indices_h[p] = (h_p / (cap_dp * 8) * 100) if cap_dp > 0 else 0.0
@@ -555,7 +578,7 @@ if uploaded_file is not None:
     ])
 
     # =========================================================================
-    # --- TABLERO EJECUTIVO IAU (TORTAS EN ORDEN CRONOLÓGICO) ---
+    # --- TABLERO EJECUTIVO IAU (TORTAS EN ORDEN CRONOLÓGICO ESTRICTO) ---
     # =========================================================================
     with tab_iau:
         st.subheader("Tablero Comparativo de Índices de Ausentismo (IAU)")
@@ -1405,7 +1428,7 @@ if uploaded_file is not None:
                 generate_download_buttons(df_evo, "evolucion_ausentismo", key_suffix="_evo")
 
     # =========================================================================
-    # --- TAB 2: MOTIVOS Y LICENCIAS (CORREGIDO CON PALETA ROBUSTA) ---
+    # --- TAB 2: MOTIVOS Y LICENCIAS ---
     # =========================================================================
     with tab2:
         st.subheader("Composición por Tipo y Motivo de Ausencia")
@@ -1458,17 +1481,8 @@ if uploaded_file is not None:
                     .sort_values(by='Total (H)', ascending=False)
                 )
                 if not df_nov_horas.empty:
-                    top_nh = 5
-                    if len(df_nov_horas) > top_nh:
-                        df_top_h = df_nov_horas.head(top_nh).copy()
-                        otros_h = df_nov_horas.iloc[top_nh:]['Total (H)'].sum()
-                        df_otros_h = pd.DataFrame([{'Licencia': 'Otras Novedades', 'Total (H)': otros_h}])
-                        df_pie_nov_final = pd.concat([df_top_h, df_otros_h], ignore_index=True)
-                    else:
-                        df_pie_nov_final = df_nov_horas
-
                     fig_pie_nov = px.pie(
-                        df_pie_nov_final,
+                        df_nov_horas,
                         names='Licencia',
                         values='Total (H)',
                         title='Distribución de Horas por Concepto de Novedad',
