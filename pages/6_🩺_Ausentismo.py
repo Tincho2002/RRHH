@@ -49,7 +49,7 @@ def format_decimal_es(num, decimals=1):
     return f"{num:,.{decimals}f}".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 def format_percentage_es(num, decimals=2):
-    if pd.isna(num) or not isinstance(num, (int, float, np.number)): return ""
+    if pd.isna(num) or not isinstance(num, (int, float, np.number)): return "0,00%"
     return f"{num:,.{decimals}f}%".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
 
 def generate_download_buttons(df_to_download, filename_prefix, key_suffix=""):
@@ -78,14 +78,14 @@ def load_and_process_data(uploaded_file):
         
         # Normalizar columnas numéricas
         if 'Total (D)' in df_au.columns:
-            df_au['Total (D)'] = pd.to_numeric(df_au['Total (D)'], errors='coerce').fillna(0)
+            df_au['Total (D)'] = pd.to_numeric(df_au['Total (D)'], errors='coerce').fillna(0.0)
         else:
-            df_au['Total (D)'] = 0
+            df_au['Total (D)'] = 0.0
             
         if 'Total (H)' in df_au.columns:
-            df_au['Total (H)'] = pd.to_numeric(df_au['Total (H)'], errors='coerce').fillna(0)
+            df_au['Total (H)'] = pd.to_numeric(df_au['Total (H)'], errors='coerce').fillna(0.0)
         else:
-            df_au['Total (H)'] = 0
+            df_au['Total (H)'] = 0.0
 
         if 'Dias_Habiles' in df_au.columns:
             df_au['Dias_Habiles'] = pd.to_numeric(df_au['Dias_Habiles'], errors='coerce').fillna(21)
@@ -163,6 +163,11 @@ def load_and_process_data(uploaded_file):
 
         df_au['Rango_Horario'] = df_au['Hora_Inicio'].apply(assign_rango_horario)
 
+        # Normalizar Legajo a formato entero limpio
+        if 'Legajo' in df_au.columns:
+            df_au['Legajo'] = pd.to_numeric(df_au['Legajo'], errors='coerce').astype('Int64').astype(str)
+            df_au['Legajo'] = df_au['Legajo'].replace(['<NA>', 'nan'], 'no disponible')
+
         # Cargar dotación y normalizarla
         df_dot = None
         if 'Dotación' in xls.sheet_names:
@@ -173,7 +178,11 @@ def load_and_process_data(uploaded_file):
                 df_dot['Periodo_Label'] = temp_dt_dot.dt.month.map(mapa_meses) + '-' + temp_dt_dot.dt.strftime('%y')
                 df_dot['Periodo_DT'] = temp_dt_dot
             
-            dot_filter_cols = ['Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo']
+            if 'Legajo' in df_dot.columns:
+                df_dot['Legajo'] = pd.to_numeric(df_dot['Legajo'], errors='coerce').astype('Int64').astype(str)
+                df_dot['Legajo'] = df_dot['Legajo'].replace(['<NA>', 'nan'], 'no disponible')
+
+            dot_filter_cols = ['Gerencia', 'Ministerio', 'Distrito', 'Relación', 'Nivel', 'Sexo', 'Legajo']
             for c in dot_filter_cols:
                 if c in df_dot.columns:
                     df_dot[c] = df_dot[c].astype(str).replace(['nan', 'None', '<NA>'], 'no disponible').str.strip()
@@ -209,7 +218,7 @@ if uploaded_file is not None:
     st.success(f"Se procesaron con éxito **{format_integer_es(len(df_au))}** registros de novedades y licencias.")
     st.markdown("---")
 
-    # --- Barra Lateral de Filtros ---
+    # --- Barra Lateral de Filtros (con LEGAJO añadido al final) ---
     st.sidebar.header("Filtros de Ausentismo")
 
     filter_dict = {
@@ -221,25 +230,28 @@ if uploaded_file is not None:
         'Distrito': 'Distrito',
         'Relación': 'Relación Laboral',
         'Nivel': 'Nivel',
-        'Sexo': 'Sexo'
+        'Sexo': 'Sexo',
+        'Legajo': 'Legajo'
     }
 
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
 
-    # Opciones completas unificando Ausentismo y Dotación
+    # Opciones completas unificando Ausentismo y Dotación (orden numérico para Legajos)
     def get_combined_options(col_name):
         opts_au = set(df_au[col_name].dropna().unique()) if col_name in df_au.columns else set()
         opts_dot = set(df_dot[col_name].dropna().unique()) if (df_dot is not None and col_name in df_dot.columns) else set()
-        total_opts = sorted(list(opts_au.union(opts_dot)))
-        return [str(o).strip() for o in total_opts if str(o).strip() not in ['no disponible', 'nan', 'None']]
+        total_opts = [str(o).strip() for o in opts_au.union(opts_dot) if str(o).strip() not in ['no disponible', 'nan', 'None', '<NA>']]
+        if col_name == 'Legajo':
+            return sorted(total_opts, key=lambda x: int(x) if str(x).isdigit() else 999999)
+        return sorted(total_opts)
 
     all_possible_options = {
         k: (periodos_ordenados if k == 'Periodo_Label' else get_combined_options(k))
         for k in filter_dict.keys()
     }
 
-    if 'au_selections_v2' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
-        st.session_state.au_selections_v2 = {k: list(v) for k, v in all_possible_options.items()}
+    if 'au_selections_v3' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
+        st.session_state.au_selections_v3 = {k: list(v) for k, v in all_possible_options.items()}
         st.rerun()
 
     filtered_df = df_au.copy()
@@ -248,15 +260,15 @@ if uploaded_file is not None:
     # Filtrado inteligente
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
-        current_defaults = [x for x in st.session_state.au_selections_v2.get(col, opts) if x in opts]
+        current_defaults = [x for x in st.session_state.au_selections_v3.get(col, opts) if x in opts]
         
         sel = st.sidebar.multiselect(
             label, 
             options=opts, 
             default=current_defaults, 
-            key=f"sel_v2_{col}"
+            key=f"sel_v3_{col}"
         )
-        st.session_state.au_selections_v2[col] = sel
+        st.session_state.au_selections_v3[col] = sel
 
         if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
@@ -269,7 +281,7 @@ if uploaded_file is not None:
                 filtered_dot = filtered_dot[filtered_dot[col].isin(sel)]
 
     # Validaciones de filtros
-    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v2.get('Periodo_Label', [])]
+    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v3.get('Periodo_Label', [])]
 
     if not sel_periodos:
         st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Seleccione al menos un mes en la barra lateral.")
@@ -544,7 +556,7 @@ if uploaded_file is not None:
     ])
 
     # =========================================================================
-    # --- TABLERO EJECUTIVO IAU ---
+    # --- TABLERO EJECUTIVO IAU (TORTAS EN ORDEN CRONOLÓGICO) ---
     # =========================================================================
     with tab_iau:
         st.subheader("Tablero Comparativo de Índices de Ausentismo (IAU)")
@@ -562,8 +574,20 @@ if uploaded_file is not None:
                     hole=0.45,
                     color_discrete_sequence=paleta_meses
                 )
-                fig_pie_d.update_traces(textinfo='percent', textposition='inside', insidetextorientation='horizontal')
-                fig_pie_d.update_layout(showlegend=True, legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10)), margin=dict(t=20, b=20, l=10, r=10), height=280)
+                # sort=False asegura el orden cronológico estricto
+                fig_pie_d.update_traces(
+                    sort=False,
+                    textinfo='percent', 
+                    textposition='inside', 
+                    insidetextorientation='horizontal',
+                    direction='clockwise'
+                )
+                fig_pie_d.update_layout(
+                    showlegend=True, 
+                    legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10), traceorder="normal"), 
+                    margin=dict(t=20, b=20, l=10, r=10), 
+                    height=280
+                )
                 st.plotly_chart(fig_pie_d, use_container_width=True)
 
             with col_line:
@@ -609,8 +633,20 @@ if uploaded_file is not None:
                     hole=0.45,
                     color_discrete_sequence=paleta_meses
                 )
-                fig_pie_h.update_traces(textinfo='percent', textposition='inside', insidetextorientation='horizontal')
-                fig_pie_h.update_layout(showlegend=True, legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10)), margin=dict(t=20, b=20, l=10, r=10), height=280)
+                # sort=False asegura el orden cronológico estricto
+                fig_pie_h.update_traces(
+                    sort=False,
+                    textinfo='percent', 
+                    textposition='inside', 
+                    insidetextorientation='horizontal',
+                    direction='clockwise'
+                )
+                fig_pie_h.update_layout(
+                    showlegend=True, 
+                    legend=dict(orientation="v", y=0.5, x=1.05, font=dict(size=10), traceorder="normal"), 
+                    margin=dict(t=20, b=20, l=10, r=10), 
+                    height=280
+                )
                 st.plotly_chart(fig_pie_h, use_container_width=True)
 
             st.markdown("---")
@@ -1256,13 +1292,12 @@ if uploaded_file is not None:
             st.info("No hay registros cronológicos para los filtros seleccionados.")
 
     # =========================================================================
-    # --- NUEVA PESTAÑA: CRONOGRAMA DE LICENCIAS (DIAGRAMA DE GANTT) ---
+    # --- TAB CRONOGRAMA DE LICENCIAS (DIAGRAMA DE GANTT) ---
     # =========================================================================
     with tab_gantt:
         st.subheader("Cronograma Visual de Licencias (Diagrama de Gantt)")
         st.write("Visualización temporal de duración de ausencias por agente y concepto.")
         
-        # Filtramos registros con fechas válidas y duración en días
         df_gantt_base = filtered_df[
             (filtered_df['Total (D)'] > 0) & 
             (filtered_df['Fecha_Diaria'].notna()) & 
@@ -1272,12 +1307,10 @@ if uploaded_file is not None:
         if not df_gantt_base.empty:
             df_gantt_base = df_gantt_base[df_gantt_base['Fecha_Hasta_D'] >= df_gantt_base['Fecha_Diaria']]
             
-            # Eliminamos duplicados de eventos idénticos
             df_gantt_unique = df_gantt_base.drop_duplicates(
                 subset=['Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia', 'Fecha_Diaria', 'Fecha_Hasta_D']
             ).copy()
 
-            # Orden cronológico por inicio
             df_gantt_unique = df_gantt_unique.sort_values(by='Fecha_Diaria', ascending=True)
 
             def make_gantt_label(row):
@@ -1287,7 +1320,6 @@ if uploaded_file is not None:
 
             df_gantt_unique['Agente_Licencia'] = df_gantt_unique.apply(make_gantt_label, axis=1)
 
-            # Controles de visualización
             col_g1, col_g2 = st.columns([1.5, 2.5])
             with col_g1:
                 cant_mostrar = st.slider(
@@ -1310,7 +1342,6 @@ if uploaded_file is not None:
             df_plot_gantt = df_gantt_unique[df_gantt_unique['Tipo'].isin(sel_tipos_gantt)].head(cant_mostrar).copy()
 
             if not df_plot_gantt.empty:
-                # Diagrama de Gantt nativo con px.timeline
                 fig_gantt = px.timeline(
                     df_plot_gantt,
                     x_start="Fecha_Diaria",
@@ -1328,7 +1359,6 @@ if uploaded_file is not None:
                     }
                 )
 
-                # Ajustamos orden de arriba hacia abajo para replicar Looker
                 fig_gantt.update_yaxes(autorange="reversed", title=None)
                 fig_gantt.update_xaxes(title="Línea de Tiempo", showgrid=True)
                 fig_gantt.update_layout(
@@ -1377,19 +1407,88 @@ if uploaded_file is not None:
                 }), use_container_width=True, hide_index=True)
                 generate_download_buttons(df_evo, "evolucion_ausentismo", key_suffix="_evo")
 
-    # --- TAB 2: Motivos y Licencias ---
+    # =========================================================================
+    # --- TAB 2: MOTIVOS Y LICENCIAS (CON SELECTOR ANALÍTICO REAL) ---
+    # =========================================================================
     with tab2:
         st.subheader("Composición por Tipo y Motivo de Ausencia")
+        
+        # Selector para otorgar valor analítico real al gráfico de torta
+        analisis_pie = st.radio(
+            "Seleccione la métrica para el gráfico de distribución:",
+            options=["Días por Motivo de Licencia", "Horas por Concepto de Novedad", "Total de Casos (Licencias vs Novedades)"],
+            horizontal=True,
+            key="radio_pie_tab2"
+        )
+        st.markdown("<br>", unsafe_allow_html=True)
+
         c1, c2 = st.columns(2)
         with c1:
-            df_tipo = filtered_df.groupby('Tipo', as_index=False).agg(
-                Dias=('Total (D)', 'sum'),
-                Horas=('Total (H)', 'sum'),
-                Casos=('Legajo', 'count')
-            )
-            fig_pie_tipo = px.pie(df_tipo, names='Tipo', values='Dias', title='Distribución de Días por Tipo (Licencia vs Novedad)', hole=0.4, color_discrete_sequence=['#0f766e', '#0284c7', '#f59e0b'])
-            fig_pie_tipo.update_traces(textinfo='percent+label+value')
-            st.plotly_chart(fig_pie_tipo, use_container_width=True)
+            if analisis_pie == "Días por Motivo de Licencia":
+                df_lic_dias = (
+                    filtered_df[filtered_df['Total (D)'] > 0]
+                    .groupby('Licencia', as_index=False)['Total (D)']
+                    .sum()
+                    .sort_values(by='Total (D)', ascending=False)
+                )
+                if not df_lic_dias.empty:
+                    # Agrupar los menores en "Otras licencias" para claridad visual
+                    top_n = 5
+                    if len(df_lic_dias) > top_n:
+                        df_top = df_lic_dias.head(top_n).copy()
+                        otros_val = df_lic_dias.iloc[top_n:]['Total (D)'].sum()
+                        df_otros = pd.DataFrame([{'Licencia': 'Otras Licencias', 'Total (D)': otros_val}])
+                        df_pie_final = pd.concat([df_top, df_otros], ignore_index=True)
+                    else:
+                        df_pie_final = df_lic_dias
+
+                    fig_pie_mot = px.pie(
+                        df_pie_final,
+                        names='Licencia',
+                        values='Total (D)',
+                        title='Distribución de Días por Motivo de Licencia',
+                        hole=0.4,
+                        color_discrete_sequence=px.colors.qualitative.Prism
+                    )
+                    fig_pie_mot.update_traces(textinfo='percent+value')
+                    st.plotly_chart(fig_pie_mot, use_container_width=True)
+                else:
+                    st.info("No se registran días de licencias en la selección.")
+
+            elif analisis_pie == "Horas por Concepto de Novedad":
+                df_nov_horas = (
+                    filtered_df[filtered_df['Total (H)'] > 0]
+                    .groupby('Licencia', as_index=False)['Total (H)']
+                    .sum()
+                    .sort_values(by='Total (H)', ascending=False)
+                )
+                if not df_nov_horas.empty:
+                    fig_pie_nov = px.pie(
+                        df_nov_horas,
+                        names='Licencia',
+                        values='Total (H)',
+                        title='Distribución de Horas por Concepto de Novedad',
+                        hole=0.4,
+                        color_discrete_sequence=px.colors.qualitative.Teal
+                    )
+                    fig_pie_nov.update_traces(textinfo='percent+value')
+                    st.plotly_chart(fig_pie_nov, use_container_width=True)
+                else:
+                    st.info("No se registran horas en la selección.")
+
+            else:
+                # Total de Casos Registrados (37,4% Licencias vs 62,6% Novedades)
+                df_casos = filtered_df.groupby('Tipo', as_index=False)['Legajo'].count().rename(columns={'Legajo': 'Casos'})
+                fig_pie_casos = px.pie(
+                    df_casos,
+                    names='Tipo',
+                    values='Casos',
+                    title='Distribución por Tipo de Registro (Casos)',
+                    hole=0.4,
+                    color_discrete_sequence=['#0d9488', '#0284c7']
+                )
+                fig_pie_casos.update_traces(textinfo='percent+label+value')
+                st.plotly_chart(fig_pie_casos, use_container_width=True)
 
         with c2:
             df_motivos = (
