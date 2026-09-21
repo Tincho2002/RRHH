@@ -163,12 +163,12 @@ def load_and_process_data(uploaded_file):
 
         df_au['Rango_Horario'] = df_au['Hora_Inicio'].apply(assign_rango_horario)
 
-        # Normalizar Legajo a formato entero limpio
+        # Normalizar Legajo
         if 'Legajo' in df_au.columns:
             df_au['Legajo'] = pd.to_numeric(df_au['Legajo'], errors='coerce').astype('Int64').astype(str)
             df_au['Legajo'] = df_au['Legajo'].replace(['<NA>', 'nan'], 'no disponible')
 
-        # Cargar dotación y normalizarla
+        # Cargar dotación
         df_dot = None
         if 'Dotación' in xls.sheet_names:
             df_dot = pd.read_excel(xls, sheet_name='Dotación')
@@ -218,7 +218,7 @@ if uploaded_file is not None:
     st.success(f"Se procesaron con éxito **{format_integer_es(len(df_au))}** registros de novedades y licencias.")
     st.markdown("---")
 
-    # --- Barra Lateral de Filtros (con LEGAJO añadido al final) ---
+    # --- Barra Lateral de Filtros ---
     st.sidebar.header("Filtros de Ausentismo")
 
     filter_dict = {
@@ -236,7 +236,6 @@ if uploaded_file is not None:
 
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
 
-    # Opciones completas unificando Ausentismo y Dotación (orden numérico para Legajos)
     def get_combined_options(col_name):
         opts_au = set(df_au[col_name].dropna().unique()) if col_name in df_au.columns else set()
         opts_dot = set(df_dot[col_name].dropna().unique()) if (df_dot is not None and col_name in df_dot.columns) else set()
@@ -291,7 +290,7 @@ if uploaded_file is not None:
         st.warning("⚠️ No se encontraron registros con los filtros seleccionados.")
         st.stop()
 
-    # --- CÁLCULO DE CAPACIDAD Y AUSENTISMO (Total Acumulado) ---
+    # --- CÁLCULO DE CAPACIDAD Y AUSENTISMO ---
     dias_habiles_por_mes = df_au.groupby('Periodo_Label')['Dias_Habiles'].first().to_dict()
 
     total_dias = filtered_df['Total (D)'].sum()
@@ -472,7 +471,7 @@ if uploaded_file is not None:
         
     df_evo = pd.DataFrame(evo_rows)
 
-    # --- Cálculo de Datos de Distribución Geográfica (Distrito y Coordenadas) ---
+    # --- Cálculo de Datos de Distribución Geográfica ---
     coord_dict = {}
     if 'Coordenadas' in df_au.columns:
         coord_dict.update(df_au.dropna(subset=['Coordenadas']).groupby('Distrito')['Coordenadas'].first().to_dict())
@@ -539,7 +538,7 @@ if uploaded_file is not None:
 
     df_geo_distritos = pd.DataFrame(distrito_data_rows)
 
-    # --- Pestañas de Análisis Completas ---
+    # --- Pestañas de Análisis ---
     tab_iau, tab_geo_d, tab_geo_h, tab_dias_caidos, tab_horas_caidas, tab_matriz_hc, tab_cronologia, tab_gantt, tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Tablero Ejecutivo IAU",
         "🗺️ Distribución Geográfica (Días)",
@@ -574,7 +573,6 @@ if uploaded_file is not None:
                     hole=0.45,
                     color_discrete_sequence=paleta_meses
                 )
-                # sort=False asegura el orden cronológico estricto
                 fig_pie_d.update_traces(
                     sort=False,
                     textinfo='percent', 
@@ -633,7 +631,6 @@ if uploaded_file is not None:
                     hole=0.45,
                     color_discrete_sequence=paleta_meses
                 )
-                # sort=False asegura el orden cronológico estricto
                 fig_pie_h.update_traces(
                     sort=False,
                     textinfo='percent', 
@@ -889,7 +886,7 @@ if uploaded_file is not None:
             st.info("No hay datos geográficos disponibles.")
 
     # =========================================================================
-    # --- TAB DÍAS CAÍDOS (ANÁLISIS TEMPORAL Y VARIACIONES) ---
+    # --- TAB DÍAS CAÍDOS ---
     # =========================================================================
     with tab_dias_caidos:
         st.subheader("Análisis de Días Caídos por Mes y Fecha")
@@ -1035,7 +1032,7 @@ if uploaded_file is not None:
             st.info("No se registran novedades de días caídos en la selección actual.")
 
     # =========================================================================
-    # --- TAB HORAS CAÍDAS (ANÁLISIS TEMPORAL E INTERVALOS) ---
+    # --- TAB HORAS CAÍDAS ---
     # =========================================================================
     with tab_horas_caidas:
         st.subheader("Análisis de Horas Caídas por Franja Horaria y Fecha")
@@ -1191,7 +1188,7 @@ if uploaded_file is not None:
             st.info("No se registran novedades horarias en la selección actual.")
 
     # =========================================================================
-    # --- TAB HORAS CAÍDAS SEGÚN HORA DE INICIO (MATRIZ PIVOT) ---
+    # --- TAB HORAS CAÍDAS SEGÚN HORA DE INICIO ---
     # =========================================================================
     with tab_matriz_hc:
         st.subheader("Matriz de Horas Caídas según Hora de Inicio y Hora de Fin")
@@ -1408,12 +1405,11 @@ if uploaded_file is not None:
                 generate_download_buttons(df_evo, "evolucion_ausentismo", key_suffix="_evo")
 
     # =========================================================================
-    # --- TAB 2: MOTIVOS Y LICENCIAS (CON SELECTOR ANALÍTICO REAL) ---
+    # --- TAB 2: MOTIVOS Y LICENCIAS (CORREGIDO CON PALETA ROBUSTA) ---
     # =========================================================================
     with tab2:
         st.subheader("Composición por Tipo y Motivo de Ausencia")
         
-        # Selector para otorgar valor analítico real al gráfico de torta
         analisis_pie = st.radio(
             "Seleccione la métrica para el gráfico de distribución:",
             options=["Días por Motivo de Licencia", "Horas por Concepto de Novedad", "Total de Casos (Licencias vs Novedades)"],
@@ -1432,7 +1428,6 @@ if uploaded_file is not None:
                     .sort_values(by='Total (D)', ascending=False)
                 )
                 if not df_lic_dias.empty:
-                    # Agrupar los menores en "Otras licencias" para claridad visual
                     top_n = 5
                     if len(df_lic_dias) > top_n:
                         df_top = df_lic_dias.head(top_n).copy()
@@ -1448,7 +1443,7 @@ if uploaded_file is not None:
                         values='Total (D)',
                         title='Distribución de Días por Motivo de Licencia',
                         hole=0.4,
-                        color_discrete_sequence=px.colors.qualitative.Prism
+                        color_discrete_sequence=['#0d9488', '#0284c7', '#2563eb', '#f59e0b', '#ec4899', '#94a3b8']
                     )
                     fig_pie_mot.update_traces(textinfo='percent+value')
                     st.plotly_chart(fig_pie_mot, use_container_width=True)
@@ -1463,13 +1458,22 @@ if uploaded_file is not None:
                     .sort_values(by='Total (H)', ascending=False)
                 )
                 if not df_nov_horas.empty:
+                    top_nh = 5
+                    if len(df_nov_horas) > top_nh:
+                        df_top_h = df_nov_horas.head(top_nh).copy()
+                        otros_h = df_nov_horas.iloc[top_nh:]['Total (H)'].sum()
+                        df_otros_h = pd.DataFrame([{'Licencia': 'Otras Novedades', 'Total (H)': otros_h}])
+                        df_pie_nov_final = pd.concat([df_top_h, df_otros_h], ignore_index=True)
+                    else:
+                        df_pie_nov_final = df_nov_horas
+
                     fig_pie_nov = px.pie(
-                        df_nov_horas,
+                        df_pie_nov_final,
                         names='Licencia',
                         values='Total (H)',
                         title='Distribución de Horas por Concepto de Novedad',
                         hole=0.4,
-                        color_discrete_sequence=px.colors.qualitative.Teal
+                        color_discrete_sequence=['#0284c7', '#0369a1', '#0d9488', '#14b8a6', '#f59e0b', '#94a3b8']
                     )
                     fig_pie_nov.update_traces(textinfo='percent+value')
                     st.plotly_chart(fig_pie_nov, use_container_width=True)
@@ -1477,7 +1481,6 @@ if uploaded_file is not None:
                     st.info("No se registran horas en la selección.")
 
             else:
-                # Total de Casos Registrados (37,4% Licencias vs 62,6% Novedades)
                 df_casos = filtered_df.groupby('Tipo', as_index=False)['Legajo'].count().rename(columns={'Legajo': 'Casos'})
                 fig_pie_casos = px.pie(
                     df_casos,
