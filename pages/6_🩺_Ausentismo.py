@@ -1296,7 +1296,7 @@ if uploaded_file is not None:
     # =========================================================================
     with tab_matriz_hc:
         st.subheader("Matriz de Horas Caídas según Hora de Inicio y Hora de Fin")
-        st.write("Cruce detallado de franjas horarias exactas con totales acumulados.")
+        st.write("Cruce detallado de franjas horarias exactas con totales acumulados y perfil horario.")
         
         df_matriz_source = filtered_df[(filtered_df['Total (H)'] > 0) & (filtered_df['Hora_Fin_Label'].notna())].copy()
         
@@ -1333,19 +1333,71 @@ if uploaded_file is not None:
                     return format_decimal_es(val, 1)
                 return format_integer_es(val)
             
-            st.markdown("##### Horas Caídas según Hora de Inicio")
+            st.markdown("##### Horas Caídas según Hora de Inicio (Matriz)")
             st.dataframe(
                 df_pivot_display.style.format(format_celda_horas),
                 use_container_width=True,
-                height=550
+                height=420
             )
             
             df_download_matriz = df_pivot_hc.reset_index().rename(columns={'Hora_Inicio_Label': 'Hora de Inicio'})
             generate_download_buttons(df_download_matriz, "horas_caidas_segun_hora_inicio", key_suffix="_hc_matriz")
+
+            st.markdown("---")
+
+            # --- GRÁFICO ESCALONADO IDÉNTICO A LOOKER STUDIO ---
+            st.markdown("##### Horas Caídas por Hora según Horario de Inicio")
+
+            df_line_h = filtered_df[filtered_df['Total (H)'] > 0].dropna(subset=['Hora_Inicio']).copy()
+            df_line_h['Hora_Num'] = df_line_h['Hora_Inicio'].astype(int)
+
+            # Consolidamos las 24 horas del día (00:00 a 23:00)
+            horas_24 = pd.DataFrame({'Hora_Num': list(range(24))})
+            df_line_agg = df_line_h.groupby('Hora_Num', as_index=False)['Total (H)'].sum()
+            df_line_full = pd.merge(horas_24, df_line_agg, on='Hora_Num', how='left').fillna(0.0)
+            df_line_full['Hora_Label'] = df_line_full['Hora_Num'].apply(lambda h: f"{h:02d}:00 hs")
+
+            # Recortamos hasta la última hora con datos significativos (habitualmente 22:00 / 23:00 hs)
+            df_plot_steps = df_line_full[df_line_full['Hora_Num'] <= 22].copy()
+
+            fig_step = go.Figure()
+            fig_step.add_trace(go.Scatter(
+                x=df_plot_steps['Hora_Label'],
+                y=df_plot_steps['Total (H)'],
+                mode='lines+markers+text',
+                name='Total (H)',
+                line=dict(shape='hv', color='#0284c7', width=3),  # Línea escalonada tipo Looker
+                marker=dict(size=6, color='#0284c7'),
+                text=[format_integer_es(v) if v > 0 else "0" for v in df_plot_steps['Total (H)']],
+                textposition='top center',
+                textfont=dict(size=10, color='#0284c7'),
+                hovertemplate='Horario: %{x}<br>Total (H): %{y:,.1f}<extra></extra>'
+            ))
+
+            max_y_val = df_plot_steps['Total (H)'].max()
+            fig_step.update_layout(
+                yaxis=dict(
+                    title="Horas",
+                    showgrid=True,
+                    range=[0, max_y_val * 1.25 if max_y_val > 0 else 100],
+                    tickformat=",.0f"
+                ),
+                xaxis=dict(
+                    title=None,
+                    tickangle=-35,
+                    showgrid=True
+                ),
+                legend=dict(orientation="h", y=1.12, x=0.01),
+                margin=dict(t=30, b=40, l=10, r=10),
+                height=380,
+                hovermode="x unified"
+            )
+
+            st.plotly_chart(fig_step, use_container_width=True)
+
         else:
             st.info("No hay registros con información de horario de inicio y fin para la selección actual.")
-
-    # =========================================================================
+            # =========================================================================
     # --- TAB CRONOLOGÍA POR TIPO Y POR LICENCIA ---
     # =========================================================================
     with tab_cronologia:
