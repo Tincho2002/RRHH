@@ -1344,14 +1344,26 @@ if uploaded_file is not None:
     # =========================================================================
     with tab_cronologia:
         st.subheader("Cronología por Tipo y por Licencia")
-        st.write("Detalle de episodios de ausencia y licencias ordenados por volumen de días caídos.")
+        st.write("Detalle consolidado por episodio de licencia ordenado por días acumulados.")
 
-        # Tomamos los registros de ausencias con fecha válida
-        df_cron_source = filtered_df[
-            (filtered_df['Total (D)'] > 0) | (filtered_df['Total (H)'] > 0)
-        ].copy()
+        # Agrupamos por cada episodio único (incluyendo su fecha de inicio y fin)
+        cron_dim = [
+            'Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia',
+            'Fecha_Diaria', 'Fecha_Hasta_D', 'Desde_H_Str', 'Hora_Fin_Label'
+        ]
+        
+        # Aseguramos columnas presentes
+        cols_existentes = [c for c in cron_dim if c in filtered_df.columns]
 
-        if not df_cron_source.empty:
+        df_cron_agg = filtered_df.groupby(cols_existentes, as_index=False).agg(
+            Total_D=('Total (D)', 'sum'),
+            Total_H=('Total (H)', 'sum')
+        )
+
+        # Filtramos los que tengan impacto en días u horas
+        df_cron_agg = df_cron_agg[(df_cron_agg['Total_D'] > 0) | (df_cron_agg['Total_H'] > 0)].copy()
+
+        if not df_cron_agg.empty:
             mapa_meses_full = {
                 1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun',
                 7: 'jul', 8: 'ago', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dic'
@@ -1361,29 +1373,29 @@ if uploaded_file is not None:
                 if pd.isna(d): return "-"
                 return f"{d.day} {mapa_meses_full.get(d.month, '')} {d.year}"
 
-            # Formateo de fechas y horas
-            df_cron_source['Desde (D)'] = df_cron_source['Fecha_Diaria'].apply(format_date_str)
-            df_cron_source['Hasta (D)'] = df_cron_source['Fecha_Hasta_D'].apply(format_date_str)
-            df_cron_source['Desde (H)'] = df_cron_source['Desde_H_Str'].fillna("-")
-            df_cron_source['Hasta (H)'] = df_cron_source['Hora_Fin_Label'].fillna("-")
+            # Formateo de fechas visibles
+            df_cron_agg['Desde (D)'] = df_cron_agg['Fecha_Diaria'].apply(format_date_str)
+            df_cron_agg['Hasta (D)'] = df_cron_agg['Fecha_Hasta_D'].apply(format_date_str)
+            df_cron_agg['Desde (H)'] = df_cron_agg['Desde_H_Str'].fillna("-") if 'Desde_H_Str' in df_cron_agg.columns else "-"
+            df_cron_agg['Hasta (H)'] = df_cron_agg['Hora_Fin_Label'].fillna("-") if 'Hora_Fin_Label' in df_cron_agg.columns else "-"
 
-            # Orden descendente por Total (D) idéntico a Looker
-            df_cron_sorted = df_cron_source.sort_values(
-                by=['Total (D)', 'Fecha_Diaria'], 
+            # Orden idéntico a Looker: Total (D) descendente, luego fecha de inicio
+            df_cron_final = df_cron_agg.sort_values(
+                by=['Total_D', 'Fecha_Diaria'], 
                 ascending=[False, True]
             ).reset_index(drop=True)
 
-            cols_crono_show = [
+            cols_show = [
                 'Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia',
                 'Desde (D)', 'Hasta (D)', 'Desde (H)', 'Hasta (H)',
-                'Total (D)', 'Total (H)'
+                'Total_D', 'Total_H'
             ]
-            
-            # Eliminamos duplicados idénticos si existiesen en la fuente
-            df_cron_final = df_cron_sorted[cols_crono_show].drop_duplicates().reset_index(drop=True)
+            df_cron_display = df_cron_final[cols_show].rename(
+                columns={'Total_D': 'Total (D)', 'Total_H': 'Total (H)'}
+            )
 
             st.dataframe(
-                df_cron_final.style.format({
+                df_cron_display.style.format({
                     'Total (D)': lambda x: format_integer_es(x) if x > 0 else "-",
                     'Total (H)': lambda x: format_decimal_es(x, 1) if (x > 0 and x % 1 != 0) else (format_integer_es(x) if x > 0 else "-")
                 }),
@@ -1391,7 +1403,7 @@ if uploaded_file is not None:
                 height=550,
                 hide_index=True
             )
-            generate_download_buttons(df_cron_final, "cronologia_licencias_agentes", key_suffix="_cron")
+            generate_download_buttons(df_cron_display, "cronologia_licencias_agentes", key_suffix="_cron")
         else:
             st.info("No hay registros cronológicos para los filtros seleccionados.")
 
