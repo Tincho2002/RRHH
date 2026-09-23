@@ -112,10 +112,12 @@ def load_and_process_data(uploaded_file):
 
         if 'Hasta (D)' in df_au.columns:
             df_au['Fecha_Hasta_D'] = pd.to_datetime(df_au['Hasta (D)'], errors='coerce')
+            # Si no tiene fecha hasta pero sí fecha desde, asignamos la misma fecha desde
+            df_au['Fecha_Hasta_D'] = df_au['Fecha_Hasta_D'].fillna(df_au['Fecha_Diaria'])
             df_au['Hasta_Dias_Str'] = df_au['Fecha_Hasta_D'].dt.strftime('%d/%m/%Y')
         else:
-            df_au['Fecha_Hasta_D'] = pd.NaT
-            df_au['Hasta_Dias_Str'] = None
+            df_au['Fecha_Hasta_D'] = df_au['Fecha_Diaria']
+            df_au['Hasta_Dias_Str'] = df_au['Desde_Dias_Str']
 
         def extract_hour(val):
             if pd.isna(val): return None
@@ -269,17 +271,13 @@ if uploaded_file is not None:
         key=lambda x: int(x) if str(x).isdigit() else 999999
     )
 
-    # Fechas Desde (D) y Hasta (D) únicas ordenadas
     fechas_desde_d_sorted = df_au.dropna(subset=['Fecha_Diaria']).sort_values('Fecha_Diaria')['Desde_Dias_Str'].unique().tolist()
     fechas_hasta_d_sorted = df_au.dropna(subset=['Fecha_Hasta_D']).sort_values('Fecha_Hasta_D')['Hasta_Dias_Str'].unique().tolist()
-
-    # Horas Desde (H) y Hasta (H) únicas ordenadas
     horas_desde_h_sorted = sorted([h for h in df_au['Desde_H_Str'].dropna().unique() if h not in ['None', 'nan']])
     horas_hasta_h_sorted = sorted([h for h in df_au['Hora_Fin_Label'].dropna().unique() if h not in ['None', 'nan']])
 
-    # Inicialización de estado y botón de reseteo
-    if 'au_selections_v7' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
-        st.session_state.au_selections_v7 = {k: list(v) for k, v in all_possible_options.items()}
+    if 'au_selections_v8' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
+        st.session_state.au_selections_v8 = {k: list(v) for k, v in all_possible_options.items()}
         st.session_state.au_sel_legajo = []
         st.session_state.au_sel_desde_d = []
         st.session_state.au_sel_hasta_d = []
@@ -293,15 +291,15 @@ if uploaded_file is not None:
     # Filtrado de variables generales
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
-        current_defaults = [x for x in st.session_state.au_selections_v7.get(col, opts) if x in opts]
+        current_defaults = [x for x in st.session_state.au_selections_v8.get(col, opts) if x in opts]
         
         sel = st.sidebar.multiselect(
             label, 
             options=opts, 
             default=current_defaults, 
-            key=f"sel_v7_{col}"
+            key=f"sel_v8_{col}"
         )
-        st.session_state.au_selections_v7[col] = sel
+        st.session_state.au_selections_v8[col] = sel
 
         if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
@@ -323,7 +321,7 @@ if uploaded_file is not None:
         options=fechas_desde_d_sorted,
         default=st.session_state.get('au_sel_desde_d', []),
         help="Deje vacío para incluir todas las fechas de inicio, o elija una o más puntuales.",
-        key="sel_v7_desde_d"
+        key="sel_v8_desde_d"
     )
     st.session_state.au_sel_desde_d = sel_desde_d
     if len(sel_desde_d) > 0:
@@ -335,7 +333,7 @@ if uploaded_file is not None:
         options=fechas_hasta_d_sorted,
         default=st.session_state.get('au_sel_hasta_d', []),
         help="Deje vacío para incluir todas las fechas de fin, o elija una o más puntuales.",
-        key="sel_v7_hasta_d"
+        key="sel_v8_hasta_d"
     )
     st.session_state.au_sel_hasta_d = sel_hasta_d
     if len(sel_hasta_d) > 0:
@@ -347,7 +345,7 @@ if uploaded_file is not None:
         options=horas_desde_h_sorted,
         default=st.session_state.get('au_sel_desde_h', []),
         help="Deje vacío para todos los horarios de inicio, o elija franjas específicas.",
-        key="sel_v7_desde_h"
+        key="sel_v8_desde_h"
     )
     st.session_state.au_sel_desde_h = sel_desde_h
     if len(sel_desde_h) > 0:
@@ -359,7 +357,7 @@ if uploaded_file is not None:
         options=horas_hasta_h_sorted,
         default=st.session_state.get('au_sel_hasta_h', []),
         help="Deje vacío para todos los horarios de fin, o elija franjas específicas.",
-        key="sel_v7_hasta_h"
+        key="sel_v8_hasta_h"
     )
     st.session_state.au_sel_hasta_h = sel_hasta_h
     if len(sel_hasta_h) > 0:
@@ -371,7 +369,7 @@ if uploaded_file is not None:
         options=opts_legajos,
         default=st.session_state.get('au_sel_legajo', []),
         help="Deje vacío para incluir a todos los colaboradores, o seleccione agentes puntuales.",
-        key="sel_v7_legajo"
+        key="sel_v8_legajo"
     )
     st.session_state.au_sel_legajo = sel_legajo
     if len(sel_legajo) > 0:
@@ -380,7 +378,7 @@ if uploaded_file is not None:
             filtered_dot = filtered_dot[filtered_dot['Legajo'].isin(sel_legajo)]
 
     # Validaciones de filtros
-    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v7.get('Periodo_Label', [])]
+    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v8.get('Periodo_Label', [])]
 
     if not sel_periodos:
         st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Seleccione al menos un mes en la barra lateral.")
@@ -1389,16 +1387,14 @@ if uploaded_file is not None:
             st.info("No hay registros cronológicos para los filtros seleccionados.")
 
     # =========================================================================
-    # --- TAB CRONOGRAMA DE LICENCIAS (DIAGRAMA DE GANTT - ESCALA EXACTA LOOKER) ---
+    # --- TAB CRONOGRAMA DE LICENCIAS (DIAGRAMA DE GANTT - IDÉNTICO A LOOKER) ---
     # =========================================================================
     with tab_gantt:
         st.subheader("Cronograma Visual de Licencias (Diagrama de Gantt)")
-        st.write("Visualización temporal de ausencias por agente ordenada estrictamente por fecha de inicio.")
-        
-        # 1. Filtramos EXCLUSIVAMENTE licencias en días con fechas válidas (evita huecos por Novedades horarias)
+        st.write("Visualización cronológica de todas las ausencias por agente ordenada estrictamente por fecha de inicio.")
+
+        # Tomamos todos los registros con fecha válida (Licencias y Novedades como PRP)
         df_gantt_base = filtered_df[
-            (filtered_df['Tipo'] == 'Licencia') & 
-            (filtered_df['Total (D)'] > 0) & 
             (filtered_df['Fecha_Diaria'].notna()) & 
             (filtered_df['Fecha_Hasta_D'].notna())
         ].copy()
@@ -1406,69 +1402,66 @@ if uploaded_file is not None:
         if not df_gantt_base.empty:
             df_gantt_base = df_gantt_base[df_gantt_base['Fecha_Hasta_D'] >= df_gantt_base['Fecha_Diaria']]
             
-            # Eliminamos duplicados de eventos idénticos
-            df_gantt_unique = df_gantt_base.drop_duplicates(
-                subset=['Legajo', 'Apellido y Nombre', 'Licencia', 'Fecha_Diaria', 'Fecha_Hasta_D']
-            ).copy()
+            # Orden cronológico estricto por Fecha de Inicio
+            df_gantt_sorted = df_gantt_base.sort_values(by=['Fecha_Diaria', 'Fecha_Hasta_D'], ascending=[True, True]).reset_index(drop=True)
 
-            # 2. Ordenamiento cronológico estricto por Fecha de Inicio
-            df_gantt_unique = df_gantt_unique.sort_values(by=['Fecha_Diaria', 'Fecha_Hasta_D'], ascending=[True, True])
+            # Para que las licencias o permisos de 1 solo día no tengan ancho 0, extendemos 24hs
+            df_gantt_sorted['Fecha_Grafico_Fin'] = df_gantt_sorted['Fecha_Hasta_D'] + pd.Timedelta(days=1)
 
-            # 3. Clave única de renglón para que los eventos de una misma persona no se encimen y queden en escalera
-            def make_event_label(row):
+            # Etiqueta visible idéntica a Looker
+            def make_event_label_clean(row):
                 lic = str(row['Licencia']).strip()
                 lic_clean = ' - '.join([part.strip() for part in lic.split('-')])
-                f_ini = row['Fecha_Diaria'].strftime('%d/%m/%Y')
-                f_fin = row['Fecha_Hasta_D'].strftime('%d/%m/%Y')
-                return f"{row['Legajo']} - {row['Apellido y Nombre']} - {lic_clean} ({f_ini} al {f_fin})"
+                return f"{row['Legajo']} - {row['Apellido y Nombre']} - {lic_clean}"
 
-            df_gantt_unique['Evento_Renglon'] = df_gantt_unique.apply(make_event_label, axis=1)
+            df_gantt_sorted['Label_Visible'] = df_gantt_sorted.apply(make_event_label_clean, axis=1)
 
-            # 4. Extender la fecha de fin +1 día para que las licencias de 1 día tengan ancho visible y no queden invisibles
-            df_gantt_unique['Fecha_Grafico_Fin'] = df_gantt_unique['Fecha_Hasta_D'] + pd.Timedelta(days=1)
+            # Identificador único de fila para que Plotly no agrupe eventos repetidos del mismo agente
+            df_gantt_sorted['ID_Renglon'] = [f"{lbl}\u200b" * (i % 5) + f" ({i+1})" for i, lbl in enumerate(df_gantt_sorted['Label_Visible'])]
 
-            # Controles de visualización
-            cant_max_disponible = len(df_gantt_unique)
+            # Controles
+            cant_max_disponible = len(df_gantt_sorted)
             cant_mostrar = st.slider(
                 "Cantidad de registros a mostrar:",
-                min_value=5,
+                min_value=min(5, cant_max_disponible),
                 max_value=cant_max_disponible,
-                value=min(30, cant_max_disponible),
+                value=min(35, cant_max_disponible),
                 step=5 if cant_max_disponible >= 5 else 1,
                 key="gantt_cant_slider"
             )
 
-            df_plot_gantt = df_gantt_unique.head(cant_mostrar).copy()
-            # Orden de las categorías para la escalera de arriba hacia abajo
-            orden_renglones_cronologico = df_plot_gantt['Evento_Renglon'].tolist()
+            df_plot_gantt = df_gantt_sorted.head(cant_mostrar).copy()
+            orden_renglones_cronologico = df_plot_gantt['ID_Renglon'].tolist()
 
             if not df_plot_gantt.empty:
-                # Límites del eje X acordes a la muestra (con margen para abarcar todo el período)
-                min_x = df_plot_gantt['Fecha_Diaria'].min() - pd.Timedelta(days=3)
-                max_x = df_plot_gantt['Fecha_Grafico_Fin'].max() + pd.Timedelta(days=5)
+                min_x = df_plot_gantt['Fecha_Diaria'].min() - pd.Timedelta(days=2)
+                max_x = df_plot_gantt['Fecha_Grafico_Fin'].max() + pd.Timedelta(days=3)
 
                 fig_gantt = px.timeline(
                     df_plot_gantt,
                     x_start="Fecha_Diaria",
                     x_end="Fecha_Grafico_Fin",
-                    y="Evento_Renglon",
+                    y="ID_Renglon",
                     color_discrete_sequence=['#2563eb'],
                     hover_name="Apellido y Nombre",
                     hover_data={
                         "Legajo": True,
                         "Licencia": True,
-                        "Total (D)": ":,.0f",
+                        "Tipo": True,
                         "Fecha_Diaria": "|%d/%m/%Y",
                         "Fecha_Hasta_D": "|%d/%m/%Y",
-                        "Evento_Renglon": False,
+                        "ID_Renglon": False,
                         "Fecha_Grafico_Fin": False
                     }
                 )
 
-                # Forzamos la escala escalonada idéntica a Looker
+                # Mapeamos los textos visibles en el eje Y
                 fig_gantt.update_yaxes(
                     categoryorder="array",
                     categoryarray=orden_renglones_cronologico,
+                    tickmode="array",
+                    tickvals=df_plot_gantt['ID_Renglon'],
+                    ticktext=df_plot_gantt['Label_Visible'],
                     autorange="reversed",
                     title=None
                 )
@@ -1486,9 +1479,9 @@ if uploaded_file is not None:
                 )
                 st.plotly_chart(fig_gantt, use_container_width=True)
             else:
-                st.info("No hay licencias que coincidan con la selección.")
+                st.info("No hay ausencias que coincidan con la selección.")
         else:
-            st.info("No se registran licencias con fechas válidas para construir el cronograma.")
+            st.info("No se registran ausencias con fechas válidas para construir el cronograma.")
 
     # --- TAB 1: Volúmenes Absolutos ---
     with tab1:
