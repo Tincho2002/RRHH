@@ -278,8 +278,8 @@ if uploaded_file is not None:
     horas_hasta_h_sorted = sorted([h for h in df_au['Hora_Fin_Label'].dropna().unique() if h not in ['None', 'nan']])
 
     # Inicialización de estado y botón de reseteo
-    if 'au_selections_v5' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
-        st.session_state.au_selections_v5 = {k: list(v) for k, v in all_possible_options.items()}
+    if 'au_selections_v6' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
+        st.session_state.au_selections_v6 = {k: list(v) for k, v in all_possible_options.items()}
         st.session_state.au_sel_legajo = []
         st.session_state.au_sel_desde_d = []
         st.session_state.au_sel_hasta_d = []
@@ -293,15 +293,15 @@ if uploaded_file is not None:
     # Filtrado de variables generales
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
-        current_defaults = [x for x in st.session_state.au_selections_v5.get(col, opts) if x in opts]
+        current_defaults = [x for x in st.session_state.au_selections_v6.get(col, opts) if x in opts]
         
         sel = st.sidebar.multiselect(
             label, 
             options=opts, 
             default=current_defaults, 
-            key=f"sel_v5_{col}"
+            key=f"sel_v6_{col}"
         )
-        st.session_state.au_selections_v5[col] = sel
+        st.session_state.au_selections_v6[col] = sel
 
         if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
@@ -313,7 +313,7 @@ if uploaded_file is not None:
             if filtered_dot is not None and col in filtered_dot.columns:
                 filtered_dot = filtered_dot[filtered_dot[col].isin(sel)]
 
-    # --- FILTROS PUNTUALES DE BÚSQUEDA (Desde D, Hasta D, Desde H, Hasta H, Legajo) ---
+    # --- FILTROS PUNTUALES DE BÚSQUEDA ---
     st.sidebar.markdown("---")
     st.sidebar.markdown("##### Filtros de Fechas, Horas y Agentes")
 
@@ -323,7 +323,7 @@ if uploaded_file is not None:
         options=fechas_desde_d_sorted,
         default=st.session_state.get('au_sel_desde_d', []),
         help="Deje vacío para incluir todas las fechas de inicio, o elija una o más puntuales.",
-        key="sel_v5_desde_d"
+        key="sel_v6_desde_d"
     )
     st.session_state.au_sel_desde_d = sel_desde_d
     if len(sel_desde_d) > 0:
@@ -335,7 +335,7 @@ if uploaded_file is not None:
         options=fechas_hasta_d_sorted,
         default=st.session_state.get('au_sel_hasta_d', []),
         help="Deje vacío para incluir todas las fechas de fin, o elija una o más puntuales.",
-        key="sel_v5_hasta_d"
+        key="sel_v6_hasta_d"
     )
     st.session_state.au_sel_hasta_d = sel_hasta_d
     if len(sel_hasta_d) > 0:
@@ -347,7 +347,7 @@ if uploaded_file is not None:
         options=horas_desde_h_sorted,
         default=st.session_state.get('au_sel_desde_h', []),
         help="Deje vacío para todos los horarios de inicio, o elija franjas específicas.",
-        key="sel_v5_desde_h"
+        key="sel_v6_desde_h"
     )
     st.session_state.au_sel_desde_h = sel_desde_h
     if len(sel_desde_h) > 0:
@@ -359,7 +359,7 @@ if uploaded_file is not None:
         options=horas_hasta_h_sorted,
         default=st.session_state.get('au_sel_hasta_h', []),
         help="Deje vacío para todos los horarios de fin, o elija franjas específicas.",
-        key="sel_v5_hasta_h"
+        key="sel_v6_hasta_h"
     )
     st.session_state.au_sel_hasta_h = sel_hasta_h
     if len(sel_hasta_h) > 0:
@@ -371,7 +371,7 @@ if uploaded_file is not None:
         options=opts_legajos,
         default=st.session_state.get('au_sel_legajo', []),
         help="Deje vacío para incluir a todos los colaboradores, o seleccione agentes puntuales.",
-        key="sel_v5_legajo"
+        key="sel_v6_legajo"
     )
     st.session_state.au_sel_legajo = sel_legajo
     if len(sel_legajo) > 0:
@@ -380,7 +380,7 @@ if uploaded_file is not None:
             filtered_dot = filtered_dot[filtered_dot['Legajo'].isin(sel_legajo)]
 
     # Validaciones de filtros
-    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v5.get('Periodo_Label', [])]
+    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v6.get('Periodo_Label', [])]
 
     if not sel_periodos:
         st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Seleccione al menos un mes en la barra lateral.")
@@ -1389,7 +1389,7 @@ if uploaded_file is not None:
             st.info("No hay registros cronológicos para los filtros seleccionados.")
 
     # =========================================================================
-    # --- TAB CRONOGRAMA DE LICENCIAS (DIAGRAMA DE GANTT) ---
+    # --- TAB CRONOGRAMA DE LICENCIAS (DIAGRAMA DE GANTT - ESCALA GLOBAL FIJA) ---
     # =========================================================================
     with tab_gantt:
         st.subheader("Cronograma Visual de Licencias (Diagrama de Gantt)")
@@ -1439,6 +1439,10 @@ if uploaded_file is not None:
             df_plot_gantt = df_gantt_unique[df_gantt_unique['Tipo'].isin(sel_tipos_gantt)].head(cant_mostrar).copy()
 
             if not df_plot_gantt.empty:
+                # Límites temporales globales del dataset original para conservar todo el calendario en el eje X
+                min_fecha_global = df_au['Fecha_Diaria'].dropna().min()
+                max_fecha_global = df_au['Fecha_Hasta_D'].dropna().max()
+
                 fig_gantt = px.timeline(
                     df_plot_gantt,
                     x_start="Fecha_Diaria",
@@ -1456,8 +1460,15 @@ if uploaded_file is not None:
                     }
                 )
 
+                # Mantener orden cronológico descendente y horizonte temporal completo
                 fig_gantt.update_yaxes(autorange="reversed", title=None)
-                fig_gantt.update_xaxes(title="Línea de Tiempo", showgrid=True)
+                fig_gantt.update_xaxes(
+                    title="Línea de Tiempo",
+                    showgrid=True,
+                    range=[min_fecha_global, max_fecha_global],
+                    dtick="M1",
+                    tickformat="%d/%m/%Y"
+                )
                 fig_gantt.update_layout(
                     height=max(450, cant_mostrar * 24),
                     margin=dict(l=10, r=20, t=20, b=30),
