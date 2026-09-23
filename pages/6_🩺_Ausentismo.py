@@ -247,11 +247,6 @@ if uploaded_file is not None:
 
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
 
-    # Preselección estándar idéntica a Looker (Ene a Jul)
-    meses_looker_def = [p for p in periodos_ordenados if not p.lower().startswith('ago')]
-    if not meses_looker_def:
-        meses_looker_def = periodos_ordenados
-
     def get_combined_options(col_name):
         if col_name == 'Rango_Horario':
             presentes = set(df_au['Rango_Horario'].unique())
@@ -280,10 +275,9 @@ if uploaded_file is not None:
     horas_desde_h_sorted = sorted([h for h in df_au['Desde_H_Str'].dropna().unique() if h not in ['None', 'nan']])
     horas_hasta_h_sorted = sorted([h for h in df_au['Hora_Fin_Label'].dropna().unique() if h not in ['None', 'nan']])
 
-    # Inicialización sincronizada con Looker
-    if 'au_selections_v9' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
-        st.session_state.au_selections_v9 = {k: list(v) for k, v in all_possible_options.items()}
-        st.session_state.au_selections_v9['Periodo_Label'] = list(meses_looker_def)
+    # Inicialización de estado con todos los meses disponibles incluidos
+    if 'au_selections_v10' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
+        st.session_state.au_selections_v10 = {k: list(v) for k, v in all_possible_options.items()}
         st.session_state.au_sel_legajo = []
         st.session_state.au_sel_desde_d = []
         st.session_state.au_sel_hasta_d = []
@@ -297,15 +291,15 @@ if uploaded_file is not None:
     # Filtrado de variables generales
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
-        current_defaults = [x for x in st.session_state.au_selections_v9.get(col, opts) if x in opts]
+        current_defaults = [x for x in st.session_state.au_selections_v10.get(col, opts) if x in opts]
         
         sel = st.sidebar.multiselect(
             label, 
             options=opts, 
             default=current_defaults, 
-            key=f"sel_v9_{col}"
+            key=f"sel_v10_{col}"
         )
-        st.session_state.au_selections_v9[col] = sel
+        st.session_state.au_selections_v10[col] = sel
 
         if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
@@ -327,7 +321,7 @@ if uploaded_file is not None:
         options=fechas_desde_d_sorted,
         default=st.session_state.get('au_sel_desde_d', []),
         help="Deje vacío para incluir todas las fechas de inicio, o elija una o más puntuales.",
-        key="sel_v9_desde_d"
+        key="sel_v10_desde_d"
     )
     st.session_state.au_sel_desde_d = sel_desde_d
     if len(sel_desde_d) > 0:
@@ -339,7 +333,7 @@ if uploaded_file is not None:
         options=fechas_hasta_d_sorted,
         default=st.session_state.get('au_sel_hasta_d', []),
         help="Deje vacío para incluir todas las fechas de fin, o elija una o más puntuales.",
-        key="sel_v9_hasta_d"
+        key="sel_v10_hasta_d"
     )
     st.session_state.au_sel_hasta_d = sel_hasta_d
     if len(sel_hasta_d) > 0:
@@ -351,7 +345,7 @@ if uploaded_file is not None:
         options=horas_desde_h_sorted,
         default=st.session_state.get('au_sel_desde_h', []),
         help="Deje vacío para todos los horarios de inicio, o elija franjas específicas.",
-        key="sel_v9_desde_h"
+        key="sel_v10_desde_h"
     )
     st.session_state.au_sel_desde_h = sel_desde_h
     if len(sel_desde_h) > 0:
@@ -363,7 +357,7 @@ if uploaded_file is not None:
         options=horas_hasta_h_sorted,
         default=st.session_state.get('au_sel_hasta_h', []),
         help="Deje vacío para todos los horarios de fin, o elija franjas específicas.",
-        key="sel_v9_hasta_h"
+        key="sel_v10_hasta_h"
     )
     st.session_state.au_sel_hasta_h = sel_hasta_h
     if len(sel_hasta_h) > 0:
@@ -375,7 +369,7 @@ if uploaded_file is not None:
         options=opts_legajos,
         default=st.session_state.get('au_sel_legajo', []),
         help="Deje vacío para incluir a todos los colaboradores, o seleccione agentes puntuales.",
-        key="sel_v9_legajo"
+        key="sel_v10_legajo"
     )
     st.session_state.au_sel_legajo = sel_legajo
     if len(sel_legajo) > 0:
@@ -384,7 +378,7 @@ if uploaded_file is not None:
             filtered_dot = filtered_dot[filtered_dot['Legajo'].isin(sel_legajo)]
 
     # Validaciones de filtros
-    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v9.get('Periodo_Label', [])]
+    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v10.get('Periodo_Label', [])]
 
     if not sel_periodos:
         st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Seleccione al menos un mes en la barra lateral.")
@@ -1292,7 +1286,7 @@ if uploaded_file is not None:
             st.info("No se registran novedades horarias en la selección actual.")
 
     # =========================================================================
-    # --- TAB HORAS CAÍDAS SEGÚN HORA DE INICIO ---
+    # --- TAB HORAS CAÍDAS SEGÚN HORA DE INICIO (MATRIZ + STEP LINE) ---
     # =========================================================================
     with tab_matriz_hc:
         st.subheader("Matriz de Horas Caídas según Hora de Inicio y Hora de Fin")
@@ -1345,19 +1339,17 @@ if uploaded_file is not None:
 
             st.markdown("---")
 
-            # --- GRÁFICO ESCALONADO IDÉNTICO A LOOKER STUDIO ---
+            # --- GRÁFICO ESCALONADO TIPO LOOKER STUDIO ---
             st.markdown("##### Horas Caídas por Hora según Horario de Inicio")
 
             df_line_h = filtered_df[filtered_df['Total (H)'] > 0].dropna(subset=['Hora_Inicio']).copy()
             df_line_h['Hora_Num'] = df_line_h['Hora_Inicio'].astype(int)
 
-            # Consolidamos las 24 horas del día (00:00 a 23:00)
             horas_24 = pd.DataFrame({'Hora_Num': list(range(24))})
             df_line_agg = df_line_h.groupby('Hora_Num', as_index=False)['Total (H)'].sum()
             df_line_full = pd.merge(horas_24, df_line_agg, on='Hora_Num', how='left').fillna(0.0)
             df_line_full['Hora_Label'] = df_line_full['Hora_Num'].apply(lambda h: f"{h:02d}:00 hs")
 
-            # Recortamos hasta la última hora con datos significativos (habitualmente 22:00 / 23:00 hs)
             df_plot_steps = df_line_full[df_line_full['Hora_Num'] <= 22].copy()
 
             fig_step = go.Figure()
@@ -1366,7 +1358,7 @@ if uploaded_file is not None:
                 y=df_plot_steps['Total (H)'],
                 mode='lines+markers+text',
                 name='Total (H)',
-                line=dict(shape='hv', color='#0284c7', width=3),  # Línea escalonada tipo Looker
+                line=dict(shape='hv', color='#0284c7', width=3),
                 marker=dict(size=6, color='#0284c7'),
                 text=[format_integer_es(v) if v > 0 else "0" for v in df_plot_steps['Total (H)']],
                 textposition='top center',
@@ -1397,7 +1389,8 @@ if uploaded_file is not None:
 
         else:
             st.info("No hay registros con información de horario de inicio y fin para la selección actual.")
-            # =========================================================================
+
+    # =========================================================================
     # --- TAB CRONOLOGÍA POR TIPO Y POR LICENCIA ---
     # =========================================================================
     with tab_cronologia:
@@ -1415,7 +1408,6 @@ if uploaded_file is not None:
 
         df_cron_source = filtered_df.copy()
         
-        # Normalizar textos y nulos antes de agrupar para evitar pérdidas de registros
         df_cron_source['Desde (D)'] = df_cron_source['Fecha_Diaria'].apply(format_date_str)
         df_cron_source['Hasta (D)'] = df_cron_source['Fecha_Hasta_D'].apply(format_date_str)
         df_cron_source['Desde (H)'] = df_cron_source['Desde_H_Str'].fillna("-") if 'Desde_H_Str' in df_cron_source.columns else "-"
@@ -1489,7 +1481,6 @@ if uploaded_file is not None:
 
             df_gantt_sorted['Label_Visible'] = df_gantt_sorted.apply(make_event_label_clean, axis=1)
 
-            # Identificador único de fila para que Plotly no agrupe eventos repetidos del mismo agente
             df_gantt_sorted['ID_Renglon'] = [f"{lbl}\u200b" * (i % 5) + f" ({i+1})" for i, lbl in enumerate(df_gantt_sorted['Label_Visible'])]
 
             cant_max_disponible = len(df_gantt_sorted)
