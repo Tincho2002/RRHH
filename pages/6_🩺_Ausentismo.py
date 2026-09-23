@@ -1344,44 +1344,46 @@ if uploaded_file is not None:
     # =========================================================================
     with tab_cronologia:
         st.subheader("Cronología por Tipo y por Licencia")
-        st.write("Detalle consolidado por episodio de licencia ordenado por días acumulados.")
+        st.write("Detalle consolidado por episodio ordenado por volumen de días caídos.")
 
-        # Agrupamos por cada episodio único (incluyendo su fecha de inicio y fin)
+        mapa_meses_full = {
+            1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun',
+            7: 'jul', 8: 'ago', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dic'
+        }
+
+        def format_date_str(d):
+            if pd.isna(d): return "-"
+            return f"{d.day} {mapa_meses_full.get(d.month, '')} {d.year}"
+
+        df_cron_source = filtered_df.copy()
+        
+        # 1. Normalizar nulos antes de agrupar para evitar la eliminación de licencias
+        df_cron_source['Desde (D)'] = df_cron_source['Fecha_Diaria'].apply(format_date_str)
+        df_cron_source['Hasta (D)'] = df_cron_source['Fecha_Hasta_D'].apply(format_date_str)
+        df_cron_source['Desde (H)'] = df_cron_source['Desde_H_Str'].fillna("-") if 'Desde_H_Str' in df_cron_source.columns else "-"
+        df_cron_source['Hasta (H)'] = df_cron_source['Hora_Fin_Label'].fillna("-") if 'Hora_Fin_Label' in df_cron_source.columns else "-"
+
+        # 2. Dimensiones idénticas a Looker Studio
         cron_dim = [
             'Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia',
-            'Fecha_Diaria', 'Fecha_Hasta_D', 'Desde_H_Str', 'Hora_Fin_Label'
+            'Desde (D)', 'Hasta (D)', 'Desde (H)', 'Hasta (H)'
         ]
-        
-        # Aseguramos columnas presentes
-        cols_existentes = [c for c in cron_dim if c in filtered_df.columns]
+        cols_existentes = [c for c in cron_dim if c in df_cron_source.columns]
 
-        df_cron_agg = filtered_df.groupby(cols_existentes, as_index=False).agg(
+        # 3. Agrupación con dropna=False para conservar todos los registros
+        df_cron_agg = df_cron_source.groupby(cols_existentes, as_index=False, dropna=False).agg(
             Total_D=('Total (D)', 'sum'),
-            Total_H=('Total (H)', 'sum')
+            Total_H=('Total (H)', 'sum'),
+            Fecha_Orden=('Fecha_Diaria', 'min')
         )
 
-        # Filtramos los que tengan impacto en días u horas
+        # 4. Filtrar registros con días u horas computadas
         df_cron_agg = df_cron_agg[(df_cron_agg['Total_D'] > 0) | (df_cron_agg['Total_H'] > 0)].copy()
 
         if not df_cron_agg.empty:
-            mapa_meses_full = {
-                1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun',
-                7: 'jul', 8: 'ago', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dic'
-            }
-
-            def format_date_str(d):
-                if pd.isna(d): return "-"
-                return f"{d.day} {mapa_meses_full.get(d.month, '')} {d.year}"
-
-            # Formateo de fechas visibles
-            df_cron_agg['Desde (D)'] = df_cron_agg['Fecha_Diaria'].apply(format_date_str)
-            df_cron_agg['Hasta (D)'] = df_cron_agg['Fecha_Hasta_D'].apply(format_date_str)
-            df_cron_agg['Desde (H)'] = df_cron_agg['Desde_H_Str'].fillna("-") if 'Desde_H_Str' in df_cron_agg.columns else "-"
-            df_cron_agg['Hasta (H)'] = df_cron_agg['Hora_Fin_Label'].fillna("-") if 'Hora_Fin_Label' in df_cron_agg.columns else "-"
-
-            # Orden idéntico a Looker: Total (D) descendente, luego fecha de inicio
+            # 5. Orden idéntico a Looker: Total (D) descendente, luego fecha de inicio
             df_cron_final = df_cron_agg.sort_values(
-                by=['Total_D', 'Fecha_Diaria'], 
+                by=['Total_D', 'Fecha_Orden'], 
                 ascending=[False, True]
             ).reset_index(drop=True)
 
