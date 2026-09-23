@@ -112,7 +112,6 @@ def load_and_process_data(uploaded_file):
 
         if 'Hasta (D)' in df_au.columns:
             df_au['Fecha_Hasta_D'] = pd.to_datetime(df_au['Hasta (D)'], errors='coerce')
-            # Si no tiene fecha hasta pero sí fecha desde, asignamos la misma fecha desde
             df_au['Fecha_Hasta_D'] = df_au['Fecha_Hasta_D'].fillna(df_au['Fecha_Diaria'])
             df_au['Hasta_Dias_Str'] = df_au['Fecha_Hasta_D'].dt.strftime('%d/%m/%Y')
         else:
@@ -248,6 +247,11 @@ if uploaded_file is not None:
 
     periodos_ordenados = df_au.sort_values('Periodo_DT')['Periodo_Label'].dropna().unique().tolist()
 
+    # Preselección estándar idéntica a Looker (Ene a Jul)
+    meses_looker_def = [p for p in periodos_ordenados if not p.lower().startswith('ago')]
+    if not meses_looker_def:
+        meses_looker_def = periodos_ordenados
+
     def get_combined_options(col_name):
         if col_name == 'Rango_Horario':
             presentes = set(df_au['Rango_Horario'].unique())
@@ -276,8 +280,10 @@ if uploaded_file is not None:
     horas_desde_h_sorted = sorted([h for h in df_au['Desde_H_Str'].dropna().unique() if h not in ['None', 'nan']])
     horas_hasta_h_sorted = sorted([h for h in df_au['Hora_Fin_Label'].dropna().unique() if h not in ['None', 'nan']])
 
-    if 'au_selections_v8' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
-        st.session_state.au_selections_v8 = {k: list(v) for k, v in all_possible_options.items()}
+    # Inicialización sincronizada con Looker
+    if 'au_selections_v9' not in st.session_state or st.sidebar.button("🔄 Resetear Filtros", use_container_width=True):
+        st.session_state.au_selections_v9 = {k: list(v) for k, v in all_possible_options.items()}
+        st.session_state.au_selections_v9['Periodo_Label'] = list(meses_looker_def)
         st.session_state.au_sel_legajo = []
         st.session_state.au_sel_desde_d = []
         st.session_state.au_sel_hasta_d = []
@@ -291,15 +297,15 @@ if uploaded_file is not None:
     # Filtrado de variables generales
     for col, label in filter_dict.items():
         opts = all_possible_options[col]
-        current_defaults = [x for x in st.session_state.au_selections_v8.get(col, opts) if x in opts]
+        current_defaults = [x for x in st.session_state.au_selections_v9.get(col, opts) if x in opts]
         
         sel = st.sidebar.multiselect(
             label, 
             options=opts, 
             default=current_defaults, 
-            key=f"sel_v8_{col}"
+            key=f"sel_v9_{col}"
         )
-        st.session_state.au_selections_v8[col] = sel
+        st.session_state.au_selections_v9[col] = sel
 
         if len(sel) == 0:
             filtered_df = filtered_df.iloc[0:0]
@@ -321,7 +327,7 @@ if uploaded_file is not None:
         options=fechas_desde_d_sorted,
         default=st.session_state.get('au_sel_desde_d', []),
         help="Deje vacío para incluir todas las fechas de inicio, o elija una o más puntuales.",
-        key="sel_v8_desde_d"
+        key="sel_v9_desde_d"
     )
     st.session_state.au_sel_desde_d = sel_desde_d
     if len(sel_desde_d) > 0:
@@ -333,7 +339,7 @@ if uploaded_file is not None:
         options=fechas_hasta_d_sorted,
         default=st.session_state.get('au_sel_hasta_d', []),
         help="Deje vacío para incluir todas las fechas de fin, o elija una o más puntuales.",
-        key="sel_v8_hasta_d"
+        key="sel_v9_hasta_d"
     )
     st.session_state.au_sel_hasta_d = sel_hasta_d
     if len(sel_hasta_d) > 0:
@@ -345,7 +351,7 @@ if uploaded_file is not None:
         options=horas_desde_h_sorted,
         default=st.session_state.get('au_sel_desde_h', []),
         help="Deje vacío para todos los horarios de inicio, o elija franjas específicas.",
-        key="sel_v8_desde_h"
+        key="sel_v9_desde_h"
     )
     st.session_state.au_sel_desde_h = sel_desde_h
     if len(sel_desde_h) > 0:
@@ -357,7 +363,7 @@ if uploaded_file is not None:
         options=horas_hasta_h_sorted,
         default=st.session_state.get('au_sel_hasta_h', []),
         help="Deje vacío para todos los horarios de fin, o elija franjas específicas.",
-        key="sel_v8_hasta_h"
+        key="sel_v9_hasta_h"
     )
     st.session_state.au_sel_hasta_h = sel_hasta_h
     if len(sel_hasta_h) > 0:
@@ -369,7 +375,7 @@ if uploaded_file is not None:
         options=opts_legajos,
         default=st.session_state.get('au_sel_legajo', []),
         help="Deje vacío para incluir a todos los colaboradores, o seleccione agentes puntuales.",
-        key="sel_v8_legajo"
+        key="sel_v9_legajo"
     )
     st.session_state.au_sel_legajo = sel_legajo
     if len(sel_legajo) > 0:
@@ -378,7 +384,7 @@ if uploaded_file is not None:
             filtered_dot = filtered_dot[filtered_dot['Legajo'].isin(sel_legajo)]
 
     # Validaciones de filtros
-    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v8.get('Periodo_Label', [])]
+    sel_periodos = [p for p in periodos_ordenados if p in st.session_state.au_selections_v9.get('Periodo_Label', [])]
 
     if not sel_periodos:
         st.warning("⚠️ No hay ningún período seleccionado en el filtro **Período**. Seleccione al menos un mes en la barra lateral.")
@@ -1357,31 +1363,27 @@ if uploaded_file is not None:
 
         df_cron_source = filtered_df.copy()
         
-        # 1. Normalizar nulos antes de agrupar para evitar la eliminación de licencias
+        # Normalizar textos y nulos antes de agrupar para evitar pérdidas de registros
         df_cron_source['Desde (D)'] = df_cron_source['Fecha_Diaria'].apply(format_date_str)
         df_cron_source['Hasta (D)'] = df_cron_source['Fecha_Hasta_D'].apply(format_date_str)
         df_cron_source['Desde (H)'] = df_cron_source['Desde_H_Str'].fillna("-") if 'Desde_H_Str' in df_cron_source.columns else "-"
         df_cron_source['Hasta (H)'] = df_cron_source['Hora_Fin_Label'].fillna("-") if 'Hora_Fin_Label' in df_cron_source.columns else "-"
 
-        # 2. Dimensiones idénticas a Looker Studio
         cron_dim = [
             'Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia',
             'Desde (D)', 'Hasta (D)', 'Desde (H)', 'Hasta (H)'
         ]
         cols_existentes = [c for c in cron_dim if c in df_cron_source.columns]
 
-        # 3. Agrupación con dropna=False para conservar todos los registros
         df_cron_agg = df_cron_source.groupby(cols_existentes, as_index=False, dropna=False).agg(
             Total_D=('Total (D)', 'sum'),
             Total_H=('Total (H)', 'sum'),
             Fecha_Orden=('Fecha_Diaria', 'min')
         )
 
-        # 4. Filtrar registros con días u horas computadas
         df_cron_agg = df_cron_agg[(df_cron_agg['Total_D'] > 0) | (df_cron_agg['Total_H'] > 0)].copy()
 
         if not df_cron_agg.empty:
-            # 5. Orden idéntico a Looker: Total (D) descendente, luego fecha de inicio
             df_cron_final = df_cron_agg.sort_values(
                 by=['Total_D', 'Fecha_Orden'], 
                 ascending=[False, True]
@@ -1416,7 +1418,6 @@ if uploaded_file is not None:
         st.subheader("Cronograma Visual de Licencias (Diagrama de Gantt)")
         st.write("Visualización cronológica de todas las ausencias por agente ordenada estrictamente por fecha de inicio.")
 
-        # Tomamos todos los registros con fecha válida (Licencias y Novedades como PRP)
         df_gantt_base = filtered_df[
             (filtered_df['Fecha_Diaria'].notna()) & 
             (filtered_df['Fecha_Hasta_D'].notna())
@@ -1425,13 +1426,10 @@ if uploaded_file is not None:
         if not df_gantt_base.empty:
             df_gantt_base = df_gantt_base[df_gantt_base['Fecha_Hasta_D'] >= df_gantt_base['Fecha_Diaria']]
             
-            # Orden cronológico estricto por Fecha de Inicio
             df_gantt_sorted = df_gantt_base.sort_values(by=['Fecha_Diaria', 'Fecha_Hasta_D'], ascending=[True, True]).reset_index(drop=True)
 
-            # Para que las licencias o permisos de 1 solo día no tengan ancho 0, extendemos 24hs
             df_gantt_sorted['Fecha_Grafico_Fin'] = df_gantt_sorted['Fecha_Hasta_D'] + pd.Timedelta(days=1)
 
-            # Etiqueta visible idéntica a Looker
             def make_event_label_clean(row):
                 lic = str(row['Licencia']).strip()
                 lic_clean = ' - '.join([part.strip() for part in lic.split('-')])
@@ -1442,7 +1440,6 @@ if uploaded_file is not None:
             # Identificador único de fila para que Plotly no agrupe eventos repetidos del mismo agente
             df_gantt_sorted['ID_Renglon'] = [f"{lbl}\u200b" * (i % 5) + f" ({i+1})" for i, lbl in enumerate(df_gantt_sorted['Label_Visible'])]
 
-            # Controles
             cant_max_disponible = len(df_gantt_sorted)
             cant_mostrar = st.slider(
                 "Cantidad de registros a mostrar:",
@@ -1478,7 +1475,6 @@ if uploaded_file is not None:
                     }
                 )
 
-                # Mapeamos los textos visibles en el eje Y
                 fig_gantt.update_yaxes(
                     categoryorder="array",
                     categoryarray=orden_renglones_cronologico,
