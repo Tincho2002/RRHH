@@ -1344,37 +1344,46 @@ if uploaded_file is not None:
     # =========================================================================
     with tab_cronologia:
         st.subheader("Cronología por Tipo y por Licencia")
-        st.write("Detalle individual consolidado de agentes con mayores días y horas de ausencia acumulados.")
-        
-        cron_cols_group = ['Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia']
-        cron_agg = filtered_df.groupby(cron_cols_group, as_index=False).agg(
-            Desde_D=('Fecha_Diaria', 'min'),
-            Hasta_D=('Fecha_Hasta_D', 'max'),
-            Desde_H=('Desde_H_Str', 'first'),
-            Hasta_H=('Hora_Fin_Label', 'first'),
-            Total_D=('Total (D)', 'sum'),
-            Total_H=('Total (H)', 'sum')
-        ).sort_values(by='Total_D', ascending=False).reset_index(drop=True)
-        
-        if not cron_agg.empty:
-            mapa_meses_full = {1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun', 7: 'jul', 8: 'ago', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dic'}
+        st.write("Detalle de episodios de ausencia y licencias ordenados por volumen de días caídos.")
+
+        # Tomamos los registros de ausencias con fecha válida
+        df_cron_source = filtered_df[
+            (filtered_df['Total (D)'] > 0) | (filtered_df['Total (H)'] > 0)
+        ].copy()
+
+        if not df_cron_source.empty:
+            mapa_meses_full = {
+                1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun',
+                7: 'jul', 8: 'ago', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dic'
+            }
+
             def format_date_str(d):
                 if pd.isna(d): return "-"
                 return f"{d.day} {mapa_meses_full.get(d.month, '')} {d.year}"
-            
-            cron_agg['Desde (D)'] = cron_agg['Desde_D'].apply(format_date_str)
-            cron_agg['Hasta (D)'] = cron_agg['Hasta_D'].apply(format_date_str)
-            cron_agg['Desde (H)'] = cron_agg['Desde_H'].fillna("-")
-            cron_agg['Hasta (H)'] = cron_agg['Hasta_H'].fillna("-")
 
-            cron_display = cron_agg[[
+            # Formateo de fechas y horas
+            df_cron_source['Desde (D)'] = df_cron_source['Fecha_Diaria'].apply(format_date_str)
+            df_cron_source['Hasta (D)'] = df_cron_source['Fecha_Hasta_D'].apply(format_date_str)
+            df_cron_source['Desde (H)'] = df_cron_source['Desde_H_Str'].fillna("-")
+            df_cron_source['Hasta (H)'] = df_cron_source['Hora_Fin_Label'].fillna("-")
+
+            # Orden descendente por Total (D) idéntico a Looker
+            df_cron_sorted = df_cron_source.sort_values(
+                by=['Total (D)', 'Fecha_Diaria'], 
+                ascending=[False, True]
+            ).reset_index(drop=True)
+
+            cols_crono_show = [
                 'Legajo', 'Apellido y Nombre', 'Tipo', 'Licencia',
                 'Desde (D)', 'Hasta (D)', 'Desde (H)', 'Hasta (H)',
-                'Total_D', 'Total_H'
-            ]].rename(columns={'Total_D': 'Total (D)', 'Total_H': 'Total (H)'})
+                'Total (D)', 'Total (H)'
+            ]
+            
+            # Eliminamos duplicados idénticos si existiesen en la fuente
+            df_cron_final = df_cron_sorted[cols_crono_show].drop_duplicates().reset_index(drop=True)
 
             st.dataframe(
-                cron_display.style.format({
+                df_cron_final.style.format({
                     'Total (D)': lambda x: format_integer_es(x) if x > 0 else "-",
                     'Total (H)': lambda x: format_decimal_es(x, 1) if (x > 0 and x % 1 != 0) else (format_integer_es(x) if x > 0 else "-")
                 }),
@@ -1382,7 +1391,7 @@ if uploaded_file is not None:
                 height=550,
                 hide_index=True
             )
-            generate_download_buttons(cron_display, "cronologia_licencias_agentes", key_suffix="_cron")
+            generate_download_buttons(df_cron_final, "cronologia_licencias_agentes", key_suffix="_cron")
         else:
             st.info("No hay registros cronológicos para los filtros seleccionados.")
 
